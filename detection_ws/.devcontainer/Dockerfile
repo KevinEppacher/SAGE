@@ -1,20 +1,21 @@
+# === Stage 1: CUDA 12.1 base with runtime ===
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04 as cuda
+
+# === Stage 2: ROS2 Humble with CUDA 12.1 copied in ===
 FROM osrf/ros:humble-desktop-full
 
-# Install CUDA dependencies (without full CUDA toolkit)
-RUN apt-get update && apt-get install -y \
-    nvidia-cuda-toolkit
+# Copy CUDA runtime libs from the previous stage
+COPY --from=cuda /usr/local/cuda-12.1 /usr/local/cuda-12.1
 
-# Ensure NVIDIA libraries are correctly linked
-ENV NVIDIA_VISIBLE_DEVICES all
-ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
-ENV NVIDIA_REQUIRE_CUDA "cuda>=11.3"
+# Set CUDA env explicitly to use 12.1 (even if host has 11.3)
+ENV CUDA_HOME=/usr/local/cuda-12.1
+ENV PATH=$CUDA_HOME/bin:$PATH
+ENV LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+ENV NVIDIA_REQUIRE_CUDA="cuda>=12.1"
 
-# Set up CUDA paths (if not automatically set)
-ENV PATH /usr/local/cuda/bin:${PATH}
-ENV LD_LIBRARY_PATH /usr/local/cuda/lib64:${LD_LIBRARY_PATH}
-
-# Add ubuntu user with same UID and GID as your host system, if it doesn't already exist
-# Since Ubuntu 24.04, a non-root user is created by default with the name vscode and UID=1000
+# Add ubuntu user with same UID/GID as host
 ARG USERNAME=ubuntu
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
@@ -22,34 +23,27 @@ RUN if ! id -u $USER_UID >/dev/null 2>&1; then \
         groupadd --gid $USER_GID $USERNAME && \
         useradd -s /bin/bash --uid $USER_UID --gid $USER_GID -m $USERNAME; \
     fi
-# Add sudo support for the non-root user
+
+# Add sudo support
 RUN apt-get update && \
     apt-get install -y sudo && \
     echo "$USERNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME && \
     chmod 0440 /etc/sudoers.d/$USERNAME
 
-# Switch from root to user
+# Switch to non-root user
 USER $USERNAME
 
-# Add user to video group to allow access to webcam
+# Optional: Webcam support (remove if not needed)
 RUN sudo usermod --append --groups video $USERNAME
 
-# Update all packages
+# Update packages
 RUN sudo apt update && sudo apt upgrade -y
 
-# Install Git
+# Git
 RUN sudo apt install -y git
 
-# Rosdep update
+# rosdep
 RUN rosdep update
 
-# Source the ROS setup file
+# Source ROS setup
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
-
-################################
-## ADD ANY CUSTOM SETUP BELOW ##
-################################
-
-
-# Update all packages
-RUN sudo apt update && sudo apt upgrade -y
