@@ -1,5 +1,5 @@
 # === Stage 1: CUDA 12.1 base with runtime ===
-FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04 as cuda
+FROM nvidia/cuda:12.1.1-devel-ubuntu22.04 AS cuda
 
 # === Stage 2: ROS2 Humble with CUDA 12.1 copied in ===
 FROM osrf/ros:humble-desktop-full
@@ -39,11 +39,27 @@ RUN sudo usermod --append --groups video $USERNAME
 # Update packages
 RUN sudo apt update && sudo apt upgrade -y
 
+########################################################
+# Custom installations
+########################################################
+
 # Git
 RUN sudo apt install -y git
 
-# rosdep
-RUN rosdep update
+RUN sudo apt update && sudo apt install -y \
+    python3-pip \
+    ffmpeg
+
+WORKDIR /app
+COPY src/Segment-Everything-Everywhere-All-At-Once/assets/requirements \
+        src/Segment-Everything-Everywhere-All-At-Once/assets/requirements
+RUN pip install -r src/Segment-Everything-Everywhere-All-At-Once/assets/requirements/requirements.txt
+RUN pip install -r src/Segment-Everything-Everywhere-All-At-Once/assets/requirements/requirements_custom.txt
+RUN pip install openai-whisper
+
+########################################################
+# End Custom installations
+########################################################
 
 # Source ROS setup
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
