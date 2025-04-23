@@ -54,3 +54,10 @@ CATKIN_IGNORE
 
 # submodules
 /submodules
+
+# External repositories
+**/OpenFusion/
+**/Segment-Everything-Everywhere-All-At-Once/
+
+
+Segment-Everything-Everywhere-All-At-Once
