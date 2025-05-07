@@ -76,3 +76,12 @@ CATKIN_IGNORE
 *.sqlite3
 **/bag/
 
+# Ignore scannet files
+**/scannet_scene0010_01/
+**/scannet_scene0011_00/
+**/scene0010_01/
+**/scene0011_00/
+**/sample/
+
+# Ignore SEEM weights
+*.pt
