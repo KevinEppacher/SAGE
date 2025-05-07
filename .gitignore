@@ -59,5 +59,20 @@ CATKIN_IGNORE
 **/OpenFusion/
 **/Segment-Everything-Everywhere-All-At-Once/
 
+/.temp/
 
-Segment-Everything-Everywhere-All-At-Once
+# Exclude matterport_download file
+**/matterport_download.py
+**/matterport_download_2.py
+
+# Exclude Matterport3D dataset
+**/matterport_data/
+
+# Rosbag2 files
+*.db3
+*.zstd
+*.mcap
+*.metadata.yaml
+*.sqlite3
+**/bag/
+

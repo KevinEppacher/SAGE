@@ -50,6 +50,7 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 ## ADD ANY CUSTOM SETUP BELOW ##
 ################################
 
+RUN sudo apt install ros-humble-slam-toolbox
 
 # # Install python3-pip
 # RUN apt-get update && apt-get install -y \
@@ -57,6 +58,10 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 
 # # Install colcon with pip
 # RUN pip install -U colcon-clean
+
+########################################################
+# End Custom installations
+########################################################
 
 # Update all packages
 RUN sudo apt update && sudo apt upgrade -y
