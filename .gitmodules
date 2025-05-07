@@ -1,6 +1,6 @@
 [submodule "IsaacLab"]
 	path = IsaacLab
-	url = https://github.com/isaac-sim/IsaacLab.git
+	url = https://github.com/KevinEppacher/IsaacLab.git
 [submodule "explorer_ws/src/slam_toolbox"]
 	path = explorer_ws/src/slam_toolbox
 	url = https://github.com/SteveMacenski/slam_toolbox.git
