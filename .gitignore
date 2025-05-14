@@ -85,3 +85,5 @@ CATKIN_IGNORE
 
 # Ignore SEEM weights
 *.pt
+
+**/core
