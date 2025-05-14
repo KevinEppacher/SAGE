@@ -50,7 +50,8 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 ## ADD ANY CUSTOM SETUP BELOW ##
 ################################
 
-RUN sudo apt install ros-humble-slam-toolbox
+RUN sudo apt install -y ros-humble-slam-toolbox \
+    sudo apt install -y libceres-dev
 
 # # Install python3-pip
 # RUN apt-get update && apt-get install -y \
