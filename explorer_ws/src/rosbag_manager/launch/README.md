@@ -34,7 +34,7 @@ ros2 launch slam_toolbox online_async_launch.py
 ## Play data with argumenet of bag path, rate and loop
 ```bash
 ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=/app/src/rosbag_manager/bag/bag_2025-05-07_10-14-34_HaxA7YrQdEC   rate:=1.0   loop:=true
-ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=src/rosbag_manager/bag/bag_2025-05-20_19-00-55_HaxA7YrQdEC_pointcloud  rate:=1.0   loop:=true
+ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=src/rosbag_manager/bag/bag_2025-05-20_19-00-55_HaxA7YrQdEC_pointcloud  rate:=3.0   loop:=true
 
 ```
 
