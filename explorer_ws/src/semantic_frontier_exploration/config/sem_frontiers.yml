@@ -1,0 +1,3 @@
+semantic_frontier_exploration_node:
+  ros__parameters:
+    publish_frequency: 10.0  # Hz
