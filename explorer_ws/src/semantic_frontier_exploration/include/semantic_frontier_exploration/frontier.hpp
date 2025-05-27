@@ -10,9 +10,18 @@ public:
     Frontier(rclcpp::Node* node);  // Pass pointer to node
     ~Frontier();
 
+    void addPoint(const geometry_msgs::msg::Point& point);
+    void setCentroid(const geometry_msgs::msg::Point& centroid);
+    void setScore(double score);
+    void setDistanceToRobot(double distance);
+    geometry_msgs::msg::Point getPointAt(int index) const;
+    geometry_msgs::msg::Point getCentroid() const;
+    double getScore() const;
+    double getDistanceToRobot() const;
+    frontier_msgs::msg::Frontier getFrontier() const;
+
 private:
-    rclcpp::Node* node_;  // Node handle
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
+    rclcpp::Node* node;  // Node handle
     frontier_msgs::msg::Frontier frontier;
 };
 
