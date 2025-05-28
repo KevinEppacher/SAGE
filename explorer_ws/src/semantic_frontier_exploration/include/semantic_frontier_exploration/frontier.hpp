@@ -4,10 +4,11 @@
 #include <rclcpp/rclcpp.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include "frontier_msgs/msg/frontier.hpp"
+#include <geometry_msgs/msg/point.hpp>
 
 class Frontier {
 public:
-    Frontier(rclcpp::Node* node);  // Pass pointer to node
+    Frontier(rclcpp::Node* node);
     ~Frontier();
 
     void addPoint(const geometry_msgs::msg::Point& point);
@@ -21,7 +22,12 @@ public:
     frontier_msgs::msg::Frontier getFrontier() const;
 
 private:
-    rclcpp::Node* node;  // Node handle
+    // Markers
+    void publishPoints();
+    void publishCentroid();
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr markerPub;
+
+    rclcpp::Node* node;
     frontier_msgs::msg::Frontier frontier;
 };
 

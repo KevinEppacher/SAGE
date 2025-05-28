@@ -9,6 +9,7 @@
 #include <chrono>
 #include <opencv2/opencv.hpp>
 #include "frontier.hpp"
+#include "geometry_msgs/msg/point.hpp"
 
 class SemanticFrontier : public rclcpp::Node {
 public:
