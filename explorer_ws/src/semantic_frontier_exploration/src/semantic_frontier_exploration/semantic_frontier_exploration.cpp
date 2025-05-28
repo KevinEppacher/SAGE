@@ -91,11 +91,29 @@ void SemanticFrontier::getParameters()
 
 void SemanticFrontier::timerCallback()
 {
-    if(occGrid.get() == nullptr) {
+    if(occGrid.get() == nullptr) 
+    {
         RCLCPP_WARN(this->get_logger(), "Occupancy grid is not available yet.");
         return;
     }
 
-    RCLCPP_INFO(this->get_logger(), "Timer callback triggered. Occupancy grid size: %zu", occGrid->data.size());
     visualizeOccupancyGrid(occGrid);
+
+    geometry_msgs::msg::Point point;
+    point.x = 1.0;
+    point.y = 0.0;
+    point.z = 0.0;
+    frontier->addPoint(point);
+    point.x = 2.0;
+    point.y = 0.0;
+    point.z = 0.0;
+    frontier->addPoint(point);
+    point.x = 3.0;
+    point.y = 0.0;
+    point.z = 0.0;
+    frontier->addPoint(point);
+    point.x = 1.5;
+    point.y = 0.0;
+    point.z = 0.0;
+    frontier->setCentroid(point);
 }

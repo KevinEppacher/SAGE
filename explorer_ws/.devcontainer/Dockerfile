@@ -53,6 +53,15 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 RUN sudo apt install -y ros-humble-slam-toolbox && \
     sudo apt install -y libceres-dev
 
+RUN sudo apt install -y \
+    ros-humble-navigation2 \
+    ros-humble-nav2-bringup \
+    ros-humble-nav2-costmap-2d
+
+RUN sudo apt install -y \
+    ros-humble-rviz2 \
+    ros-humble-tf2-tools
+    
 # # Install python3-pip
 # RUN apt-get update && apt-get install -y \
 #     python3-pip

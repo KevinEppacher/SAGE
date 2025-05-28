@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(semantic_frontier_exploration)
+project(nav2_bringup)
 
 # Set CMake policy for modern find_package behavior
 cmake_policy(SET CMP0074 NEW)
@@ -16,19 +16,7 @@ endif()
 # Core build system for ROS 2
 find_package(ament_cmake REQUIRED)
 
-# ROS 2 packages
-find_package(rclcpp REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(visualization_msgs REQUIRED)
-find_package(std_msgs REQUIRED)
-find_package(nav_msgs REQUIRED)
-find_package(OpenCV REQUIRED)
-find_package(frontier_msgs REQUIRED)
-find_package(nav2_costmap_2d REQUIRED)
-find_package(rclcpp_components REQUIRED)
 
-# Point Cloud Library (PCL) components
-find_package(PCL REQUIRED COMPONENTS common io filters segmentation search)
 
 ############################################################
 # Include Directories
@@ -36,72 +24,19 @@ find_package(PCL REQUIRED COMPONENTS common io filters segmentation search)
 
 include_directories(
   include                           # Local headers
-  include/semantic_frontier_exploration
+  include/nav2_bringup
 )
 
 #####################################################################
 #                        Declare Executables                        #
 #####################################################################
 
-# Main clustering node
-add_executable(semantic_frontier_exploration_node
-  src/main.cpp
-  src/semantic_frontier_exploration/semantic_frontier_exploration.cpp
-  src/semantic_frontier_exploration/frontier.cpp
-)
 
-# Link ROS 2 dependencies
-ament_target_dependencies(semantic_frontier_exploration_node
-  rclcpp
-  sensor_msgs
-  visualization_msgs
-  std_msgs
-  nav_msgs
-  frontier_msgs
-)
-
-# Link OpenCV
-target_link_libraries(semantic_frontier_exploration_node ${OpenCV_LIBS})
-include_directories(${OpenCV_INCLUDE_DIRS})
-
-# Define PCL macros (if any)
-target_compile_definitions(semantic_frontier_exploration_node PUBLIC ${PCL_DEFINITIONS})
-
-# Use C++17 standard
-target_compile_features(semantic_frontier_exploration_node PUBLIC cxx_std_17)
-
-#####################################################################
-
-add_executable(costmap_publisher_node 
-  src/costmap.cpp
-)
-
-ament_target_dependencies(costmap_publisher_node 
-  rclcpp 
-  nav_msgs
-  nav2_costmap_2d
-  tf2_ros
-)
-
-install(TARGETS costmap_publisher_node DESTINATION lib/${PROJECT_NAME})
-
-
-rclcpp_components_register_nodes(${PROJECT_NAME}
-  "CostmapPublisher"
-)
-
-target_link_libraries(costmap_publisher_node
-  ${dependencies}
-)
 
 #####################################################################
 #                           Installation                            #
 #####################################################################
 
-# Install the node binary into the ROS 2 lib directory
-install(TARGETS semantic_frontier_exploration_node
-  DESTINATION lib/${PROJECT_NAME}
-)
 
 #####################################################################
 #                      Linting and Testing                          #
