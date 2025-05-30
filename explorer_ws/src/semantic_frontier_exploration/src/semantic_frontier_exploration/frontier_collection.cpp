@@ -21,6 +21,59 @@ FrontierCollection::~FrontierCollection()
 
 }
 
+void FrontierCollection::getParameters()
+{
+    node->declare_parameter("min_cluster_size", 5);
+    node->declare_parameter("max_cluster_size", 150);
+
+    node->get_parameter("min_cluster_size", minClusterSize);
+    node->get_parameter("max_cluster_size", maxClusterSize);
+
+    RCLCPP_INFO(node->get_logger(), "Loaded parameters:");
+    for (const auto &name : node->list_parameters({}, 10).names)
+    {
+        auto param = node->get_parameter(name);
+        switch (param.get_type())
+        {
+            case rclcpp::ParameterType::PARAMETER_DOUBLE:
+                RCLCPP_INFO(node->get_logger(), " - %s: %f", name.c_str(), param.as_double());
+                break;
+            case rclcpp::ParameterType::PARAMETER_INTEGER:
+                RCLCPP_INFO(node->get_logger(), " - %s: %ld", name.c_str(), param.as_int());
+                break;
+            case rclcpp::ParameterType::PARAMETER_STRING:
+                RCLCPP_INFO(node->get_logger(), " - %s: %s", name.c_str(), param.as_string().c_str());
+                break;
+            case rclcpp::ParameterType::PARAMETER_BOOL:
+                RCLCPP_INFO(node->get_logger(), " - %s: %s", name.c_str(), param.as_bool() ? "true" : "false");
+                break;
+            default:
+                RCLCPP_INFO(node->get_logger(), " - %s: [unsupported type]", name.c_str());
+                break;
+        }
+    }
+}
+
+rcl_interfaces::msg::SetParametersResult FrontierCollection::onParameterChange(const std::vector<rclcpp::Parameter> &params)
+{
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+    result.reason = "Parameters updated";
+
+    for (const auto &param : params)
+    {
+        if (param.get_name() == "min_cluster_size") {
+            minClusterSize = param.as_int();
+            RCLCPP_INFO(node->get_logger(), "Updated min_cluster_size to %d", minClusterSize);
+        } else if (param.get_name() == "max_cluster_size") {
+            maxClusterSize = param.as_int();
+            RCLCPP_INFO(node->get_logger(), "Updated max_cluster_size to %d", maxClusterSize);
+        }
+    }
+
+    return result;
+}
+
 nav_msgs::msg::OccupancyGrid FrontierCollection::detectFrontierGrid(const nav_msgs::msg::OccupancyGrid::SharedPtr& grid)
 {
     nav_msgs::msg::OccupancyGrid frontierGrid;
@@ -147,8 +200,10 @@ std::vector<Frontier> FrontierCollection::clusterFrontierGrid(const nav_msgs::ms
             }
 
             // If the cluster is big enough, store it as a Frontier
-            if (static_cast<int>(cluster.size()) >= minClusterSize)
+            if (static_cast<int>(cluster.size()) >= minClusterSize && 
+                static_cast<int>(cluster.size()) <= maxClusterSize)
             {
+                // Create a new Frontier object and set its properties
                 Frontier frontier(node);
                 geometry_msgs::msg::Point centroid;
                 for (const auto& point : cluster)
@@ -167,69 +222,6 @@ std::vector<Frontier> FrontierCollection::clusterFrontierGrid(const nav_msgs::ms
     }
 
     return clusteredFrontiers;
-}
-
-void FrontierCollection::getParameters()
-{
-    node->declare_parameter("cluster_tolerance", 0.15);
-    node->declare_parameter("min_cluster_size", 50);
-    node->declare_parameter("max_cluster_size", 25000);
-    node->declare_parameter("voxel_leaf_size", 0.03);
-
-    node->get_parameter("cluster_tolerance", clusterTolerance);
-    node->get_parameter("min_cluster_size", minClusterSize);
-    node->get_parameter("max_cluster_size", maxClusterSize);
-    node->get_parameter("voxel_leaf_size", voxelLeafSize); 
-
-    RCLCPP_INFO(node->get_logger(), "Loaded parameters:");
-    for (const auto &name : node->list_parameters({}, 10).names)
-    {
-        auto param = node->get_parameter(name);
-        switch (param.get_type())
-        {
-            case rclcpp::ParameterType::PARAMETER_DOUBLE:
-                RCLCPP_INFO(node->get_logger(), " - %s: %f", name.c_str(), param.as_double());
-                break;
-            case rclcpp::ParameterType::PARAMETER_INTEGER:
-                RCLCPP_INFO(node->get_logger(), " - %s: %ld", name.c_str(), param.as_int());
-                break;
-            case rclcpp::ParameterType::PARAMETER_STRING:
-                RCLCPP_INFO(node->get_logger(), " - %s: %s", name.c_str(), param.as_string().c_str());
-                break;
-            case rclcpp::ParameterType::PARAMETER_BOOL:
-                RCLCPP_INFO(node->get_logger(), " - %s: %s", name.c_str(), param.as_bool() ? "true" : "false");
-                break;
-            default:
-                RCLCPP_INFO(node->get_logger(), " - %s: [unsupported type]", name.c_str());
-                break;
-        }
-    }
-}
-
-rcl_interfaces::msg::SetParametersResult FrontierCollection::onParameterChange(const std::vector<rclcpp::Parameter> &params)
-{
-    rcl_interfaces::msg::SetParametersResult result;
-    result.successful = true;
-    result.reason = "Parameters updated";
-
-    for (const auto &param : params)
-    {
-        if (param.get_name() == "cluster_tolerance") {
-            clusterTolerance = param.as_double();
-            RCLCPP_INFO(node->get_logger(), "Updated cluster_tolerance to %.2f", clusterTolerance);
-        } else if (param.get_name() == "min_cluster_size") {
-            minClusterSize = param.as_int();
-            RCLCPP_INFO(node->get_logger(), "Updated min_cluster_size to %d", minClusterSize);
-        } else if (param.get_name() == "max_cluster_size") {
-            maxClusterSize = param.as_int();
-            RCLCPP_INFO(node->get_logger(), "Updated max_cluster_size to %d", maxClusterSize);
-        } else if (param.get_name() == "voxel_leaf_size") {
-            voxelLeafSize = param.as_double();
-            RCLCPP_INFO(node->get_logger(), "Updated voxel_leaf_size to %.2f", voxelLeafSize);
-        }
-    }
-
-    return result;
 }
 
 void FrontierCollection::publishFrontiers(const std::vector<Frontier>& frontiers)

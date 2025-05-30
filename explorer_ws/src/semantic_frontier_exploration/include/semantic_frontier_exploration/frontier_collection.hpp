@@ -42,17 +42,12 @@ private:
     
     void getParameters();
 
-    /// \brief Euclidean clustering tolerance (in meters)
-    double clusterTolerance;
 
     /// \brief Minimum cluster size (in points)
     int minClusterSize;
 
     /// \brief Maximum cluster size (in points)
     int maxClusterSize;
-
-    /// \brief Leaf size for voxel grid filter (in meters)
-    double voxelLeafSize;
 
     std::shared_ptr<Frontier> frontier;
     rclcpp::Node* node;
