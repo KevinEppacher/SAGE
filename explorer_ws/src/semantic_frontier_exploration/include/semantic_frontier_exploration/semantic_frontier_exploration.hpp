@@ -10,6 +10,7 @@
 #include <opencv2/opencv.hpp>
 #include "frontier.hpp"
 #include "geometry_msgs/msg/point.hpp"
+#include "frontier_collection.hpp"
 
 class SemanticFrontier : public rclcpp::Node {
 public:
@@ -23,6 +24,14 @@ private:
     //************ Subscribers ************//
     void occupancyGridCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
 
+    /// \brief Callback for updating parameters dynamically
+    /// \param params Vector of changed parameters
+    /// \return SetParametersResult indicating success
+    rcl_interfaces::msg::SetParametersResult onParameterChange(const std::vector<rclcpp::Parameter> &params);
+
+    /// \brief Parameter callback handle (for dynamic reconfiguration)
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr paramCallbackHandle;
+
     //************ Publishers ************//
 
     //************ Timers ************//
@@ -33,7 +42,7 @@ private:
 
     //************ Member Variables ************//
     // Subscriber variables
-    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr occpancygridSub;
+    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr occupancygridSub;
 
     /// \brief Wall timer to trigger periodic processing
     rclcpp::TimerBase::SharedPtr timer;
@@ -42,8 +51,8 @@ private:
 
     // Class variables
     double publishFrequency;
-    std::shared_ptr<Frontier> frontier;
-
+    
+    std::shared_ptr<FrontierCollection> frontiers;
 
 };
 

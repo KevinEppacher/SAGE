@@ -5,6 +5,7 @@
 #include <visualization_msgs/msg/marker_array.hpp>
 #include "frontier_msgs/msg/frontier.hpp"
 #include <geometry_msgs/msg/point.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
 
 class Frontier {
 public:
@@ -20,6 +21,7 @@ public:
     double getScore() const;
     double getDistanceToRobot() const;
     frontier_msgs::msg::Frontier getFrontier() const;
+    void clearFrontier();
 
 private:
     // Markers

@@ -1,3 +1,7 @@
-semantic_frontier_exploration_node:
-  ros__parameters:
-    publish_frequency: 10.0  # Hz
+semantic_frontier_exploration:
+  semantic_frontier_exploration_node:
+    ros__parameters:
+      publish_frequency: 1.0  # Hz
+      cluster_tolerance: 2.0 # cm
+      min_cluster_size: 5
+      max_cluster_size: 25000
