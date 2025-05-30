@@ -24,8 +24,11 @@ find_package(std_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(frontier_msgs REQUIRED)
-find_package(nav2_costmap_2d REQUIRED)
-find_package(rclcpp_components REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(pcl_conversions REQUIRED)
+
+# find_package(nav2_costmap_2d REQUIRED)
+# find_package(rclcpp_components REQUIRED)
 
 # Point Cloud Library (PCL) components
 find_package(PCL REQUIRED COMPONENTS common io filters segmentation search)
@@ -45,9 +48,10 @@ include_directories(
 
 # Main clustering node
 add_executable(semantic_frontier_exploration_node
-  src/main.cpp
+  src/semantic_frontier_exploration_node.cpp
   src/semantic_frontier_exploration/semantic_frontier_exploration.cpp
   src/semantic_frontier_exploration/frontier.cpp
+  src/semantic_frontier_exploration/frontier_collection.cpp
 )
 
 # Link ROS 2 dependencies
@@ -58,6 +62,7 @@ ament_target_dependencies(semantic_frontier_exploration_node
   std_msgs
   nav_msgs
   frontier_msgs
+  pcl_conversions
 )
 
 # Link OpenCV
@@ -72,37 +77,42 @@ target_compile_features(semantic_frontier_exploration_node PUBLIC cxx_std_17)
 
 #####################################################################
 
-add_executable(costmap_publisher_node 
-  src/costmap.cpp
+# Main clustering node
+add_executable(costmap_node
+  src/costmap_node.cpp
+  src/semantic_frontier_exploration/costmap.cpp
 )
 
-ament_target_dependencies(costmap_publisher_node 
-  rclcpp 
+# Link ROS 2 dependencies
+ament_target_dependencies(costmap_node
+  rclcpp
+  sensor_msgs
+  visualization_msgs
+  std_msgs
   nav_msgs
-  nav2_costmap_2d
   tf2_ros
 )
 
-install(TARGETS costmap_publisher_node DESTINATION lib/${PROJECT_NAME})
+# Link OpenCV
+target_link_libraries(costmap_node ${OpenCV_LIBS})
+include_directories(${OpenCV_INCLUDE_DIRS})
 
+# Define PCL macros (if any)
+target_compile_definitions(costmap_node PUBLIC ${PCL_DEFINITIONS})
 
-rclcpp_components_register_nodes(${PROJECT_NAME}
-  "CostmapPublisher"
-)
-
-target_link_libraries(costmap_publisher_node
-  ${dependencies}
-)
+# Use C++17 standard
+target_compile_features(costmap_node PUBLIC cxx_std_17)
 
 #####################################################################
 #                           Installation                            #
 #####################################################################
 
 # Install the node binary into the ROS 2 lib directory
-install(TARGETS semantic_frontier_exploration_node
+install(TARGETS
+  semantic_frontier_exploration_node
+  costmap_node
   DESTINATION lib/${PROJECT_NAME}
 )
-
 #####################################################################
 #                      Linting and Testing                          #
 #####################################################################

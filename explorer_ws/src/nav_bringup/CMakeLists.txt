@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(nav2_bringup)
+project(nav_bringup)
 
 # Set CMake policy for modern find_package behavior
 cmake_policy(SET CMP0074 NEW)
@@ -24,7 +24,7 @@ find_package(ament_cmake REQUIRED)
 
 include_directories(
   include                           # Local headers
-  include/nav2_bringup
+  include/nav_bringup
 )
 
 #####################################################################

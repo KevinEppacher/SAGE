@@ -1,26 +1,5 @@
 #include "semantic_frontier_exploration.hpp"
 
-void visualizeOccupancyGrid(const nav_msgs::msg::OccupancyGrid::SharedPtr& grid, const std::string& window_name = "Occupancy Grid")
-{
-    if (!grid || grid->data.empty()) return;
-
-    int width = grid->info.width;
-    int height = grid->info.height;
-    cv::Mat image(height, width, CV_8UC1);
-
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            int i = x + (height - 1 - y) * width;
-            int val = grid->data[i];
-            uint8_t pixel = (val == 0) ? 255 : (val > 0) ? 0 : 127;
-            image.at<uchar>(y, x) = pixel;
-        }
-    }
-
-    cv::imshow(window_name, image);
-    cv::waitKey(1);
-}
-
 SemanticFrontier::SemanticFrontier() : Node("cluster_node") 
 {
     // Constructor implementation
@@ -28,9 +7,13 @@ SemanticFrontier::SemanticFrontier() : Node("cluster_node")
 
     getParameters();
 
+    paramCallbackHandle = this->add_on_set_parameters_callback(
+        std::bind(&SemanticFrontier::onParameterChange, this, std::placeholders::_1)
+    );
+
     // Define subscribers
-    occpancygridSub = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
-      "/local_costmap/costmap", 10,
+    occupancygridSub = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
+      "/map", 10,
       std::bind(&SemanticFrontier::occupancyGridCallback, this, std::placeholders::_1));
 
     // Define timers
@@ -41,7 +24,7 @@ SemanticFrontier::SemanticFrontier() : Node("cluster_node")
         std::bind(&SemanticFrontier::timerCallback, this)
     );
 
-    frontier = std::make_shared<Frontier>(this);
+    frontiers = std::make_shared<FrontierCollection>(this);
 
 }
 
@@ -59,10 +42,9 @@ void SemanticFrontier::occupancyGridCallback(const nav_msgs::msg::OccupancyGrid:
 
 void SemanticFrontier::getParameters()
 {
-    this->declare_parameter("publish_frequency", 10.0);
+    this->declare_parameter("publish_frequency", 1.0);
 
     this->get_parameter("publish_frequency", publishFrequency);
-
 
     RCLCPP_INFO(this->get_logger(), "Loaded parameters:");
     for (const auto &name : this->list_parameters({}, 10).names)
@@ -89,6 +71,23 @@ void SemanticFrontier::getParameters()
     }
 }
 
+rcl_interfaces::msg::SetParametersResult SemanticFrontier::onParameterChange(const std::vector<rclcpp::Parameter> &params)
+{
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+    result.reason = "Parameters updated";
+
+    for (const auto &param : params)
+    {
+        if (param.get_name() == "publish_frequency") {
+            publishFrequency = param.as_double();
+            RCLCPP_INFO(this->get_logger(), "Updated publish_frequency to %.2f", publishFrequency);
+        } 
+    }
+
+    return result;
+}
+
 void SemanticFrontier::timerCallback()
 {
     if(occGrid.get() == nullptr) 
@@ -97,23 +96,15 @@ void SemanticFrontier::timerCallback()
         return;
     }
 
-    visualizeOccupancyGrid(occGrid);
+    // Process the occupancy grid and detect all frontiers/points
+    nav_msgs::msg::OccupancyGrid frontierGrid = frontiers->detectFrontierGrid(occGrid);
 
-    geometry_msgs::msg::Point point;
-    point.x = 1.0;
-    point.y = 0.0;
-    point.z = 0.0;
-    frontier->addPoint(point);
-    point.x = 2.0;
-    point.y = 0.0;
-    point.z = 0.0;
-    frontier->addPoint(point);
-    point.x = 3.0;
-    point.y = 0.0;
-    point.z = 0.0;
-    frontier->addPoint(point);
-    point.x = 1.5;
-    point.y = 0.0;
-    point.z = 0.0;
-    frontier->setCentroid(point);
+    auto frontierGridPtr = std::make_shared<nav_msgs::msg::OccupancyGrid>(frontierGrid);
+    std::vector<Frontier> clusteredFrontiers = frontiers->clusterFrontierGrid(frontierGridPtr);
+
+    frontiers->publishFrontiers(clusteredFrontiers);
+
+    
+
 }
+

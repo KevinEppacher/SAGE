@@ -25,6 +25,16 @@
   <build_depend>nav2_costmap</build_depend>
   <exec_depend>nav2_costmap</exec_depend>
 
+
+  <build_depend>pcl_conversions</build_depend>
+  <exec_depend>pcl_conversions</exec_depend>
+
+  <build_depend>pcl_msgs</build_depend>
+  <exec_depend>pcl_msgs</exec_depend>
+
+  <build_depend>pcl_ros</build_depend>
+  <exec_depend>pcl_ros</exec_depend>
+
   <!-- End include custom dependencies -->
   <export>
     <build_type>ament_cmake</build_type>

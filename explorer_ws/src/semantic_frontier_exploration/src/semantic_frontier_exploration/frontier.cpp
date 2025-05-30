@@ -103,3 +103,8 @@ void Frontier::publishCentroid()
 
     markerPub->publish(marker);
 }
+
+void Frontier::clearFrontier()
+{
+    frontier.points.clear();
+}
