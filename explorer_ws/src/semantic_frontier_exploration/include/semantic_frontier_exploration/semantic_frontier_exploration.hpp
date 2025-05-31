@@ -18,8 +18,6 @@ public:
 
     ~SemanticFrontier();
 
-
-
 private:
     //************ Subscribers ************//
     void occupancyGridCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
