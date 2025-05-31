@@ -34,7 +34,6 @@ SemanticFrontier::~SemanticFrontier()
     RCLCPP_INFO(this->get_logger(), "Semantic Frontier Exploration Node is being destroyed.");
 }
 
-// Subscriber callback functions
 void SemanticFrontier::occupancyGridCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg)
 {
     occGrid = msg;
