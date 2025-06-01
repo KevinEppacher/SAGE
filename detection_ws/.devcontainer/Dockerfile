@@ -51,10 +51,12 @@ RUN sudo apt update && sudo apt install -y \
     ffmpeg
 
 WORKDIR /app
-COPY src/Segment-Everything-Everywhere-All-At-Once/assets/requirements \
-        src/Segment-Everything-Everywhere-All-At-Once/assets/requirements
-RUN pip install -r src/Segment-Everything-Everywhere-All-At-Once/assets/requirements/requirements.txt
-RUN pip install -r src/Segment-Everything-Everywhere-All-At-Once/assets/requirements/requirements_custom.txt
+COPY requirements.txt /app/requirements.txt
+COPY requirements_custom.txt /app/requirements_custom.txt
+
+RUN pip install --upgrade pip==23.2.1
+RUN pip install -r /app/requirements.txt
+RUN pip install -r /app/requirements_custom.txt
 RUN pip install openai-whisper
 
 ########################################################
