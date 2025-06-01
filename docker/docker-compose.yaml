@@ -60,8 +60,8 @@ services:
   detection_container:
     image: ros2/detection
     build:
-      context: ../detection_ws
-      dockerfile: .devcontainer/Dockerfile
+      context: ../detection_ws/.devcontainer
+      dockerfile: Dockerfile
     container_name: ros2_detection_container
     privileged: true
     network_mode: host
