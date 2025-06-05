@@ -1,0 +1,9 @@
+# This function computes the similarity between image and text features.
+# May be useful for cosine similarity or other similarity measures.
+# /app/build/seem_ros/seem_ros/modeling/language/loss.py
+
+def vl_similarity(image_feat, text_feat, temperature=1):
+    # Only support single GPU for now.
+    logits = torch.matmul(image_feat, text_feat.t())
+    logits = temperature.exp().clamp(max=100) * logits
+    return logits
