@@ -86,4 +86,6 @@ CATKIN_IGNORE
 # Ignore SEEM weights
 *.pt
 
-**/core
+**/corecore*
+*.core
+explorer_ws/core.*
