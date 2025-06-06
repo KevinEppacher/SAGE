@@ -21,7 +21,9 @@ setup(
     entry_points={
         'console_scripts': [
             'value_map_node = value_map.value_map_node:main',   
-            'test_service = value_map.test.test_service:main',             
+            'test_service = value_map.test.test_service:main',      
+            'add_two_ints_server = value_map.test.add_two_ints_server:main',
+            'add_two_ints_client = value_map.test.add_two_ints_client:main',       
         ],
     },
 )
