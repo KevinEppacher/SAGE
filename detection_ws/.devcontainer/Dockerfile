@@ -59,6 +59,10 @@ RUN pip install -r /app/requirements.txt
 RUN pip install -r /app/requirements_custom.txt
 RUN pip install openai-whisper
 
+RUN sudo apt update && sudo apt install -y \
+    ros-humble-octomap-ros \
+    ros-humble-octomap-msgs
+
 ########################################################
 # End Custom installations
 ########################################################
