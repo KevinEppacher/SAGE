@@ -14,6 +14,48 @@ from tf2_ros import Buffer, TransformListener
 from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
 from octomap_msgs.msg import Octomap
 from octomap_msgs.msg import OctomapWithPose
+from std_msgs.msg import ColorRGBA
+from geometry_msgs.msg import Pose
+from sensor_msgs.msg import PointCloud2, PointField
+from std_msgs.msg import Header
+import struct
+import numpy as np
+import sensor_msgs_py.point_cloud2 as pc2
+from nav_msgs.msg import OccupancyGrid
+
+def occupancy_grid_to_pointcloud(occupancy_grid):
+    header = Header()
+    header.stamp = occupancy_grid.header.stamp
+    header.frame_id = occupancy_grid.header.frame_id
+
+    resolution = occupancy_grid.info.resolution
+    origin = occupancy_grid.info.origin
+    width = occupancy_grid.info.width
+    height = occupancy_grid.info.height
+
+    fields = [
+        PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
+        PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
+        PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
+        PointField(name='rgb', offset=12, datatype=PointField.FLOAT32, count=1),
+    ]
+
+    points = []
+    for row in range(height):
+        for col in range(width):
+            idx = row * width + col
+            value = occupancy_grid.data[idx]
+            if value > 0:  # Only include occupied or unknown
+                x = origin.position.x + col * resolution
+                y = origin.position.y + row * resolution
+                z = 0.0
+                r = int((100 - value) * 2.55)  # Red for low certainty
+                g = int(value * 2.55)          # Green for high certainty
+                b = 0
+                rgb = struct.unpack('f', struct.pack('I', (r << 16) | (g << 8) | b))[0]
+                points.append((x, y, z, rgb))
+
+    return pc2.create_cloud(header, fields, points)
 
 class ValueMap(LifecycleNode):
     def __init__(self):
@@ -28,6 +70,7 @@ class ValueMap(LifecycleNode):
 
         self.text_query = "desk"
         self.rgb_image = None
+        self.map = None
 
         self.marker_pub = self.create_publisher(Marker, "/semantic_score_marker", 1)
         self.service_handler = None
@@ -39,15 +82,18 @@ class ValueMap(LifecycleNode):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        self.octomap_pub = self.create_publisher(OctomapWithPose, "/colored_octomap", 10)
-
         return TransitionCallbackReturn.SUCCESS
 
     def on_activate(self, state: State):
         self.get_logger().info('Activating...')
 
         try:
+            # Subscribers
             self.image_sub = self.create_subscription(Image, '/rgb', self.image_callback, 10)
+            self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
+
+            # Publishers
+            self.publisher = self.create_publisher(PointCloud2, '/value_map', 10)
 
             # Initialize service handler with this node
             self.service_handler = ServiceHandler(self)
@@ -80,6 +126,10 @@ class ValueMap(LifecycleNode):
         if self.rgb_image is None:
             self.get_logger().warn("No RGB image available.")
             return
+        
+        if self.map is None:
+            self.get_logger().warn("No occupancy grid map received yet.")
+            return
 
         try:
             panoptic_segmented_image = self.service_handler.call_panoptic(self.rgb_image)
@@ -96,3 +146,9 @@ class ValueMap(LifecycleNode):
         except (LookupException, ConnectivityException, ExtrapolationException) as e:
             self.get_logger().warn(f"TF transform failed: {e}")
             return
+
+        cloud_msg = occupancy_grid_to_pointcloud(self.map)
+        self.publisher.publish(cloud_msg)
+
+    def map_callback(self, msg: OccupancyGrid):
+        self.map = msg
