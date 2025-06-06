@@ -45,7 +45,7 @@ def occupancy_grid_to_pointcloud(occupancy_grid):
         for col in range(width):
             idx = row * width + col
             value = occupancy_grid.data[idx]
-            if value > 0:  # Only include occupied or unknown
+            if value >= 0:  # Only include occupied or unknown
                 x = origin.position.x + col * resolution
                 y = origin.position.y + row * resolution
                 z = 0.0
