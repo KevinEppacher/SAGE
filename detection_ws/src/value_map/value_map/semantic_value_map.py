@@ -14,6 +14,9 @@ class SemanticValueMap:
     def __init__(self, node: Node):
         self.node = node
         self.map = None
+        self.value_map = None
+        self.confidence_map = None
+
         # Publishers
         self.publisher = node.create_publisher(PointCloud2, '/value_map', 10)
 
@@ -21,7 +24,7 @@ class SemanticValueMap:
         self.subscriber = node.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
 
     def map_callback(self, msg: OccupancyGrid):
-        self.map = msg
+        self.resize_maps_preserving_values(msg)
 
     def update_semantic_map(self, semantic_similarity_score: float, pose : Pose):
         if self.map is None:
@@ -35,48 +38,30 @@ class SemanticValueMap:
             max_range=5.0
         )
 
-        confidence_mask = self.compute_confidence_map(pose, fov_mask, 90, grid=self.map)
+        confidence = self.compute_confidence_map(pose, fov_mask, 90, grid=self.map)
 
-        msg = self.map
-        header = Header()
-        header.stamp = msg.header.stamp
-        header.frame_id = msg.header.frame_id
+        # Fusion logic
+        for row in range(self.map.info.height):
+            for col in range(self.map.info.width):
+                if fov_mask[row, col] == 0:
+                    continue
 
-        resolution = msg.info.resolution
-        origin = msg.info.origin
-        width = msg.info.width
-        height = msg.info.height
+                prev_value = self.value_map[row, col]
+                prev_conf = self.confidence_map[row, col]
+                new_value = semantic_similarity_score
+                new_conf = confidence[row, col]
 
-        fields = [
-            PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
-            PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
-            PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
-            PointField(name='rgb', offset=12, datatype=PointField.FLOAT32, count=1),
-        ]
+                if (prev_conf + new_conf) == 0:
+                    continue
 
-        points = []
+                fused_value = (prev_value * prev_conf + new_value * new_conf) / (prev_conf + new_conf)
+                fused_conf = (prev_conf**2 + new_conf**2) / (prev_conf + new_conf)
 
-        for row in range(height):
-            for col in range(width):
-                idx = row * width + col
-                value = msg.data[idx]
+                self.value_map[row, col] = fused_value
+                self.confidence_map[row, col] = fused_conf
 
-                if value >= 0 and fov_mask[row, col] == 1:
-                    x = origin.position.x + col * resolution
-                    y = origin.position.y + row * resolution
-                    z = 0.0
+        self.publish()
 
-                    confidence = confidence_mask[row, col]
-                    intensity = int(confidence * semantic_similarity_score * 5 * 255)
-                    r = max(0, min(255, intensity))
-                    g = 0
-                    b = 0
-
-                    rgb = struct.unpack('f', struct.pack('I', (r << 16) | (g << 8) | b))[0]
-                    points.append((x, y, z, rgb))
-
-        cloud = pc2.create_cloud(header, fields, points)
-        self.publisher.publish(cloud)
 
     def generate_topdown_cone_mask(self, *, pose: Pose, grid: OccupancyGrid, fov_deg: float, max_range: float) -> np.ndarray:
         """Generate a FOV cone mask using raytracing that stops on occupied cells."""
@@ -155,4 +140,76 @@ class SemanticValueMap:
 
         return confidence_map
 
+    def publish(self):
+        if self.map is None:
+            return
+
+        msg = self.map
+        header = Header()
+        header.stamp = msg.header.stamp
+        header.frame_id = msg.header.frame_id
+
+        resolution = msg.info.resolution
+        origin = msg.info.origin
+        width = msg.info.width
+        height = msg.info.height
+
+        fields = [
+            PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
+            PointField(name='rgb', offset=12, datatype=PointField.FLOAT32, count=1),
+        ]
+
+        points = []
+        for row in range(height):
+            for col in range(width):
+                value = self.value_map[row, col]
+                if value > 0:
+                    x = origin.position.x + col * resolution
+                    y = origin.position.y + row * resolution
+                    z = 0.0
+
+                    r = int(value * 255 * 5)
+                    g = 0
+                    b = 0
+
+                    rgb = struct.unpack('f', struct.pack('I', (r << 16) | (g << 8) | b))[0]
+                    points.append((x, y, z, rgb))
+
+        cloud = pc2.create_cloud(header, fields, points)
+        self.publisher.publish(cloud)
         
+    def resize_maps_preserving_values(self, new_msg: OccupancyGrid):
+        new_shape = (new_msg.info.height, new_msg.info.width)
+
+        if self.value_map is None or self.confidence_map is None:
+            # Initialisierung bei erster Map
+            self.value_map = np.zeros(new_shape, dtype=np.float32)
+            self.confidence_map = np.zeros(new_shape, dtype=np.float32)
+            self.map = new_msg
+            self.node.get_logger().info("Initialized value/confidence maps.")
+            return
+
+        old_shape = self.value_map.shape
+
+        if old_shape == new_shape:
+            # Keine Änderung nötig
+            self.map = new_msg
+            return
+
+        # Logging zur Debugging-Zwecken
+        self.node.get_logger().info(f"Resizing value map from {old_shape} to {new_shape}")
+
+        new_value_map = np.zeros(new_shape, dtype=np.float32)
+        new_confidence_map = np.zeros(new_shape, dtype=np.float32)
+
+        min_rows = min(old_shape[0], new_shape[0])
+        min_cols = min(old_shape[1], new_shape[1])
+
+        new_value_map[:min_rows, :min_cols] = self.value_map[:min_rows, :min_cols]
+        new_confidence_map[:min_rows, :min_cols] = self.confidence_map[:min_rows, :min_cols]
+
+        self.value_map = new_value_map
+        self.confidence_map = new_confidence_map
+        self.map = new_msg
