@@ -22,53 +22,20 @@ import struct
 import numpy as np
 import sensor_msgs_py.point_cloud2 as pc2
 from nav_msgs.msg import OccupancyGrid
-
-def occupancy_grid_to_pointcloud(occupancy_grid):
-    header = Header()
-    header.stamp = occupancy_grid.header.stamp
-    header.frame_id = occupancy_grid.header.frame_id
-
-    resolution = occupancy_grid.info.resolution
-    origin = occupancy_grid.info.origin
-    width = occupancy_grid.info.width
-    height = occupancy_grid.info.height
-
-    fields = [
-        PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
-        PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
-        PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
-        PointField(name='rgb', offset=12, datatype=PointField.FLOAT32, count=1),
-    ]
-
-    points = []
-    for row in range(height):
-        for col in range(width):
-            idx = row * width + col
-            value = occupancy_grid.data[idx]
-            if value >= 0:  # Only include occupied or unknown
-                x = origin.position.x + col * resolution
-                y = origin.position.y + row * resolution
-                z = 0.0
-                r = int((100 - value) * 2.55)  # Red for low certainty
-                g = int(value * 2.55)          # Green for high certainty
-                b = 0
-                rgb = struct.unpack('f', struct.pack('I', (r << 16) | (g << 8) | b))[0]
-                points.append((x, y, z, rgb))
-
-    return pc2.create_cloud(header, fields, points)
+from value_map.semantic_value_map import SemanticValueMap
 
 class ValueMap(LifecycleNode):
     def __init__(self):
         super().__init__('value_map_node')
         self.get_logger().info("Initializing Value Map Node...")
 
-        self.declare_parameter('timer_frequency', 10.0, ParameterDescriptor(description='Frequency of the timer.'))
+        self.declare_parameter('timer_frequency', 1.0, ParameterDescriptor(description='Frequency of the timer.'))
         self.timer_frequency = self.get_parameter("timer_frequency").get_parameter_value().double_value
 
         self.timer = None
         self.bridge = CvBridge()
 
-        self.text_query = "desk"
+        self.text_query = "Seems like there is a chair ahead"
         self.rgb_image = None
         self.map = None
 
@@ -90,13 +57,11 @@ class ValueMap(LifecycleNode):
         try:
             # Subscribers
             self.image_sub = self.create_subscription(Image, '/rgb', self.image_callback, 10)
-            self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
-
-            # Publishers
-            self.publisher = self.create_publisher(PointCloud2, '/value_map', 10)
 
             # Initialize service handler with this node
             self.service_handler = ServiceHandler(self)
+
+            self.semantic_map = SemanticValueMap(self)
 
             self.createTimer()
 
@@ -127,28 +92,68 @@ class ValueMap(LifecycleNode):
             self.get_logger().warn("No RGB image available.")
             return
         
-        if self.map is None:
-            self.get_logger().warn("No occupancy grid map received yet.")
+        current_pose = self.get_pose()
+
+        if current_pose is None:
+            self.get_logger().warn("Current pose could not be retrieved.")
             return
 
         try:
             panoptic_segmented_image = self.service_handler.call_panoptic(self.rgb_image)
             object_segmented_image = self.service_handler.call_object_segmentation(self.rgb_image, self.text_query)
             semantic_similarity_score = self.service_handler.call_semantic_similarity(self.rgb_image, self.text_query)
-            self.get_logger().info(f"semantic_similarity_score: {semantic_similarity_score}")
+            
+            self.publish_score_marker(semantic_similarity_score)
         except Exception as e:
             self.get_logger().error(f"Service calls failed: {e}")
 
-        try:
-            transform = self.tf_buffer.lookup_transform("map", "camera_link", rclpy.time.Time())
-            translation = transform.transform.translation
-            rotation = transform.transform.rotation
-        except (LookupException, ConnectivityException, ExtrapolationException) as e:
-            self.get_logger().warn(f"TF transform failed: {e}")
+        if semantic_similarity_score is None:
+            self.get_logger().warn("No semantic similarity score received.")
             return
 
-        cloud_msg = occupancy_grid_to_pointcloud(self.map)
-        self.publisher.publish(cloud_msg)
+        self.semantic_map.update_semantic_map(semantic_similarity_score, current_pose)
 
-    def map_callback(self, msg: OccupancyGrid):
-        self.map = msg
+    def get_pose(self):
+        try:
+            transform = self.tf_buffer.lookup_transform("map", "base_link", rclpy.time.Time())
+            translation = transform.transform.translation
+            rotation = transform.transform.rotation
+
+            pose = Pose()
+            pose.position.x = translation.x
+            pose.position.y = translation.y
+            pose.position.z = translation.z
+            pose.orientation.x = rotation.x
+            pose.orientation.y = rotation.y
+            pose.orientation.z = rotation.z
+            pose.orientation.w = rotation.w
+            return pose
+        except (LookupException, ConnectivityException, ExtrapolationException) as e:
+            self.get_logger().warn(f"TF transform failed: {e}")
+            return None
+        
+    def publish_score_marker(self, score: float):
+        marker = Marker()
+        marker.header.frame_id = "map"
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = "semantic_score"
+        marker.id = 0
+        marker.type = Marker.CYLINDER
+        marker.action = Marker.ADD
+        marker.pose.position.x = 0.0
+        marker.pose.position.y = 0.0
+        marker.pose.position.z = 0.5  # Halbe Höhe, damit es auf Boden steht
+        marker.pose.orientation.w = 1.0
+
+        # Skaliere Durchmesser proportional zum Score, Höhe konstant
+        diameter = max(0.01, float(score)*5)  # Mindestgröße zur Anzeige
+        marker.scale.x = diameter
+        marker.scale.y = diameter
+        marker.scale.z = 1.0  # konstante Höhe
+
+        marker.color.a = 0.8
+        marker.color.r = 0.2
+        marker.color.g = 0.8
+        marker.color.b = 0.2
+
+        self.marker_pub.publish(marker)

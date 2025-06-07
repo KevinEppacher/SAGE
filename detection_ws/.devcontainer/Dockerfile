@@ -64,6 +64,9 @@ RUN sudo apt update && sudo apt install -y \
     ros-${ROS_DISTRO}-octomap-msgs
     ros-${ROS_DISTRO}-octomap-rviz-plugins
 
+RUN sudo apt update && sudo apt install -y \
+    ros-${ROS_DISTRO}-tf-transformations
+
 ########################################################
 # End Custom installations
 ########################################################
