@@ -79,42 +79,44 @@ class SemanticValueMap:
         self.publisher.publish(cloud)
 
     def generate_topdown_cone_mask(self, *, pose: Pose, grid: OccupancyGrid, fov_deg: float, max_range: float) -> np.ndarray:
-        """Generate a 2D FOV cone mask aligned with robot's orientation, constrained to the occupancy grid."""
+        """Generate a FOV cone mask using raytracing that stops on occupied cells."""
 
         width = grid.info.width
         height = grid.info.height
         resolution = grid.info.resolution
         origin = grid.info.origin
 
-        # Karte initialisieren (0 = außerhalb FOV, 1 = im FOV)
         fov_mask = np.zeros((height, width), dtype=np.uint8)
 
-        # Roboterposition in Map-Koordinaten (Pixel)
         robot_x = (pose.position.x - origin.position.x) / resolution
         robot_y = (pose.position.y - origin.position.y) / resolution
 
-        # Yaw aus Quaternion extrahieren
         yaw = get_yaw_angle(pose)
-
         fov_rad = math.radians(fov_deg)
         half_fov = fov_rad / 2
-        max_range_px = max_range / resolution
+        max_range_px = int(max_range / resolution)
 
-        # Iteriere über Karte und prüfe, ob Zelle im Sichtkegel liegt
-        for row in range(height):
-            for col in range(width):
-                dx = col - robot_x
-                dy = row - robot_y
-                distance = math.hypot(dx, dy)
+        num_rays = 200  # number of rays within the FOV
+        for i in range(num_rays):
+            angle = yaw - half_fov + (i / (num_rays - 1)) * fov_rad
+            dx = math.cos(angle)
+            dy = math.sin(angle)
 
-                if distance > max_range_px:
-                    continue
+            for step in range(max_range_px):
+                px = int(robot_x + dx * step)
+                py = int(robot_y + dy * step)
 
-                angle = math.atan2(dy, dx)
-                angle_diff = normalize_angle(angle - yaw)
+                if not (0 <= px < width and 0 <= py < height):
+                    break
 
-                if abs(angle_diff) <= half_fov:
-                    fov_mask[row, col] = 1
+                idx = py * width + px
+                if grid.data[idx] == -1:
+                    continue  # unknown
+                elif grid.data[idx] >= 50:
+                    fov_mask[py, px] = 1  # mark the hit cell
+                    break  # stop ray at occupied cell
+                else:
+                    fov_mask[py, px] = 1  # mark free cell
 
         return fov_mask
 
@@ -144,10 +146,11 @@ class SemanticValueMap:
                 dy = row - robot_y
                 angle = math.atan2(dy, dx)
                 angle_diff = normalize_angle(angle - yaw)
+                scaled_angle = angle_diff / half_fov * (math.pi / 2)
 
                 # cos² weighting
                 if abs(angle_diff) <= half_fov:
-                    weight = math.cos(angle_diff) ** 2
+                    weight = math.cos(scaled_angle) ** 2
                     confidence_map[row, col] = weight
 
         return confidence_map
