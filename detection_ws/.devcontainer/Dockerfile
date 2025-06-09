@@ -59,10 +59,9 @@ RUN pip install -r /app/requirements.txt
 RUN pip install -r /app/requirements_custom.txt
 RUN pip install openai-whisper
 
-RUN sudo apt update && sudo apt install -y \
-    ros-${ROS_DISTRO}-octomap-ros \
-    ros-${ROS_DISTRO}-octomap-msgs
-    ros-${ROS_DISTRO}-octomap-rviz-plugins
+# RUN sudo apt update && sudo apt install -y \
+#     ros-${ROS_DISTRO}-octomap-ros \
+#     ros-${ROS_DISTRO}-octomap-msgs
 
 RUN sudo apt update && sudo apt install -y \
     ros-${ROS_DISTRO}-tf-transformations

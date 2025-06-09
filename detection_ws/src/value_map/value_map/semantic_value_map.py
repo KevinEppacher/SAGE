@@ -7,8 +7,8 @@ import sensor_msgs_py.point_cloud2 as pc2
 from geometry_msgs.msg import Pose
 import numpy as np
 import math
-from value_map.utils import normalize_angle, get_yaw_angle
-from tf_transformations import euler_from_quaternion
+from value_map.utils import normalize_angle, get_yaw_angle, value_to_inferno_rgb
+from sensor_msgs.msg import CameraInfo
 
 class SemanticValueMap:
     def __init__(self, node: Node):
@@ -16,29 +16,43 @@ class SemanticValueMap:
         self.map = None
         self.value_map = None
         self.confidence_map = None
+        self.fx = None
+        self.width = None
 
         # Publishers
         self.publisher = node.create_publisher(PointCloud2, '/value_map', 10)
 
         # Subscribers
         self.subscriber = node.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
+        self.camera_info_sub = node.create_subscription(CameraInfo, '/camera_info', self.camera_info_callback, 10)
 
     def map_callback(self, msg: OccupancyGrid):
         self.resize_maps_preserving_values(msg)
+
+    def camera_info_callback(self, msg: CameraInfo):
+        self.fx = msg.k[0]  # focal length in x
+        self.width = msg.width
 
     def update_semantic_map(self, semantic_similarity_score: float, pose : Pose):
         if self.map is None:
             self.node.get_logger().warn("No occupancy grid map received yet.")
             return
+        
+        fov_deg = self.get_horizontal_fov()
+        
+        # --- Step 1: Decay previous values ---
+        decay_factor = 0.95
+        self.value_map *= decay_factor
+        self.confidence_map *= decay_factor
 
         fov_mask = self.generate_topdown_cone_mask(
             pose=pose,
             grid=self.map,
-            fov_deg=90,
+            fov_deg=fov_deg,
             max_range=5.0
         )
 
-        confidence = self.compute_confidence_map(pose, fov_mask, 90, grid=self.map)
+        confidence = self.compute_confidence_map(pose, fov_mask, fov_deg, grid=self.map)
 
         # Fusion logic
         for row in range(self.map.info.height):
@@ -61,7 +75,6 @@ class SemanticValueMap:
                 self.confidence_map[row, col] = fused_conf
 
         self.publish()
-
 
     def generate_topdown_cone_mask(self, *, pose: Pose, grid: OccupancyGrid, fov_deg: float, max_range: float) -> np.ndarray:
         """Generate a FOV cone mask using raytracing that stops on occupied cells."""
@@ -170,11 +183,9 @@ class SemanticValueMap:
                     y = origin.position.y + row * resolution
                     z = 0.0
 
-                    r = int(value * 255 * 5)
-                    g = 0
-                    b = 0
-
+                    r, g, b = value_to_inferno_rgb(value, vmin=0.0, vmax=0.1)
                     rgb = struct.unpack('f', struct.pack('I', (r << 16) | (g << 8) | b))[0]
+
                     points.append((x, y, z, rgb))
 
         cloud = pc2.create_cloud(header, fields, points)
@@ -213,3 +224,9 @@ class SemanticValueMap:
         self.value_map = new_value_map
         self.confidence_map = new_confidence_map
         self.map = new_msg
+
+    def get_horizontal_fov(self) -> float:
+        if self.fx is None or self.width is None:
+            self.node.get_logger().warn("Camera intrinsics not received yet.")
+            return 45.0  # fallback
+        return 2 * math.atan2(self.width / 2, self.fx) * 180 / math.pi

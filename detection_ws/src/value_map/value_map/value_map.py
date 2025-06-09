@@ -1,41 +1,30 @@
 from rclpy.lifecycle import LifecycleNode
 from rclpy.lifecycle import State
-from lifecycle_msgs.msg import Transition
 import rclpy
 from rclpy.lifecycle import TransitionCallbackReturn
 from rcl_interfaces.msg import ParameterDescriptor
-from seem_ros_interfaces.srv import Panoptic, ObjectSegmentation, SemanticSimilarity
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from visualization_msgs.msg import Marker
-import cv2
 from value_map.service_handler import ServiceHandler
 from tf2_ros import Buffer, TransformListener
 from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
-from octomap_msgs.msg import Octomap
-from octomap_msgs.msg import OctomapWithPose
-from std_msgs.msg import ColorRGBA
 from geometry_msgs.msg import Pose
-from sensor_msgs.msg import PointCloud2, PointField
-from std_msgs.msg import Header
-import struct
-import numpy as np
-import sensor_msgs_py.point_cloud2 as pc2
-from nav_msgs.msg import OccupancyGrid
 from value_map.semantic_value_map import SemanticValueMap
+import time  # oben ergänzen
 
 class ValueMap(LifecycleNode):
     def __init__(self):
         super().__init__('value_map_node')
         self.get_logger().info("Initializing Value Map Node...")
 
-        self.declare_parameter('timer_frequency', 1.0, ParameterDescriptor(description='Frequency of the timer.'))
+        self.declare_parameter('timer_frequency', 2.0, ParameterDescriptor(description='Frequency of the timer.'))
         self.timer_frequency = self.get_parameter("timer_frequency").get_parameter_value().double_value
 
         self.timer = None
         self.bridge = CvBridge()
 
-        self.text_query = "Seems like there is a chair ahead"
+        self.text_query = "door"
         self.rgb_image = None
         self.map = None
 
@@ -88,10 +77,12 @@ class ValueMap(LifecycleNode):
         self.rgb_image = msg
 
     def timer_callback(self):
+        start_time = time.time()  # Startzeit messen
+
         if self.rgb_image is None:
             self.get_logger().warn("No RGB image available.")
             return
-        
+
         current_pose = self.get_pose()
 
         if current_pose is None:
@@ -99,19 +90,29 @@ class ValueMap(LifecycleNode):
             return
 
         try:
-            panoptic_segmented_image = self.service_handler.call_panoptic(self.rgb_image)
-            object_segmented_image = self.service_handler.call_object_segmentation(self.rgb_image, self.text_query)
+            # panoptic_segmented_image = self.service_handler.call_panoptic(self.rgb_image)
+            # object_segmented_image = self.service_handler.call_object_segmentation(self.rgb_image, self.text_query)
             semantic_similarity_score = self.service_handler.call_semantic_similarity(self.rgb_image, self.text_query)
             
             self.publish_score_marker(semantic_similarity_score)
         except Exception as e:
             self.get_logger().error(f"Service calls failed: {e}")
+            return
 
         if semantic_similarity_score is None:
             self.get_logger().warn("No semantic similarity score received.")
             return
 
-        self.semantic_map.update_semantic_map(semantic_similarity_score, current_pose)
+        # self.semantic_map.update_semantic_map(semantic_similarity_score, current_pose)
+
+        # --- Messung der Ausführungsdauer ---
+        elapsed = time.time() - start_time
+        max_allowed = 1.0 / self.timer_frequency
+
+        if elapsed > max_allowed:
+            self.get_logger().warn(f"Timer callback took {elapsed:.3f}s, which exceeds the target {max_allowed:.3f}s.")
+        else:
+            self.get_logger().info(f"Timer callback duration: {elapsed:.3f}s")
 
     def get_pose(self):
         try:
