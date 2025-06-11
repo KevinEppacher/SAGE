@@ -11,3 +11,6 @@
 [submodule "detection_ws/src/lavis"]
 	path = detection_ws/src/lavis
 	url = https://github.com/salesforce/LAVIS.git
+[submodule "lavis_ws/src/blip2_ros"]
+	path = lavis_ws/src/blip2_ros
+	url = https://github.com/KevinEppacher/blip2_ros.git
