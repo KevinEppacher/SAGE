@@ -1,0 +1,2 @@
+git+https://github.com/huggingface/transformers
+git+https://github.com/huggingface/accelerate

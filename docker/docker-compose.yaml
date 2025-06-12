@@ -79,6 +79,7 @@ services:
       - ../../SAGE/detection_ws:/app
       - /tmp/.X11-unix:/tmp/.X11-unix
       - $XAUTHORITY:/root/.Xauthority
+      - ~/.cache/huggingface:/root/.cache/huggingface
     environment:
       QT_X11_NO_MITSHM: 1
       DISPLAY: $DISPLAY
@@ -99,6 +100,36 @@ services:
     privileged: true
     network_mode: host
     ipc: host
+
+  lavis_container:
+    image: ros2/lavis
+    build:
+      context: ../lavis_ws/.devcontainer
+      dockerfile: Dockerfile
+    container_name: ros2_lavis_container
+    privileged: true
+    network_mode: host
+    command: /bin/bash
+    tty: true
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ../../SAGE/lavis_ws:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - $XAUTHORITY:/root/.Xauthority
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      QT_X11_NO_MITSHM: 1
+      DISPLAY: $DISPLAY
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+      NVIDIA_REQUIRE_CUDA: "cuda>=11.3"
 
 
 volumes:

@@ -11,7 +11,7 @@ from tf2_ros import Buffer, TransformListener
 from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
 from geometry_msgs.msg import Pose
 from value_map.semantic_value_map import SemanticValueMap
-import time  # oben ergänzen
+import time
 
 class ValueMap(LifecycleNode):
     def __init__(self):
@@ -24,7 +24,7 @@ class ValueMap(LifecycleNode):
         self.timer = None
         self.bridge = CvBridge()
 
-        self.text_query = "door"
+        self.text_query = "brown chair"
         self.rgb_image = None
         self.map = None
 
@@ -102,8 +102,11 @@ class ValueMap(LifecycleNode):
         if semantic_similarity_score is None:
             self.get_logger().warn("No semantic similarity score received.")
             return
+        
+        self.get_logger().info(f"Text query: {self.text_query}")
+        self.get_logger().info(f"Received semantic similarity score: {semantic_similarity_score}")
 
-        # self.semantic_map.update_semantic_map(semantic_similarity_score, current_pose)
+        self.semantic_map.update_semantic_map(semantic_similarity_score, current_pose)
 
         # --- Messung der Ausführungsdauer ---
         elapsed = time.time() - start_time

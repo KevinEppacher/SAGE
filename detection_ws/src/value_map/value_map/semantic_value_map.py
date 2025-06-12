@@ -183,7 +183,7 @@ class SemanticValueMap:
                     y = origin.position.y + row * resolution
                     z = 0.0
 
-                    r, g, b = value_to_inferno_rgb(value, vmin=0.0, vmax=0.1)
+                    r, g, b = value_to_inferno_rgb(value, vmin=0.0, vmax=0.3)
                     rgb = struct.unpack('f', struct.pack('I', (r << 16) | (g << 8) | b))[0]
 
                     points.append((x, y, z, rgb))

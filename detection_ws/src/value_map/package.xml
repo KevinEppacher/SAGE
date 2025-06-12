@@ -21,6 +21,9 @@
   <build_depend>seem_ros_interfaces</build_depend>
   <exec_depend>seem_ros_interfaces</exec_depend>
 
+  <build_depend>vlm_interface</build_depend>
+  <exec_depend>vlm_interface</exec_depend>
+
   <build_depend>sensor_msgs</build_depend>
   <exec_depend>sensor_msgs</exec_depend>
 
