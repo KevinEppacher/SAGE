@@ -1,8 +1,8 @@
-from seem_ros_interfaces.srv import Panoptic, ObjectSegmentation#, SemanticSimilarity
+from seem_ros_interfaces.srv import Panoptic, ObjectSegmentation, SemanticSimilarity
 import rclpy
 from cv_bridge import CvBridge
 import cv2
-from vlm_interface.srv import SemanticSimilarity
+#from vlm_interface.srv import SemanticSimilarity
 
 class ServiceHandler:
     def __init__(self, node):

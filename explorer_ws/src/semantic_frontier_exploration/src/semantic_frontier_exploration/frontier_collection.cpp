@@ -256,6 +256,8 @@ void FrontierCollection::publishFrontiers(const std::vector<Frontier>& frontiers
     centroid_marker.color.b = 0.0;
     centroid_marker.color.a = 1.0;
 
+    int text_id = 100;  // unique ID for each text marker
+
     for (const auto& f : frontiers)
     {
         for (const auto& p : f.getFrontier().points)
@@ -263,7 +265,27 @@ void FrontierCollection::publishFrontiers(const std::vector<Frontier>& frontiers
             point_marker.points.push_back(p);
         }
 
-        centroid_marker.points.push_back(f.getCentroid());
+        geometry_msgs::msg::Point centroid = f.getCentroid();
+        centroid_marker.points.push_back(centroid);
+
+        // Add text marker for this frontier
+        visualization_msgs::msg::Marker text_marker;
+        text_marker.header.frame_id = "map";
+        text_marker.header.stamp = node->get_clock()->now();
+        text_marker.ns = "frontier_scores";
+        text_marker.id = text_id++;
+        text_marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+        text_marker.action = visualization_msgs::msg::Marker::ADD;
+        text_marker.pose.position = centroid;
+        text_marker.pose.position.z += 0.3;  // lift text above point
+        text_marker.scale.z = 0.2;
+        text_marker.color.r = 1.0;
+        text_marker.color.g = 1.0;
+        text_marker.color.b = 1.0;
+        text_marker.color.a = 1.0;
+        text_marker.text = "Score: " + std::to_string(f.getScore());
+
+        frontiersPub->publish(text_marker);
     }
 
     // Publish both markers

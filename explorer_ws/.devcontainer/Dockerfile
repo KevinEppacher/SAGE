@@ -50,17 +50,20 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 ## ADD ANY CUSTOM SETUP BELOW ##
 ################################
 
-RUN sudo apt install -y ros-humble-slam-toolbox && \
+RUN sudo apt install -y ros-${ROS_DISTRO}-slam-toolbox && \
     sudo apt install -y libceres-dev
 
 RUN sudo apt install -y \
-    ros-humble-navigation2 \
-    ros-humble-nav2-bringup \
-    ros-humble-nav2-costmap-2d
+    ros-${ROS_DISTRO}-navigation2 \
+    ros-${ROS_DISTRO}-nav2-bringup \
+    ros-${ROS_DISTRO}-nav2-costmap-2d
 
 RUN sudo apt install -y \
-    ros-humble-rviz2 \
-    ros-humble-tf2-tools
+    ros-${ROS_DISTRO}-rviz2 \
+    ros-${ROS_DISTRO}-tf2-tools
+
+RUN sudo apt-get update && sudo apt-get install -y \
+    ros-${ROS_DISTRO}-pcl-ros
     
 # # Install python3-pip
 # RUN apt-get update && apt-get install -y \

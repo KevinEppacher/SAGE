@@ -12,9 +12,9 @@ SemanticFrontier::SemanticFrontier() : Node("cluster_node")
     );
 
     // Define subscribers
-    occupancygridSub = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
-      "/map", 10,
-      std::bind(&SemanticFrontier::occupancyGridCallback, this, std::placeholders::_1));
+    occupancygridSub = this->create_subscription<nav_msgs::msg::OccupancyGrid>("/map", 10,std::bind(&SemanticFrontier::occupancyGridCallback, this, std::placeholders::_1));
+
+    valueMapSub = this->create_subscription<sensor_msgs::msg::PointCloud2>("/value_map_raw", 10,std::bind(&SemanticFrontier::valueMapCallback, this, std::placeholders::_1));
 
     // Define timers
     auto interval = std::chrono::duration<double>(1.0 / publishFrequency);
@@ -37,6 +37,12 @@ SemanticFrontier::~SemanticFrontier()
 void SemanticFrontier::occupancyGridCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg)
 {
     occGrid = msg;
+}
+
+void SemanticFrontier::valueMapCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+{
+    valueMapPcl.reset(new pcl::PointCloud<pcl::PointXYZI>());
+    pcl::fromROSMsg(*msg, *valueMapPcl);
 }
 
 void SemanticFrontier::getParameters()
@@ -101,9 +107,43 @@ void SemanticFrontier::timerCallback()
     auto frontierGridPtr = std::make_shared<nav_msgs::msg::OccupancyGrid>(frontierGrid);
     std::vector<Frontier> clusteredFrontiers = frontiers->clusterFrontierGrid(frontierGridPtr);
 
-    frontiers->publishFrontiers(clusteredFrontiers);
+    std::vector<Frontier> scoredFrontiers;
+    for (auto& frontier : clusteredFrontiers)
+    {
+        geometry_msgs::msg::Point centroid = frontier.getCentroid();
+        float score = getScoreFromValueMap(valueMapPcl, centroid);
+        frontier.setScore(score);
+        if (score < 0.005) continue;  // Skip frontiers with low scores
+        scoredFrontiers.push_back(frontier);
+    }
 
-    
+    frontiers->publishFrontiers(scoredFrontiers);
+}
 
+float SemanticFrontier::getScoreFromValueMap(const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud, const geometry_msgs::msg::Point& pos)
+{
+    if (!cloud || cloud->empty()) return 0.0f;
+
+    float radius = 0.3;  // Meter
+    float radius_squared = radius * radius;
+    float best_score = 0.0f;
+    bool found = false;
+
+    for (const auto& pt : cloud->points)
+    {
+        float dx = pt.x - pos.x;
+        float dy = pt.y - pos.y;
+        float dz = pt.z - pos.z;
+
+        float dist_sq = dx * dx + dy * dy + dz * dz;
+
+        if (dist_sq < radius_squared)
+        {
+            best_score = std::max(best_score, pt.intensity);
+            found = true;
+        }
+    }
+
+    return found ? best_score : 0.0f;
 }
 

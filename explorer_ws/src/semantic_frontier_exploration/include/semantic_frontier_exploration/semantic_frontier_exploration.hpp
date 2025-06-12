@@ -11,6 +11,7 @@
 #include "frontier.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include "frontier_collection.hpp"
+#include <pcl_conversions/pcl_conversions.h>
 
 class SemanticFrontier : public rclcpp::Node {
 public:
@@ -21,7 +22,8 @@ public:
 private:
     //************ Subscribers ************//
     void occupancyGridCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
-
+    void valueMapCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
+    
     /// \brief Callback for updating parameters dynamically
     /// \param params Vector of changed parameters
     /// \return SetParametersResult indicating success
@@ -37,10 +39,13 @@ private:
 
     // Miscellaneous Functions
     void getParameters();
+    float getScoreFromValueMap(const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud, const geometry_msgs::msg::Point& pos);
+
 
     //************ Member Variables ************//
     // Subscriber variables
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr occupancygridSub;
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr valueMapSub;
 
     /// \brief Wall timer to trigger periodic processing
     rclcpp::TimerBase::SharedPtr timer;
@@ -49,7 +54,9 @@ private:
 
     // Class variables
     double publishFrequency;
-    
+
+    pcl::PointCloud<pcl::PointXYZI>::Ptr valueMapPcl;
+
     std::shared_ptr<FrontierCollection> frontiers;
 
 };

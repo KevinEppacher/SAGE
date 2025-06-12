@@ -18,7 +18,7 @@ class ValueMap(LifecycleNode):
         super().__init__('value_map_node')
         self.get_logger().info("Initializing Value Map Node...")
 
-        self.declare_parameter('timer_frequency', 2.0, ParameterDescriptor(description='Frequency of the timer.'))
+        self.declare_parameter('timer_frequency', 5.0, ParameterDescriptor(description='Frequency of the timer.'))
         self.timer_frequency = self.get_parameter("timer_frequency").get_parameter_value().double_value
 
         self.timer = None
