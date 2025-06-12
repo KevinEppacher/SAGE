@@ -89,3 +89,6 @@ CATKIN_IGNORE
 **/corecore*
 *.core
 explorer_ws/core.*
+
+# Ignore LAVIS
+lavis_ws/src/LAVIS

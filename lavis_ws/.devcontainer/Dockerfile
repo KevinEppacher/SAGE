@@ -43,31 +43,18 @@ RUN sudo apt update && sudo apt upgrade -y
 # Custom installations
 ########################################################
 
-# Git
-RUN sudo apt install -y git
+
 
 RUN sudo apt update && sudo apt install -y \
-    python3-pip \
-    ffmpeg
+    python3-pip
 
 WORKDIR /app
 COPY requirements.txt /app/requirements.txt
-COPY requirements_custom.txt /app/requirements_custom.txt
-COPY requirements_blib2.txt /app/requirements_blib2.txt
-
 
 RUN pip install --upgrade pip==23.2.1
 RUN pip install -r /app/requirements.txt
-RUN pip install -r /app/requirements_custom.txt
-RUN pip install -r /app/requirements_blib2.txt
-RUN pip install openai-whisper
 
-# RUN sudo apt update && sudo apt install -y \
-#     ros-${ROS_DISTRO}-octomap-ros \
-#     ros-${ROS_DISTRO}-octomap-msgs
 
-RUN sudo apt update && sudo apt install -y \
-    ros-${ROS_DISTRO}-tf-transformations
 
 ########################################################
 # End Custom installations
