@@ -18,9 +18,11 @@ class SemanticValueMap:
         self.confidence_map = None
         self.fx = None
         self.width = None
+        self.max_semantic_score = 0
 
         # Publishers
-        self.publisher = node.create_publisher(PointCloud2, '/value_map', 10)
+        self.value_map_inferno_pub = node.create_publisher(PointCloud2, '/value_map', 10)
+        self.value_map_raw_pub = node.create_publisher(PointCloud2, '/value_map_raw', 10)
 
         # Subscribers
         self.subscriber = node.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)
@@ -154,6 +156,10 @@ class SemanticValueMap:
         return confidence_map
 
     def publish(self):
+        self.publish_value_map_inferno()
+        self.publish_value_map_raw()
+
+    def publish_value_map_inferno(self):
         if self.map is None:
             return
 
@@ -183,13 +189,52 @@ class SemanticValueMap:
                     y = origin.position.y + row * resolution
                     z = 0.0
 
-                    r, g, b = value_to_inferno_rgb(value, vmin=0.0, vmax=0.3)
+                    if value > self.max_semantic_score:
+                        self.max_semantic_score = value
+
+                    r, g, b = value_to_inferno_rgb(value, vmin=0.0, vmax=self.max_semantic_score)
                     rgb = struct.unpack('f', struct.pack('I', (r << 16) | (g << 8) | b))[0]
 
                     points.append((x, y, z, rgb))
 
         cloud = pc2.create_cloud(header, fields, points)
-        self.publisher.publish(cloud)
+        self.value_map_inferno_pub.publish(cloud)
+
+    def publish_value_map_raw(self):
+        if self.map is None:
+            return
+
+        msg = self.map
+        header = Header()
+        header.stamp = msg.header.stamp
+        header.frame_id = msg.header.frame_id
+
+        resolution = msg.info.resolution
+        origin = msg.info.origin
+        width = msg.info.width
+        height = msg.info.height
+
+        fields = [
+            PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
+            PointField(name='intensity', offset=12, datatype=PointField.FLOAT32, count=1),
+        ]
+
+        points = []
+        for row in range(height):
+            for col in range(width):
+                value = self.value_map[row, col]
+                if value > 0:
+                    x = origin.position.x + col * resolution
+                    y = origin.position.y + row * resolution
+                    z = 0.0
+                    intensity = value
+                    points.append((x, y, z, intensity))
+
+        cloud = pc2.create_cloud(header, fields, points)
+        self.value_map_raw_pub.publish(cloud)
+
         
     def resize_maps_preserving_values(self, new_msg: OccupancyGrid):
         new_shape = (new_msg.info.height, new_msg.info.width)
