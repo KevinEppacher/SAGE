@@ -14,6 +14,8 @@
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <geometry_msgs/msg/point.hpp>
+#include "graph_node_msgs/msg/graph_node_array.hpp"
+#include "rosgraph_msgs/msg/clock.hpp"
 #include <chrono>
 #include <thread>
 #include <queue>
@@ -26,6 +28,7 @@ public:
     nav_msgs::msg::OccupancyGrid detectFrontierGrid(const nav_msgs::msg::OccupancyGrid::SharedPtr& grid);
     std::vector<Frontier> clusterFrontierGrid(const nav_msgs::msg::OccupancyGrid::SharedPtr& frontierGrid);
     void publishFrontiers(const std::vector<Frontier>& frontiers);
+    void publishGraphNodes(const std::vector<Frontier>& frontiers);
 
 private:
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr frontierGridPub;
@@ -39,9 +42,16 @@ private:
     rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr paramCallbackHandle;
 
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr frontiersPub;
-    
-    void getParameters();
+    rclcpp::Publisher<graph_node_msgs::msg::GraphNodeArray>::SharedPtr graphNodePub;
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr markerPub; ///< Publisher for marker visualization
 
+    void clockCallback(const rosgraph_msgs::msg::Clock::SharedPtr msg);
+
+    void getParameters();
+    void publishGraphNodesMarker(const graph_node_msgs::msg::GraphNodeArray &msg);
+
+
+    rclcpp::Clock::SharedPtr clock; ///< Clock used for timestamping markers
 
     /// \brief Minimum cluster size (in points)
     int minClusterSize;
@@ -51,6 +61,8 @@ private:
 
     std::shared_ptr<Frontier> frontier;
     rclcpp::Node* node;
+    rclcpp::Time latestClock;
+
 };
 
 #endif // FRONTIERCOLLECTION_H

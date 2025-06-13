@@ -12,6 +12,7 @@
 #include "geometry_msgs/msg/point.hpp"
 #include "frontier_collection.hpp"
 #include <pcl_conversions/pcl_conversions.h>
+#include "graph_node_msgs/msg/graph_node_array.hpp"
 
 class SemanticFrontier : public rclcpp::Node {
 public:

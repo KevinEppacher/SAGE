@@ -24,6 +24,7 @@ find_package(std_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(frontier_msgs REQUIRED)
+find_package(graph_node_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(pcl_conversions REQUIRED)
 
@@ -62,6 +63,7 @@ ament_target_dependencies(semantic_frontier_exploration_node
   std_msgs
   nav_msgs
   frontier_msgs
+  graph_node_msgs
   pcl_conversions
 )
 
