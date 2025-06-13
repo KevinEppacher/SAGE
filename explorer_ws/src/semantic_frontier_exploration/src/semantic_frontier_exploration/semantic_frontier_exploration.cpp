@@ -26,6 +26,8 @@ SemanticFrontier::SemanticFrontier() : Node("cluster_node")
 
     frontiers = std::make_shared<FrontierCollection>(this);
 
+    graphNodes = std::make_shared<GraphNodeCollection>(this);
+
 }
 
 SemanticFrontier::~SemanticFrontier()
@@ -107,19 +109,27 @@ void SemanticFrontier::timerCallback()
     auto frontierGridPtr = std::make_shared<nav_msgs::msg::OccupancyGrid>(frontierGrid);
     std::vector<Frontier> clusteredFrontiers = frontiers->clusterFrontierGrid(frontierGridPtr);
 
-    std::vector<Frontier> scoredFrontiers;
+    graphNodes->clear();
     for (auto& frontier : clusteredFrontiers)
     {
+        GraphNode graphNode;
         geometry_msgs::msg::Point centroid = frontier.getCentroid();
-        float score = getScoreFromValueMap(valueMapPcl, centroid);
+        graphNode.setPosition(centroid);
+        double score = getScoreFromValueMap(valueMapPcl, centroid);
         if (score < 0.005) continue;  // Skip frontiers with low scores
-        frontier.setScore(score);
-        scoredFrontiers.push_back(frontier);
+        graphNode.setScore(score);
+        graphNodes->addNode(graphNode);
+        RCLCPP_INFO(this->get_logger(), "Added GraphNode at position (%.2f, %.2f, %.2f) with score %.3f",
+                    centroid.x, centroid.y, centroid.z, score);
     }
 
-    frontiers->publishFrontiers(scoredFrontiers);
+    graphNodes->publishPosMarkers();
 
-    frontiers->publishGraphNodes(scoredFrontiers);
+    graphNodes->publishGraphNodeArray();
+
+    // frontiers->publishFrontiers(scoredFrontiers);
+
+    // frontiers->publishGraphNodes(scoredFrontiers);
 }
 
 float SemanticFrontier::getScoreFromValueMap(const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud, const geometry_msgs::msg::Point& pos)

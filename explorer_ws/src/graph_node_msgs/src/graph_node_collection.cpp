@@ -1,0 +1,196 @@
+// graph_node_collection.cpp
+#include "graph_node_msgs/graph_node_collection.hpp"
+
+GraphNodeCollection::GraphNodeCollection(rclcpp::Node* node)
+{
+    markerPub = node->create_publisher<visualization_msgs::msg::MarkerArray>(
+        "cloud_cluster/centroids", 10);
+        
+    clock = node->get_clock();
+
+    graphNodePub = node->create_publisher<graph_node_msgs::msg::GraphNodeArray>(
+        "graph_nodes", 10);
+
+    node->declare_parameter("frame_id", "map");
+
+    node->get_parameter("frame_id", frameId);
+
+}
+
+void GraphNodeCollection::addNode(const GraphNode& node)
+{
+    nodes.push_back(node);
+}
+
+void GraphNodeCollection::clear()
+{
+    nodes.clear();
+}
+
+void GraphNodeCollection::publishPosMarkers()
+{
+
+    visualization_msgs::msg::MarkerArray markers;
+    int id = 0;
+
+    // 1. Min/Max Score berechnen
+    double min_score = std::numeric_limits<double>::max();
+    double max_score = std::numeric_limits<double>::lowest();
+    int max_index = -1;
+
+    for (size_t i = 0; i < nodes.size(); ++i)
+    {
+        double score = nodes[i].getScore();
+        if (score < min_score) min_score = score;
+        if (score > max_score) {
+            max_score = score;
+            max_index = static_cast<int>(i);
+        }
+    }
+
+    for (const auto& node : nodes)
+    {
+        auto pos = node.getPosition();
+        auto score = node.getScore();
+
+        double normalized = (max_score > min_score) ?
+            (score - min_score) / (max_score - min_score) : 0.0;
+
+        // SPHERE Marker
+        visualization_msgs::msg::Marker sphere;
+        sphere.header.frame_id = frameId;
+        sphere.header.stamp = clock->now();
+        sphere.ns = "graph_nodes";
+        sphere.id = id++;
+        sphere.type = visualization_msgs::msg::Marker::SPHERE;
+        sphere.action = visualization_msgs::msg::Marker::ADD;
+        sphere.pose.position = pos;
+        sphere.pose.orientation.w = 1.0;
+        sphere.scale.x = 0.1;
+        sphere.scale.y = 0.1;
+        sphere.scale.z = 0.1;
+        sphere.color.r = 1.0 - normalized;
+        sphere.color.g = normalized;
+        sphere.color.b = 0.0;
+        sphere.color.a = 0.8;
+        markers.markers.push_back(sphere);
+
+        // TEXT Marker
+        visualization_msgs::msg::Marker text;
+        text.header.frame_id = frameId;
+        text.header.stamp = clock->now();
+        text.ns = "graph_nodes_text";
+        text.id = id++;
+        text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+        text.action = visualization_msgs::msg::Marker::ADD;
+        text.pose.position = pos;
+        text.pose.position.z += 0.15;
+        text.pose.orientation.w = 1.0;
+        text.scale.z = 0.1;
+        text.color.r = 1.0;
+        text.color.g = 1.0;
+        text.color.b = 1.0;
+        text.color.a = 1.0;
+
+        std::ostringstream stream;
+        stream << std::fixed << std::setprecision(2) << score;
+        text.text = stream.str();
+        markers.markers.push_back(text);
+    }
+
+    // Highlight Marker für Node mit höchstem Score
+    if (max_index >= 0 && max_index < static_cast<int>(nodes.size()))
+    {
+        auto pos = nodes[max_index].getPosition();
+        visualization_msgs::msg::Marker star;
+        star.header.frame_id = frameId;
+        star.header.stamp = clock->now();
+        star.ns = "graph_nodes_best";
+        star.id = id++;
+        star.type = visualization_msgs::msg::Marker::SPHERE;
+        star.action = visualization_msgs::msg::Marker::ADD;
+        star.pose.position = pos;
+        star.pose.orientation.w = 1.0;
+        star.scale.x = 0.3;
+        star.scale.y = 0.3;
+        star.scale.z = 0.3;
+        star.color.r = 1.0;
+        star.color.g = 1.0;
+        star.color.b = 0.0;
+        star.color.a = 1.0;
+        markers.markers.push_back(star);
+    }
+
+    clearMarkers();
+    markerPub->publish(markers);
+}
+
+void GraphNodeCollection::clearMarkers()
+{
+    visualization_msgs::msg::Marker deleteAll;
+    deleteAll.action = visualization_msgs::msg::Marker::DELETEALL;
+    deleteAll.header.frame_id = frameId;
+    deleteAll.header.stamp = clock->now();
+
+    visualization_msgs::msg::MarkerArray clearArray;
+    clearArray.markers.push_back(deleteAll);
+
+    // zuerst alle alten Marker löschen
+    markerPub->publish(clearArray);
+}
+
+void GraphNodeCollection::normalizeGraphNodes()
+{
+    double scoreSum = 0.0;
+    for(auto& node : nodes)
+    {
+        scoreSum += node.getScore();
+    }
+
+    for(auto& node : nodes)
+    {
+        double normalizedScore = node.getScore() / scoreSum;
+        node.setScore(normalizedScore);
+    }
+}
+
+const std::vector<GraphNode>& GraphNodeCollection::getNodes() const
+{
+    return nodes;
+}
+
+void GraphNodeCollection::publishGraphNodeArray()
+{
+    graph_node_msgs::msg::GraphNodeArray msg;
+
+    for (const auto& node : nodes)
+    {
+        graph_node_msgs::msg::GraphNode graphNodeMsg;
+        graphNodeMsg.header.stamp = getTimestamp();
+        graphNodeMsg.header.frame_id = frameId;
+        graphNodeMsg.id = node.getId();
+        graphNodeMsg.position = node.getPosition();
+        graphNodeMsg.score = node.getScore();
+        msg.nodes.push_back(graphNodeMsg);
+    }
+
+    graphNodePub->publish(msg);
+}
+
+void GraphNodeCollection::clockCallback(const rosgraph_msgs::msg::Clock::SharedPtr msg)
+{
+    latestClock = msg->clock;
+}
+
+rclcpp::Time GraphNodeCollection::getTimestamp() const
+{
+    if (latestClock.nanoseconds() == 0) 
+    {
+        return clock->now();
+    } 
+    else 
+    {
+        return latestClock;
+    }
+}
+

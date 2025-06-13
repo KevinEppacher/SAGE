@@ -41,6 +41,8 @@ find_package(PCL REQUIRED COMPONENTS common io filters segmentation search)
 include_directories(
   include                           # Local headers
   include/semantic_frontier_exploration
+  ${graph_node_msgs_INCLUDE_DIRS}   # Graph node messages
+
 )
 
 #####################################################################
@@ -68,7 +70,11 @@ ament_target_dependencies(semantic_frontier_exploration_node
 )
 
 # Link OpenCV
-target_link_libraries(semantic_frontier_exploration_node ${OpenCV_LIBS})
+target_link_libraries(semantic_frontier_exploration_node 
+  ${OpenCV_LIBS}
+  graph_node_msgs::graph_node_lib
+  )
+
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 # Define PCL macros (if any)
