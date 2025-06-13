@@ -13,6 +13,7 @@
 #include "frontier_collection.hpp"
 #include <pcl_conversions/pcl_conversions.h>
 #include "graph_node_msgs/msg/graph_node_array.hpp"
+#include "graph_node_msgs/graph_node_collection.hpp"
 
 class SemanticFrontier : public rclcpp::Node {
 public:
@@ -59,6 +60,9 @@ private:
     pcl::PointCloud<pcl::PointXYZI>::Ptr valueMapPcl;
 
     std::shared_ptr<FrontierCollection> frontiers;
+
+    /// \brief Collection of all GraphNodes (with position and score)
+    std::shared_ptr<GraphNodeCollection> graphNodes;
 
 };
 

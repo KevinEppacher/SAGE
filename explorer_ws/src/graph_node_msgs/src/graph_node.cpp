@@ -1,0 +1,50 @@
+#include "graph_node_msgs/graph_node.hpp"
+
+GraphNode::GraphNode() 
+{
+    this->graphNode.id = 0;  // Default ID
+    this->graphNode.position.x = 0.0;  // Default position
+    this->graphNode.position.y = 0.0;  // Default position
+    this->graphNode.position.z = 0.0;  // Default position
+    this->graphNode.score = 0.0;  // Default score
+}
+
+GraphNode::~GraphNode() 
+{
+
+}
+
+void GraphNode::setId(int& id) 
+{
+    this->graphNode.id = id;
+}
+
+void GraphNode::setPosition(geometry_msgs::msg::Point& position) 
+{
+    this->graphNode.position = position;
+}
+
+void GraphNode::setScore(double& score) 
+{
+    this->graphNode.score = score;
+}
+
+int GraphNode::getId() const
+{
+    return this->graphNode.id;
+}
+
+geometry_msgs::msg::Point GraphNode::getPosition() const
+{
+    return this->graphNode.position;
+}
+
+double GraphNode::getScore() const
+{
+    return this->graphNode.score;
+}
+
+graph_node_msgs::msg::GraphNode GraphNode::getGraphNode() const
+{
+    return this->graphNode;
+}
