@@ -75,6 +75,7 @@
         "typeinfo": "cpp",
         "variant": "cpp",
         "__nullptr": "cpp",
-        "__node_handle": "cpp"
+        "__node_handle": "cpp",
+        "queue": "cpp"
     }
 }

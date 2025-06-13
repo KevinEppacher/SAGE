@@ -22,6 +22,9 @@
   <build_depend>frontier_msgs</build_depend>
   <exec_depend>frontier_msgs</exec_depend>
 
+  <build_depend>graph_node_msgs</build_depend>
+  <exec_depend>graph_node_msgs</exec_depend>
+
   <build_depend>nav2_costmap</build_depend>
   <exec_depend>nav2_costmap</exec_depend>
 

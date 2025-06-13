@@ -112,12 +112,14 @@ void SemanticFrontier::timerCallback()
     {
         geometry_msgs::msg::Point centroid = frontier.getCentroid();
         float score = getScoreFromValueMap(valueMapPcl, centroid);
-        frontier.setScore(score);
         if (score < 0.005) continue;  // Skip frontiers with low scores
+        frontier.setScore(score);
         scoredFrontiers.push_back(frontier);
     }
 
     frontiers->publishFrontiers(scoredFrontiers);
+
+    frontiers->publishGraphNodes(scoredFrontiers);
 }
 
 float SemanticFrontier::getScoreFromValueMap(const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud, const geometry_msgs::msg::Point& pos)
