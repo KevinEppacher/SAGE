@@ -360,7 +360,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /semantic_frontier_exploration/cloud_cluster/centroids
+        Value: /semantic_frontier_exploration/graph_nodes/marker
       Value: true
   Enabled: true
   Global Options:
@@ -407,7 +407,7 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: 3.135000467300415
+      Angle: 3.1299986839294434
       Class: rviz_default_plugins/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
@@ -417,11 +417,11 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 116.90821838378906
+      Scale: 80.39692687988281
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz_default_plugins)
-      X: -4.34208345413208
-      Y: 0.9276096224784851
+      X: 3.604875326156616
+      Y: -0.5078397989273071
     Saved: ~
 Window Geometry:
   Displays:

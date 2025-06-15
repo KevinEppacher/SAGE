@@ -21,8 +21,8 @@ class SemanticValueMap:
         self.max_semantic_score = 0
 
         # Publishers
-        self.value_map_inferno_pub = node.create_publisher(PointCloud2, '/value_map', 10)
-        self.value_map_raw_pub = node.create_publisher(PointCloud2, '/value_map_raw', 10)
+        self.value_map_inferno_pub = node.create_publisher(PointCloud2, 'value_map', 10)
+        self.value_map_raw_pub = node.create_publisher(PointCloud2, 'value_map_raw', 10)
 
         # Subscribers
         self.subscriber = node.create_subscription(OccupancyGrid, '/map', self.map_callback, 10)

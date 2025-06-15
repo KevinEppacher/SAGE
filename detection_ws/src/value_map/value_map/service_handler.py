@@ -2,17 +2,36 @@ from seem_ros_interfaces.srv import Panoptic, ObjectSegmentation, SemanticSimila
 import rclpy
 from cv_bridge import CvBridge
 import cv2
+
 #from vlm_interface.srv import SemanticSimilarity
+
+# ANSI color codes
+BLUE = "\033[94m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+BOLD = "\033[1m"
+RESET = "\033[0m"
 
 class ServiceHandler:
     def __init__(self, node):
         self.node = node
         self.bridge = CvBridge()
 
+        self.node.declare_parameter('vlm_target_namespace', '/seem_ros')
+        self.vlm_namespace = self.node.get_parameter('vlm_target_namespace').get_parameter_value().string_value.rstrip('/')
+
+        def resolve(service: str) -> str:
+            return f'{self.vlm_namespace}/{service}'
+
         # Create clients
-        self.cli_panoptic = node.create_client(Panoptic, 'panoptic_segmentation')
-        self.cli_object_segmentation = node.create_client(ObjectSegmentation, 'object_segmentation')
-        self.cli_semantic_similarity = node.create_client(SemanticSimilarity, 'semantic_similarity')
+        self.cli_panoptic = self.node.create_client(Panoptic, resolve('panoptic_segmentation'))
+        self.cli_object_segmentation = self.node.create_client(ObjectSegmentation, resolve('object_segmentation'))
+        self.cli_semantic_similarity = self.node.create_client(SemanticSimilarity, resolve('semantic_similarity'))
+
+        self.node.get_logger().info(
+            f"{BLUE}{BOLD}ServiceHandler initialized with VLM namespace: {self.vlm_namespace}{RESET}"
+        )
 
         self.panoptic_segemented_image = None
         self.object_segmented_image = None

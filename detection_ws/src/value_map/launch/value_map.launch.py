@@ -9,6 +9,8 @@ def generate_launch_description():
 
     # Find config and rviz path
     pkg_share = FindPackageShare(package_name).find(package_name)
+    param_file = os.path.join(pkg_share, 'config', 'value_map.yaml')
+
     rviz_config = os.path.join(pkg_share, 'rviz', 'rviz.rviz')
     # param_file = os.path.join(pkg_share, 'config', 'value_map.yml')
 
@@ -18,7 +20,7 @@ def generate_launch_description():
         name="value_map_node",
         output='screen',
         emulate_tty=True,
-        # parameters=[param_file],
+        parameters=[param_file],
         # arguments=['--ros-args', '--log-level', 'debug']
     )
 

@@ -4,7 +4,7 @@
 GraphNodeCollection::GraphNodeCollection(rclcpp::Node* node)
 {
     markerPub = node->create_publisher<visualization_msgs::msg::MarkerArray>(
-        "cloud_cluster/centroids", 10);
+        "graph_nodes/marker", 10);
         
     clock = node->get_clock();
 
