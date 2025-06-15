@@ -14,7 +14,9 @@ SemanticFrontier::SemanticFrontier() : Node("cluster_node")
     // Define subscribers
     occupancygridSub = this->create_subscription<nav_msgs::msg::OccupancyGrid>("/map", 10,std::bind(&SemanticFrontier::occupancyGridCallback, this, std::placeholders::_1));
 
-    valueMapSub = this->create_subscription<sensor_msgs::msg::PointCloud2>("/value_map_raw", 10,std::bind(&SemanticFrontier::valueMapCallback, this, std::placeholders::_1));
+    RCLCPP_INFO(this->get_logger(), "%s", (valueMapNamespace + "/value_map_raw").c_str());
+
+    valueMapSub = this->create_subscription<sensor_msgs::msg::PointCloud2>(valueMapNamespace + "/value_map_raw", 10,std::bind(&SemanticFrontier::valueMapCallback, this, std::placeholders::_1));
 
     // Define timers
     auto interval = std::chrono::duration<double>(1.0 / publishFrequency);
@@ -52,6 +54,10 @@ void SemanticFrontier::getParameters()
     this->declare_parameter("publish_frequency", 1.0);
 
     this->get_parameter("publish_frequency", publishFrequency);
+
+    this->declare_parameter("value_map_namespace", "/value_map");
+
+    this->get_parameter("value_map_namespace", valueMapNamespace);
 
     RCLCPP_INFO(this->get_logger(), "Loaded parameters:");
     for (const auto &name : this->list_parameters({}, 10).names)
@@ -110,17 +116,18 @@ void SemanticFrontier::timerCallback()
     std::vector<Frontier> clusteredFrontiers = frontiers->clusterFrontierGrid(frontierGridPtr);
 
     graphNodes->clear();
+    int i = 0;
     for (auto& frontier : clusteredFrontiers)
     {
+        int id = i++;
         GraphNode graphNode;
         geometry_msgs::msg::Point centroid = frontier.getCentroid();
         graphNode.setPosition(centroid);
         double score = getScoreFromValueMap(valueMapPcl, centroid);
         if (score < 0.005) continue;  // Skip frontiers with low scores
         graphNode.setScore(score);
+        graphNode.setId(id);
         graphNodes->addNode(graphNode);
-        RCLCPP_INFO(this->get_logger(), "Added GraphNode at position (%.2f, %.2f, %.2f) with score %.3f",
-                    centroid.x, centroid.y, centroid.z, score);
     }
 
     graphNodes->publishPosMarkers();

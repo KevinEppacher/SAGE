@@ -94,9 +94,11 @@ class ValueMap(LifecycleNode):
             # object_segmented_image = self.service_handler.call_object_segmentation(self.rgb_image, self.text_query)
             semantic_similarity_score = self.service_handler.call_semantic_similarity(self.rgb_image, self.text_query)
             
-            self.publish_score_marker(semantic_similarity_score)
         except Exception as e:
             self.get_logger().error(f"Service calls failed: {e}")
+            # Check VLM namespace
+            self.get_logger().warn("Check if the VLM Server namespace is correctly set up.")
+            self.get_logger().warn("Current VLM namespace: " + self.service_handler.vlm_namespace)
             return
 
         if semantic_similarity_score is None:
@@ -135,29 +137,3 @@ class ValueMap(LifecycleNode):
         except (LookupException, ConnectivityException, ExtrapolationException) as e:
             self.get_logger().warn(f"TF transform failed: {e}")
             return None
-        
-    def publish_score_marker(self, score: float):
-        marker = Marker()
-        marker.header.frame_id = "map"
-        marker.header.stamp = self.get_clock().now().to_msg()
-        marker.ns = "semantic_score"
-        marker.id = 0
-        marker.type = Marker.CYLINDER
-        marker.action = Marker.ADD
-        marker.pose.position.x = 0.0
-        marker.pose.position.y = 0.0
-        marker.pose.position.z = 0.5  # Halbe Höhe, damit es auf Boden steht
-        marker.pose.orientation.w = 1.0
-
-        # Skaliere Durchmesser proportional zum Score, Höhe konstant
-        diameter = max(0.01, float(score)*5)  # Mindestgröße zur Anzeige
-        marker.scale.x = diameter
-        marker.scale.y = diameter
-        marker.scale.z = 1.0  # konstante Höhe
-
-        marker.color.a = 0.8
-        marker.color.r = 0.2
-        marker.color.g = 0.8
-        marker.color.b = 0.2
-
-        self.marker_pub.publish(marker)
