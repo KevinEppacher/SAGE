@@ -90,8 +90,8 @@ class ValueMap(LifecycleNode):
             return
 
         try:
-            # panoptic_segmented_image = self.service_handler.call_panoptic(self.rgb_image)
-            # object_segmented_image = self.service_handler.call_object_segmentation(self.rgb_image, self.text_query)
+            panoptic_segmented_image = self.service_handler.call_panoptic(self.rgb_image)
+            object_segmented_image = self.service_handler.call_object_segmentation(self.rgb_image, self.text_query)
             semantic_similarity_score = self.service_handler.call_semantic_similarity(self.rgb_image, self.text_query)
             
         except Exception as e:
