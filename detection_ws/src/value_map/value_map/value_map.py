@@ -12,6 +12,8 @@ from tf2_ros import LookupException, ConnectivityException, ExtrapolationExcepti
 from geometry_msgs.msg import Pose
 from value_map.semantic_value_map import SemanticValueMap
 import time
+# Temp
+from std_msgs.msg import Float32  # schon ganz oben importieren
 
 class ValueMap(LifecycleNode):
     def __init__(self):
@@ -21,10 +23,13 @@ class ValueMap(LifecycleNode):
         self.declare_parameter('timer_frequency', 5.0, ParameterDescriptor(description='Frequency of the timer.'))
         self.timer_frequency = self.get_parameter("timer_frequency").get_parameter_value().double_value
 
+        # Temp
+        self.similarity_pub = self.create_publisher(Float32, "/cosine_similarity", 10)
+
         self.timer = None
         self.bridge = CvBridge()
 
-        self.text_query = "brown chair"
+        self.text_query = "stairs"
         self.rgb_image = None
         self.map = None
 
@@ -93,6 +98,11 @@ class ValueMap(LifecycleNode):
             panoptic_segmented_image = self.service_handler.call_panoptic(self.rgb_image)
             object_segmented_image = self.service_handler.call_object_segmentation(self.rgb_image, self.text_query)
             semantic_similarity_score = self.service_handler.call_semantic_similarity(self.rgb_image, self.text_query)
+
+            # Publish cosine similarity score
+            score_msg = Float32()
+            score_msg.data = semantic_similarity_score
+            self.similarity_pub.publish(score_msg)
             
         except Exception as e:
             self.get_logger().error(f"Service calls failed: {e}")

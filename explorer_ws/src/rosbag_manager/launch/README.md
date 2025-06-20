@@ -26,6 +26,36 @@ ros2 bag record \
   /tf_static
   ```
 
+  ```bash
+ros2 bag record \
+  -o /app/src/rosbag_manager/bag/bag_$(date +%Y-%m-%d_%H-%M-%S)_stairs \
+  --compression-mode file \
+  --compression-format zstd \
+  /camera_info \
+  /clock \
+  /map \
+  /map_metadata \
+  /map_updates \
+  /odom \
+  /parameter_events \
+  /pose \
+  /rgb \
+  /rosout \
+  /tf \
+  /tf_static \
+  /seem_ros/seem_lifecycle_node/transition_event \
+  /semantic_frontier_exploration/frontier_grid \
+  /semantic_frontier_exploration/frontier_markers \
+  /semantic_frontier_exploration/frontiers \
+  /semantic_frontier_exploration/graph_nodes \
+  /semantic_frontier_exploration/graph_nodes/marker \
+  /semantic_score_marker \
+  /value_map/value_map \
+  /value_map/value_map_node/transition_event \
+  /value_map/value_map_raw \
+  /cosine_similarity
+  ```
+
 Bevore recording, make sure to launch slam_toolbox
 ```bash
 ros2 launch slam_toolbox online_async_launch.py
@@ -37,7 +67,8 @@ ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=/app/src/rosbag_man
 ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=src/rosbag_manager/bag/bag_2025-05-20_19-00-55_HaxA7YrQdEC_pointcloud  rate:=3.0   loop:=true
 ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=src/rosbag_manager/bag/bag_2025-05-25_09-16-33_Frontiers_Inflation  rate:=3.0   loop:=true
 ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=/app/src/rosbag_manager/bag/bag_2025-06-08_18-22-29_HaxA7YrQdEC  rate:=0.5   loop:=true
-
+ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=/app/src/rosbag_manager/bag/bag_2025-06-19_21-55-37_HaxA7YrQdEC  rate:=1  loop:=true
+ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=/app/src/rosbag_manager/bag/bag_2025-06-19_23-18-23_oven  rate:=5 loop:=true
 ```
 
 ## Visualize data
