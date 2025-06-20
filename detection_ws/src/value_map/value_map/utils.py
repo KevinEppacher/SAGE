@@ -1,8 +1,10 @@
 import numpy as np
 import math
 import geometry_msgs.msg as Pose
-from tf_transformations import euler_from_quaternion
 import matplotlib.pyplot as plt
+if not hasattr(np, 'float'):
+    np.float = float
+from tf_transformations import euler_from_quaternion
 
 def normalize_angle(angle_rad: float) -> float:
     """Normalize angle to [-pi, pi]."""
