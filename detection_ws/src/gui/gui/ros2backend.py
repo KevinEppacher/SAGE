@@ -3,21 +3,20 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge
 import cv2
-from werkzeug.utils import secure_filename
-
+from multimodal_query_msgs.msg import SemanticPrompt
 
 class ROS2Backend(Node):
     """Handles all ROS2 publishers and message formatting."""
     def __init__(self):
         super().__init__('flask_node')
-        self.text_pub = self.create_publisher(String, '/user_text', 10)
+        self.text_pub = self.create_publisher(SemanticPrompt, '/user_text', 10)
         self.image_pub = self.create_publisher(Image, '/uploaded_image', 10)
         self.camera_info_pub = self.create_publisher(CameraInfo, '/uploaded_image/camera_info', 10)
         self.bridge = CvBridge()
 
     def publish_text(self, text: str):
-        msg = String()
-        msg.data = text
+        msg = SemanticPrompt()
+        msg.text_query = text
         self.text_pub.publish(msg)
         self.get_logger().info(f"Published user text: '{text}'")
 
