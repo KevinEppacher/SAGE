@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ROS2 Web GUI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>ROS2 GUI – SAGE</h1>
+
+    <form method="POST">
+        <label for="text_input">Text-Eingabe:</label>
+        <input type="text" name="text_input" />
+        <button type="submit">Senden</button>
+    </form>
+
+    <h2>Foxglove Studio</h2>
+    <iframe src="http://localhost:8080" width="100%" height="600px" style="border:none;"></iframe>
+</body>
+</html>
