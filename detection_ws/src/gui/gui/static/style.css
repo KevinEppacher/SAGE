@@ -1,0 +1,32 @@
+/* gui/gui/static/style.css */
+
+body {
+    background-color: #121212;
+    color: #f0f0f0;
+    font-family: 'Segoe UI', sans-serif;
+    margin: 0;
+    padding: 20px;
+}
+
+h1, h2 {
+    color: #ffffff;
+}
+
+input, button, textarea {
+    background-color: #1e1e1e;
+    color: #ffffff;
+    border: 1px solid #444;
+    padding: 8px;
+    border-radius: 4px;
+    margin: 5px 0;
+}
+
+button:hover {
+    background-color: #333;
+}
+
+iframe {
+    border: 2px solid #444;
+    border-radius: 8px;
+    margin-top: 20px;
+}
