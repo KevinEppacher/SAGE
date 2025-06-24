@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'gui = gui.gui:main',
+            'test_image = gui.test.visualize_image:main',
         ],
     },
 )
