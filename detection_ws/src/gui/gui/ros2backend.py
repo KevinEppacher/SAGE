@@ -1,44 +1,67 @@
 from rclpy.node import Node
-from std_msgs.msg import String
-from sensor_msgs.msg import Image, CameraInfo
+from std_msgs.msg import Header
+from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
 from multimodal_query_msgs.msg import SemanticPrompt
+import os
 
 class ROS2Backend(Node):
-    """Handles all ROS2 publishers and message formatting."""
+    """Handles ROS2 publishing of semantic prompts (text/image)."""
     def __init__(self):
-        super().__init__('flask_node')
-        self.text_pub = self.create_publisher(SemanticPrompt, '/user_text', 10)
-        self.image_pub = self.create_publisher(Image, '/uploaded_image', 10)
-        self.camera_info_pub = self.create_publisher(CameraInfo, '/uploaded_image/camera_info', 10)
+        super().__init__('gui_node')
+        self.prompt_pub = self.create_publisher(SemanticPrompt, '/user_prompt', 10)
         self.bridge = CvBridge()
+        self.current_prompt = SemanticPrompt()
+        self.current_prompt.header.frame_id = "semantic_prompt"
+        self.get_logger().info("ROS2Backend initialized with empty SemanticPrompt.")
+
+    def _update_header(self):
+        self.current_prompt.header.stamp = self.get_clock().now().to_msg()
+        self.current_prompt.header.frame_id = "uploaded_prompt"
 
     def publish_text(self, text: str):
-        msg = SemanticPrompt()
-        msg.text_query = text
-        self.text_pub.publish(msg)
-        self.get_logger().info(f"Published user text: '{text}'")
+        """Update text_query field and publish full SemanticPrompt."""
+        self.current_prompt.text_query = text
+        self._update_header()
+        self.prompt_pub.publish(self.current_prompt)
+        self.get_logger().info("Published SemanticPrompt with updated text_query.")
 
     def publish_image(self, image_path: str):
+        """Convert image and update image_query field in SemanticPrompt."""
+        
+        # Überprüfen, ob das Bild erfolgreich geladen wurde
         cv_image = cv2.imread(image_path)
+        
+        # if cv_image is not None:
+        #     cv2.imshow('Gelesenes Bild', cv_image)
+        #     cv2.waitKey(0)
+        #     cv2.destroyAllWindows()
+        # else:
+        #     print("Fehler: Bild konnte nicht geladen werden.")
+
+        print(f"Loading from: {image_path}")
+        print(f"Exists? {os.path.exists(image_path)}")
+        print(f"Image shape: {cv_image.shape if cv_image is not None else 'None'}")
+        print("Min pixel value:", cv_image.min())
+        print("Max pixel value:", cv_image.max())
+        print("dtype:", cv_image.dtype)
+        print("shape:", cv_image.shape)
+
+        if cv_image.sum() == 0:
+            self.get_logger().warn("Loaded image is completely black.")
+
         if cv_image is None:
             self.get_logger().error(f"Failed to load image from {image_path}")
             return
 
+        import time
+        time.sleep(1)
         image_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="bgr8")
         image_msg.header.stamp = self.get_clock().now().to_msg()
-        image_msg.header.frame_id = "uploaded_camera"
-        self.image_pub.publish(image_msg)
+        image_msg.header.frame_id = "uploaded_image"
 
-        info_msg = CameraInfo()
-        info_msg.header = image_msg.header
-        info_msg.height = cv_image.shape[0]
-        info_msg.width = cv_image.shape[1]
-        cx = info_msg.width / 2.0
-        cy = info_msg.height / 2.0
-        info_msg.k = [1.0, 0.0, cx, 0.0, 1.0, cy, 0.0, 0.0, 1.0]
-        info_msg.p = [1.0, 0.0, cx, 0.0, 0.0, 1.0, cy, 0.0, 0.0, 0.0, 1.0, 0.0]
-        self.camera_info_pub.publish(info_msg)
-
-        self.get_logger().info(f"Published image and CameraInfo from: {image_path}")
+        self.current_prompt.image_query = image_msg
+        self._update_header()
+        self.prompt_pub.publish(self.current_prompt)
+        self.get_logger().info("Published SemanticPrompt with updated image_query.")
