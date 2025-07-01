@@ -16,6 +16,8 @@ class ROS2Backend(Node):
         self.current_prompt.header.frame_id = "semantic_prompt"
         self.get_logger().info("ROS2Backend initialized with empty SemanticPrompt.")
 
+        self.create_timer(1.0, self.publish_semantic_prompt)  # Update header every second
+
     def _update_header(self):
         self.current_prompt.header.stamp = self.get_clock().now().to_msg()
         self.current_prompt.header.frame_id = "uploaded_prompt"
@@ -40,13 +42,13 @@ class ROS2Backend(Node):
         # else:
         #     print("Fehler: Bild konnte nicht geladen werden.")
 
-        print(f"Loading from: {image_path}")
-        print(f"Exists? {os.path.exists(image_path)}")
-        print(f"Image shape: {cv_image.shape if cv_image is not None else 'None'}")
-        print("Min pixel value:", cv_image.min())
-        print("Max pixel value:", cv_image.max())
-        print("dtype:", cv_image.dtype)
-        print("shape:", cv_image.shape)
+        # print(f"Loading from: {image_path}")
+        # print(f"Exists? {os.path.exists(image_path)}")
+        # print(f"Image shape: {cv_image.shape if cv_image is not None else 'None'}")
+        # print("Min pixel value:", cv_image.min())
+        # print("Max pixel value:", cv_image.max())
+        # print("dtype:", cv_image.dtype)
+        # print("shape:", cv_image.shape)
 
         if cv_image.sum() == 0:
             self.get_logger().warn("Loaded image is completely black.")
@@ -55,13 +57,19 @@ class ROS2Backend(Node):
             self.get_logger().error(f"Failed to load image from {image_path}")
             return
 
-        import time
-        time.sleep(1)
+        # import time
+        # time.sleep(1)
         image_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="bgr8")
         image_msg.header.stamp = self.get_clock().now().to_msg()
         image_msg.header.frame_id = "uploaded_image"
 
         self.current_prompt.image_query = image_msg
         self._update_header()
+        # self.prompt_pub.publish(self.current_prompt)
+        # self.get_logger().info("Published SemanticPrompt with updated image_query.")
+
+    def publish_semantic_prompt(self):
+        """Publish the current SemanticPrompt with updated header."""
+        self._update_header()
         self.prompt_pub.publish(self.current_prompt)
-        self.get_logger().info("Published SemanticPrompt with updated image_query.")
+        self.get_logger().info("Published SemanticPrompt with updated header.")
