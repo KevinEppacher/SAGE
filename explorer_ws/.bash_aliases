@@ -1,6 +1,5 @@
 # ROS 2 Sourcing (Adjust the path to your installation)
 alias src_ros2="source /opt/ros/humble/setup.bash"  # Or foxy, galactic, etc.
-alias src_ws="source ~/ros2_ws/install/setup.bash"  # Your custom workspace setup
 
 # ROS 2 Launch & Nodes
 alias rlaunch="ros2 launch"
