@@ -1,0 +1,13 @@
+#!/bin/bash
+
+clear
+
+echo "Initializing detection workspace..."
+
+cd /app
+
+# Set colorful prompt: green user@host, blue current dir
+export PS1='\[\e[01;32m\]\u@\h:\[\e[01;34m\]\w\[\e[00m\]\$ '
+
+# Start interactive shell without overwriting environment
+bash --norc
