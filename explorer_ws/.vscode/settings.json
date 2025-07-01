@@ -77,5 +77,6 @@
         "__nullptr": "cpp",
         "__node_handle": "cpp",
         "queue": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "/app/src/frontier_msgs"
 }

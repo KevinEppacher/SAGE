@@ -52,7 +52,10 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 
 RUN sudo apt install -y ros-${ROS_DISTRO}-slam-toolbox && \
     sudo apt install -y libceres-dev
-
+    
+RUN sudo apt-get update && sudo apt-get install -y \
+    ros-${ROS_DISTRO}-pcl-ros
+    
 RUN sudo apt install -y \
     ros-${ROS_DISTRO}-navigation2 \
     ros-${ROS_DISTRO}-nav2-bringup \
@@ -62,8 +65,6 @@ RUN sudo apt install -y \
     ros-${ROS_DISTRO}-rviz2 \
     ros-${ROS_DISTRO}-tf2-tools
 
-RUN sudo apt-get update && sudo apt-get install -y \
-    ros-${ROS_DISTRO}-pcl-ros
     
 # # Install python3-pip
 # RUN apt-get update && apt-get install -y \

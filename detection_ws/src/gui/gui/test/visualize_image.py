@@ -22,7 +22,7 @@ class SemanticPromptViewer(Node):
                 cv_image = self.bridge.imgmsg_to_cv2(msg.image_query, desired_encoding='bgr8')
                 self.get_logger().info("Received image with height: %d, width: %d" % (cv_image.shape[0], cv_image.shape[1]))
                 cv2.imshow("SemanticPrompt Image", cv_image)
-                cv2.waitKey(0)
+                # cv2.waitKey(0)
                 self.get_logger().info(f"Received image from topic /user_prompt")
             except Exception as e:
                 self.get_logger().error(f"Failed to convert image: {e}")
