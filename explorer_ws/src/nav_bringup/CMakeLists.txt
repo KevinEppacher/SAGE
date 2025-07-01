@@ -23,8 +23,7 @@ find_package(ament_cmake REQUIRED)
 ############################################################
 
 include_directories(
-  include                           # Local headers
-  include/nav_bringup
+
 )
 
 #####################################################################
@@ -58,10 +57,8 @@ endif()
 
 # Install launch files
 install(DIRECTORY
-  include
   launch
   rviz
-  src
   config
   DESTINATION share/${PROJECT_NAME}
 )
