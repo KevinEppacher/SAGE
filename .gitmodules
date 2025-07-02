@@ -23,3 +23,6 @@
 [submodule "lavis_ws/src/sage_commander"]
 	path = lavis_ws/src/sage_commander
 	url = https://github.com/KevinEppacher/sage_commander.git
+[submodule "exploitation_ws/src/openfusion_ros"]
+	path = exploitation_ws/src/openfusion_ros
+	url = https://github.com/KevinEppacher/openfusion_ros.git
