@@ -1,10 +1,6 @@
 [submodule "IsaacLab"]
 	path = IsaacLab
 	url = https://github.com/KevinEppacher/IsaacLab.git
-[submodule "explorer_ws/src/slam_toolbox"]
-	path = explorer_ws/src/slam_toolbox
-	url = https://github.com/SteveMacenski/slam_toolbox.git
-	branch = humble
 [submodule "detection_ws/src/seem_ros"]
 	path = detection_ws/src/seem_ros
 	url = https://github.com/KevinEppacher/seem_ros.git
