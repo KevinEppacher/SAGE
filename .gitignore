@@ -92,3 +92,5 @@ explorer_ws/core.*
 
 # Ignore LAVIS
 lavis_ws/src/LAVIS
+
+exploitation_ws/src/openfusion_ros_v0/*
