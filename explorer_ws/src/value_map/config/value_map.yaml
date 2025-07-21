@@ -1,0 +1,5 @@
+value_map:
+  value_map_node:
+    ros__parameters:
+      vlm_target_namespace: "/seem_ros"
+      timer_frequency: 5.0
