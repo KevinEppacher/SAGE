@@ -125,6 +125,7 @@ ament_target_dependencies(test_service
   sensor_msgs
   seem_ros_interfaces
   cv_bridge
+  rclcpp_lifecycle
 )
 
 # Link OpenCV
