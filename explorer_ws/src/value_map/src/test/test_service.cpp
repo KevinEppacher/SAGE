@@ -5,15 +5,8 @@
 #include "seem_ros_interfaces/srv/semantic_similarity.hpp"
 #include "cv_bridge/cv_bridge.h"
 #include <opencv2/opencv.hpp>
-
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "lifecycle_msgs/msg/state.hpp"
-#include "sensor_msgs/msg/image.hpp"
-#include "seem_ros_interfaces/srv/panoptic.hpp"
-#include "seem_ros_interfaces/srv/object_segmentation.hpp"
-#include "seem_ros_interfaces/srv/semantic_similarity.hpp"
-#include "cv_bridge/cv_bridge.h"
-#include <opencv2/opencv.hpp>
 
 using rclcpp_lifecycle::LifecycleNode;
 
