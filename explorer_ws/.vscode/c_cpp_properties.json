@@ -4,8 +4,11 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/opt/ros/humble/include/**",   // Add this line to include ROS2 headers
-                "/usr/include/**"   // Add this line to include system headers
+                "${workspaceFolder}/install/seem_ros_interfaces/include",
+                "${workspaceFolder}/install/*/include",
+                "${workspaceFolder}/build/*/rosidl_generator_cpp",
+                "/opt/ros/humble/include/**",
+                "/usr/include/**"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",
@@ -16,7 +19,11 @@
         {
             "name": "ros2",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/install/seem_ros_interfaces/include",
+                "${workspaceFolder}/install/*/include",
+                "${workspaceFolder}/build/*/rosidl_generator_cpp",
+                "/opt/ros/humble/include/**"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",
