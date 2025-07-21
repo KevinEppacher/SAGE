@@ -54,9 +54,24 @@ private:
             return;
         }
 
+        auto start = std::chrono::high_resolution_clock::now();
+
+        try {
+            cv::Mat img = cv_bridge::toCvCopy(msg, "rgb8")->image;
+            cv::imshow("RGB", img);
+            cv::waitKey(1);
+        } catch (const std::exception &e) {
+            RCLCPP_ERROR(get_logger(), "cv_bridge or imshow failed: %s", e.what());
+            return;
+        }
+
         call_panoptic(*msg);
-        call_object_segmentation(*msg, "bottle");
-        call_semantic_similarity(*msg, "bottle");
+        call_object_segmentation(*msg, "chair");
+        call_semantic_similarity(*msg, "chair");
+        
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> duration = end - start;
+        RCLCPP_INFO(get_logger(), "Image processing took %.2f ms", duration.count());
     }
 
     void call_panoptic(const sensor_msgs::msg::Image &image_msg)
