@@ -1,0 +1,5 @@
+# Request
+sensor_msgs/Image image
+---
+# Response
+sensor_msgs/Image panoptic_segmentation

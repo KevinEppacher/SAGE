@@ -26,6 +26,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(seem_ros_interfaces REQUIRED)
 # find_package(visualization_msgs REQUIRED)
 # find_package(std_msgs REQUIRED)
 # find_package(nav_msgs REQUIRED)
@@ -112,6 +113,32 @@ include_directories(${cv_bridge_INCLUDE_DIRS})
 target_compile_features(test_image_subscriber PUBLIC cxx_std_17)
 
 #####################################################################
+
+# Main clustering node
+add_executable(test_service
+  src/test/test_service.cpp
+)
+
+# Link ROS 2 dependencies
+ament_target_dependencies(test_service
+  rclcpp
+  sensor_msgs
+  seem_ros_interfaces
+  cv_bridge
+)
+
+# Link OpenCV
+target_link_libraries(test_service
+  ${OpenCV_LIBS}
+)
+
+include_directories(${OpenCV_INCLUDE_DIRS})
+include_directories(${cv_bridge_INCLUDE_DIRS})
+
+# Use C++17 standard
+target_compile_features(test_service PUBLIC cxx_std_17)
+
+#####################################################################
 #                           Installation                            #
 #####################################################################
 
@@ -119,6 +146,7 @@ target_compile_features(test_image_subscriber PUBLIC cxx_std_17)
 install(TARGETS
   value_map_node
   test_image_subscriber
+  test_service
   DESTINATION lib/${PROJECT_NAME}
 )
 #####################################################################
