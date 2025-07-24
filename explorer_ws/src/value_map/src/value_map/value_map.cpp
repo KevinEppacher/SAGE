@@ -104,28 +104,15 @@ void ValueMap::timerCallback()
 
 void ValueMap::rgbCallback(const sensor_msgs::msg::Image::SharedPtr msg)
 {
-    auto image = serviceHandler->getPanopticSegmentedImage(*msg);
+    double score = serviceHandler->getSemanticSimilarityScore(*msg, "chair");
+    semScore.setScore(score);
+    semScore.setHeader(msg->header);  // Header aus dem Bild übernehmen
 
-    try {
-        cv::Mat img = cv_bridge::toCvCopy(image, "rgb8")->image;
-        cv::imshow("RGB", img);
-        cv::waitKey(1);
-    } catch (const std::exception &e) {
-        RCLCPP_ERROR(get_logger(), "cv_bridge or imshow failed: %s", e.what());
-        return;
-    }
+    RCLCPP_INFO(this->get_logger(), "%s[RGB Callback]%s Processed image with semantic similarity score: %.2f", 
+                BLUE, RESET, semScore.getScore());
 
-    auto objectImage = serviceHandler->getObjectSegmentedImage(*msg, "chair");
-
-    try {
-        cv::Mat img = cv_bridge::toCvCopy(objectImage, "rgb8")->image;
-        cv::imshow("Object", img);
-        cv::waitKey(1);
-    } catch (const std::exception &e) {
-        RCLCPP_ERROR(get_logger(), "cv_bridge or imshow failed: %s", e.what());
-        return;
-    }
-
-    auto score = serviceHandler->getSemanticSimilarityScore(*msg, "chair");
-    RCLCPP_INFO(get_logger(), "Semantic Similarity Score: %f", score);
+    std_msgs::msg::Header header = semScore.getHeader();
+    rclcpp::Time stamp(header.stamp);
+    RCLCPP_INFO(this->get_logger(), "%s[RGB Callback]%s Image timestamp: %.2f", 
+                BLUE, RESET, stamp.seconds());
 }

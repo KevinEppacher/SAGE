@@ -9,6 +9,8 @@
 #include "cv_bridge/cv_bridge.h"
 #include <opencv2/opencv.hpp>
 #include <service_handler.hpp>
+#include "std_msgs/msg/header.hpp"
+#include "semantic_score.hpp"
 
 using rclcpp_lifecycle::LifecycleNode;
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
@@ -46,7 +48,7 @@ class ValueMap : public LifecycleNode {
         //************ Member Variables ************//
         std::unique_ptr<SemanticValueMap> semanticMap;
         std::unique_ptr<ServiceHandler> serviceHandler;
-        double score;
+        SemanticScore semScore;
 };
 
 #endif // VALUE_MAP_H
