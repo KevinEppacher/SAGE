@@ -6,7 +6,11 @@ ValueMap::ValueMap(const rclcpp::NodeOptions & options)
     RCLCPP_INFO(this->get_logger(), "%s[Lifecycle]%s ValueMap Node %sinitialized%s.",
                 BLUE, RESET, GREEN, RESET);
 
+    // Declare parameters
+    declare_parameter<std::string>("vlm_target_namespace", "/seem_ros");
+
     semanticMap = std::make_unique<SemanticValueMap>(this);
+    serviceHandler = std::make_unique<ServiceHandler>(this);
 }
 
 ValueMap::~ValueMap() 
@@ -19,11 +23,19 @@ CallbackReturn ValueMap::on_configure(const rclcpp_lifecycle::State &)
 {
     RCLCPP_INFO(this->get_logger(), "%s[Transition]%s Configuring ValueMap...", BLUE, RESET);
 
-    if (semanticMap->on_configure()) {
-        RCLCPP_INFO(this->get_logger(), "%s[Status]%s Node %sconfigured%s.", BLUE, RESET, GREEN, RESET);
-        return CallbackReturn::SUCCESS;
+    if(!semanticMap->on_configure()) 
+    {
+        RCLCPP_INFO(this->get_logger(), "%s[Status]%s Could not %sconfigure%s Node.", BLUE, RESET, RED, RESET);
+        return CallbackReturn::FAILURE;
     }
-    return CallbackReturn::FAILURE;
+
+    if(!serviceHandler->on_configure())
+    {
+        RCLCPP_INFO(this->get_logger(), "%s[Status]%s Could not %sconfigure%s ServiceHandler.", BLUE, RESET, RED, RESET);
+        return CallbackReturn::FAILURE;
+    }
+
+    return CallbackReturn::SUCCESS;
 }
 
 CallbackReturn ValueMap::on_activate(const rclcpp_lifecycle::State &)
@@ -40,29 +52,34 @@ CallbackReturn ValueMap::on_activate(const rclcpp_lifecycle::State &)
         std::bind(&ValueMap::timerCallback, this)
     );
 
-    if (semanticMap->on_activate()) {
-        RCLCPP_INFO(this->get_logger(), "%s[Status]%s Node %sactivated%s.", BLUE, RESET, GREEN, RESET);
-        return CallbackReturn::SUCCESS;
+    if (!semanticMap->on_activate()) 
+    {
+        RCLCPP_INFO(this->get_logger(), "%s[Status]%s Could not %sactivate%s Node.", BLUE, RESET, RED, RESET);
+        return CallbackReturn::FAILURE;
     }
-    return CallbackReturn::FAILURE;
+
+    if (!serviceHandler->on_activate())
+    {
+        RCLCPP_INFO(this->get_logger(), "%s[Status]%s Could not %sactivate%s ServiceHandler.", BLUE, RESET, RED, RESET);
+        return CallbackReturn::FAILURE;
+    }
+
+    return CallbackReturn::SUCCESS;
 }
 
 CallbackReturn ValueMap::on_deactivate(const rclcpp_lifecycle::State &)
 {
     RCLCPP_INFO(this->get_logger(), "%s[Transition]%s Deactivating ValueMap...", BLUE, RESET);
     semanticMap->on_deactivate();
+    serviceHandler->on_deactivate();
     return CallbackReturn::SUCCESS;
 }
 
 CallbackReturn ValueMap::on_cleanup(const rclcpp_lifecycle::State &)
 {
     RCLCPP_INFO(this->get_logger(), "%s[Transition]%s Cleaning up ValueMap...", BLUE, RESET);
-    if (timer) {
-        timer.reset();
-    }
-    if (rgbSub) {
-        rgbSub.reset();
-    }
+    if (timer){ timer.reset();}
+    if (rgbSub){rgbSub.reset();}
 
     semanticMap->on_cleanup();
 
@@ -74,6 +91,7 @@ CallbackReturn ValueMap::on_shutdown(const rclcpp_lifecycle::State &)
 {
     RCLCPP_INFO(this->get_logger(), "%s[Transition]%s Shutting down ValueMap...", BLUE, RESET);
     semanticMap->on_shutdown();
+    serviceHandler->on_shutdown();
     return CallbackReturn::SUCCESS;
 }
 
@@ -81,20 +99,33 @@ void ValueMap::timerCallback()
 {
     RCLCPP_INFO(this->get_logger(), "%s[Timer]%s Timer callback executed.", BLUE, RESET);
 
+
 }
 
 void ValueMap::rgbCallback(const sensor_msgs::msg::Image::SharedPtr msg)
 {
-    try
-    {
-        // Convert to OpenCV image (BGR8 encoding expected)
-        cv::Mat image = cv_bridge::toCvCopy(msg, "bgr8")->image;
+    auto image = serviceHandler->getPanopticSegmentedImage(*msg);
 
-        cv::imshow("RGB Image", image);
+    try {
+        cv::Mat img = cv_bridge::toCvCopy(image, "rgb8")->image;
+        cv::imshow("RGB", img);
         cv::waitKey(1);
+    } catch (const std::exception &e) {
+        RCLCPP_ERROR(get_logger(), "cv_bridge or imshow failed: %s", e.what());
+        return;
     }
-    catch (cv_bridge::Exception &e)
-    {
-        RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
+
+    auto objectImage = serviceHandler->getObjectSegmentedImage(*msg, "chair");
+
+    try {
+        cv::Mat img = cv_bridge::toCvCopy(objectImage, "rgb8")->image;
+        cv::imshow("Object", img);
+        cv::waitKey(1);
+    } catch (const std::exception &e) {
+        RCLCPP_ERROR(get_logger(), "cv_bridge or imshow failed: %s", e.what());
+        return;
     }
+
+    auto score = serviceHandler->getSemanticSimilarityScore(*msg, "chair");
+    RCLCPP_INFO(get_logger(), "Semantic Similarity Score: %f", score);
 }

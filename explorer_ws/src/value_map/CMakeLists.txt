@@ -59,6 +59,7 @@ add_executable(value_map_node
   src/value_map_node.cpp
   src/value_map/value_map.cpp
   src/value_map/semantic_value_map.cpp
+  src/value_map/service_handler.cpp
 )
 
 # Link ROS 2 dependencies
@@ -67,6 +68,7 @@ ament_target_dependencies(value_map_node
   sensor_msgs
   rclcpp_lifecycle
   cv_bridge
+  seem_ros_interfaces
   # visualization_msgs
   # std_msgs
   # nav_msgs
