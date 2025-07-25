@@ -27,6 +27,7 @@ find_package(rclcpp_lifecycle REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(seem_ros_interfaces REQUIRED)
+find_package(tf2_ros REQUIRED)
 # find_package(visualization_msgs REQUIRED)
 # find_package(std_msgs REQUIRED)
 # find_package(nav_msgs REQUIRED)
@@ -69,6 +70,7 @@ ament_target_dependencies(value_map_node
   rclcpp_lifecycle
   cv_bridge
   seem_ros_interfaces
+  tf2_ros
   # visualization_msgs
   # std_msgs
   # nav_msgs

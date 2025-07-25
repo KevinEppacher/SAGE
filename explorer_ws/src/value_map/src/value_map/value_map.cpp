@@ -35,6 +35,15 @@ CallbackReturn ValueMap::on_configure(const rclcpp_lifecycle::State &)
         return CallbackReturn::FAILURE;
     }
 
+    node_wrapper = std::make_shared<rclcpp::Node>(
+        "value_map_tf_node", 
+        rclcpp::NodeOptions().start_parameter_services(false)
+    );
+
+    tfBuffer = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+    tfListener = std::make_shared<tf2_ros::TransformListener>(*tfBuffer, node_wrapper, true);
+
+
     return CallbackReturn::SUCCESS;
 }
 
@@ -48,7 +57,7 @@ CallbackReturn ValueMap::on_activate(const rclcpp_lifecycle::State &)
     );
 
     timer = this->create_wall_timer(
-        std::chrono::milliseconds(100),
+        std::chrono::milliseconds(10),
         std::bind(&ValueMap::timerCallback, this)
     );
 
@@ -64,6 +73,8 @@ CallbackReturn ValueMap::on_activate(const rclcpp_lifecycle::State &)
         return CallbackReturn::FAILURE;
     }
 
+    posePub = this->create_publisher<geometry_msgs::msg::PoseStamped>("/camera_pose", 10);
+
     return CallbackReturn::SUCCESS;
 }
 
@@ -72,6 +83,7 @@ CallbackReturn ValueMap::on_deactivate(const rclcpp_lifecycle::State &)
     RCLCPP_INFO(this->get_logger(), "%s[Transition]%s Deactivating ValueMap...", BLUE, RESET);
     semanticMap->on_deactivate();
     serviceHandler->on_deactivate();
+    posePub.reset();
     return CallbackReturn::SUCCESS;
 }
 
@@ -97,22 +109,48 @@ CallbackReturn ValueMap::on_shutdown(const rclcpp_lifecycle::State &)
 
 void ValueMap::timerCallback()
 {
-    RCLCPP_INFO(this->get_logger(), "%s[Timer]%s Timer callback executed.", BLUE, RESET);
+    if (!rgbImage) return;  // noch kein Bild empfangen
 
+    try {
+        // Lookup transform zur Bild-Zeit
+        geometry_msgs::msg::TransformStamped tfStamped = 
+            tfBuffer->lookupTransform("map", "camera_link", lastImageStamp);
 
+        RCLCPP_INFO(this->get_logger(), "Transform at RGB stamp: (%.2f, %.2f, %.2f)",
+                    tfStamped.transform.translation.x,
+                    tfStamped.transform.translation.y,
+                    tfStamped.transform.translation.z);
+
+        // PoseStamped erzeugen
+        geometry_msgs::msg::PoseStamped poseMsg;
+        poseMsg.header = tfStamped.header;
+        poseMsg.pose.position.x = tfStamped.transform.translation.x;
+        poseMsg.pose.position.y = tfStamped.transform.translation.y;
+        poseMsg.pose.position.z = tfStamped.transform.translation.z;
+        poseMsg.pose.orientation = tfStamped.transform.rotation;
+
+        // Publish
+        posePub->publish(poseMsg);
+
+    } catch (const tf2::TransformException &ex) {
+        RCLCPP_WARN(this->get_logger(), "TF lookup failed at RGB timestamp: %s", ex.what());
+    }
 }
 
 void ValueMap::rgbCallback(const sensor_msgs::msg::Image::SharedPtr msg)
 {
-    double score = serviceHandler->getSemanticSimilarityScore(*msg, "chair");
-    semScore.setScore(score);
-    semScore.setHeader(msg->header);  // Header aus dem Bild übernehmen
+    rgbImage = msg;
+    lastImageStamp = msg->header.stamp;
+    // double score = serviceHandler->getSemanticSimilarityScore(*msg, "chair");
+    // semScore.setScore(score);
+    // semScore.setHeader(msg->header);  // Header aus dem Bild übernehmen
 
-    RCLCPP_INFO(this->get_logger(), "%s[RGB Callback]%s Processed image with semantic similarity score: %.2f", 
-                BLUE, RESET, semScore.getScore());
+    // RCLCPP_INFO(this->get_logger(), "%s[RGB Callback]%s Processed image with semantic similarity score: %.2f", 
+    //             BLUE, RESET, semScore.getScore());
 
-    std_msgs::msg::Header header = semScore.getHeader();
-    rclcpp::Time stamp(header.stamp);
-    RCLCPP_INFO(this->get_logger(), "%s[RGB Callback]%s Image timestamp: %.2f", 
-                BLUE, RESET, stamp.seconds());
+    // std_msgs::msg::Header header = semScore.getHeader();
+    // rclcpp::Time stamp(header.stamp);
+    // RCLCPP_INFO(this->get_logger(), "%s[RGB Callback]%s Image timestamp: %.2f", 
+    //             BLUE, RESET, stamp.seconds());
 }
+
