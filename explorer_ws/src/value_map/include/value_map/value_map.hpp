@@ -11,6 +11,9 @@
 #include <service_handler.hpp>
 #include "std_msgs/msg/header.hpp"
 #include "semantic_score.hpp"
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 
 using rclcpp_lifecycle::LifecycleNode;
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
@@ -39,16 +42,23 @@ class ValueMap : public LifecycleNode {
         //************ Subscribers ************//
         rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr rgbSub;
         sensor_msgs::msg::Image::SharedPtr rgbImage;
-
+        
         //************ Publishers ************//
+        rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr posePub;
 
         //************ Timers ************//
         rclcpp::TimerBase::SharedPtr timer;
-
+        
+        //************ TF Buffer ************//
+        std::shared_ptr<tf2_ros::Buffer> tfBuffer;
+        std::shared_ptr<tf2_ros::TransformListener> tfListener;
+        std::shared_ptr<rclcpp::Node> node_wrapper;
+        
         //************ Member Variables ************//
         std::unique_ptr<SemanticValueMap> semanticMap;
         std::unique_ptr<ServiceHandler> serviceHandler;
         SemanticScore semScore;
+        rclcpp::Time lastImageStamp;
 };
 
 #endif // VALUE_MAP_H
