@@ -61,6 +61,7 @@ add_executable(value_map_node
   src/value_map/value_map.cpp
   src/value_map/semantic_value_map.cpp
   src/value_map/service_handler.cpp
+  src/value_map/robot.cpp
 )
 
 # Link ROS 2 dependencies

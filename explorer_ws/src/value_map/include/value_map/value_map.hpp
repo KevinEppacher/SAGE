@@ -10,10 +10,12 @@
 #include <opencv2/opencv.hpp>
 #include <service_handler.hpp>
 #include "std_msgs/msg/header.hpp"
-#include "semantic_score.hpp"
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+
+#include "semantic_score.hpp"
+#include "robot.hpp"
 
 using rclcpp_lifecycle::LifecycleNode;
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
@@ -35,30 +37,23 @@ class ValueMap : public LifecycleNode {
         //************ Timers ************//
         void timerCallback();
 
-        //************ Subscribers ************//
-        void rgbCallback(const sensor_msgs::msg::Image::SharedPtr msg);
-
     private:
         //************ Subscribers ************//
-        rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr rgbSub;
-        sensor_msgs::msg::Image::SharedPtr rgbImage;
         
         //************ Publishers ************//
-        rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr posePub;
 
         //************ Timers ************//
         rclcpp::TimerBase::SharedPtr timer;
         
-        //************ TF Buffer ************//
-        std::shared_ptr<tf2_ros::Buffer> tfBuffer;
-        std::shared_ptr<tf2_ros::TransformListener> tfListener;
-        std::shared_ptr<rclcpp::Node> node_wrapper;
-        
-        //************ Member Variables ************//
+
+        //************ Miscellaneous Functions ************//
+
+        //************ Member Node Classes ************//
         std::unique_ptr<SemanticValueMap> semanticMap;
         std::unique_ptr<ServiceHandler> serviceHandler;
+        std::unique_ptr<Robot> robot;
+        //************ Member Variables ************//
         SemanticScore semScore;
-        rclcpp::Time lastImageStamp;
 };
 
 #endif // VALUE_MAP_H
