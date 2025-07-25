@@ -114,7 +114,6 @@ void ServiceHandler::callSemanticSimilarity(const sensor_msgs::msg::Image &image
             try {
                 auto res = future.get();
                 semanticSimilarityScore = res->score;
-                RCLCPP_INFO(node->get_logger(), "Semantic similarity score: %.3f", semanticSimilarityScore);
             } catch (const std::exception &e) {
                 RCLCPP_ERROR(node->get_logger(), "SemanticSimilarity response error: %s", e.what());
             }

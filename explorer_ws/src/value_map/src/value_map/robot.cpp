@@ -71,7 +71,7 @@ bool Robot::on_cleanup()
 bool Robot::on_shutdown()
 {
     RCLCPP_INFO(node->get_logger(), "Shutting down Robot...");
-    
+
     
     RCLCPP_INFO(node->get_logger(), "Robot shut down successfully.");
     return true;
@@ -80,14 +80,13 @@ bool Robot::on_shutdown()
 void Robot::rgbCallback(const sensor_msgs::msg::Image::SharedPtr msg)
 {
     rgbImage = msg;
-    lastImageStamp = msg->header.stamp;
 }
 
-geometry_msgs::msg::TransformStamped Robot::getPose()
+geometry_msgs::msg::TransformStamped Robot::getPose(rclcpp::Time time) const
 {
     geometry_msgs::msg::TransformStamped transformStamped;
     try {
-        transformStamped = tfBuffer->lookupTransform("map", "camera", lastImageStamp);
+        transformStamped = tfBuffer->lookupTransform("map", "camera", time);
 
         geometry_msgs::msg::PoseStamped poseMsg;
         poseMsg.header = transformStamped.header;

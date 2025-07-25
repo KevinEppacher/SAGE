@@ -4,11 +4,15 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 
+
 class SemanticValueMap {
     public:
         explicit SemanticValueMap(rclcpp_lifecycle::LifecycleNode* node);
         ~SemanticValueMap();
 
+        void updateSemanticMap();
+
+        //************ Lifecycle Callbacks ************//
         bool on_configure();
         bool on_activate();
         bool on_deactivate();
