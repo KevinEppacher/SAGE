@@ -109,16 +109,23 @@ CallbackReturn ValueMap::on_shutdown(const rclcpp_lifecycle::State &)
 
 void ValueMap::timerCallback()
 {
-
-    geometry_msgs::msg::TransformStamped pose = robot->getPose();
+    // Get image
     sensor_msgs::msg::Image::SharedPtr rgbImage = robot->getImage();
 
-    if (pose.header.frame_id.empty()) return;
+    // If no image is available, return
     if (rgbImage == nullptr) return;
 
-    RCLCPP_INFO(this->get_logger(), "Transform at RGB stamp: (%.2f, %.2f, %.2f)",
-                pose.transform.translation.x,
-                pose.transform.translation.y,
-                pose.transform.translation.z);
+    // Get pose
+    geometry_msgs::msg::TransformStamped pose = robot->getPose(rgbImage->header.stamp);
+
+    // If pose is empty, return
+    if (pose.header.frame_id.empty()) return;
+
+    // Get cosine similarity score
+    double score = serviceHandler->getSemanticSimilarityScore(*rgbImage, "chair");
+    semScore.setScore(score);
+    semScore.setHeader(rgbImage->header);
+
+
 
 }
