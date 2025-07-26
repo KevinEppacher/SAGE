@@ -82,25 +82,28 @@ void Robot::rgbCallback(const sensor_msgs::msg::Image::SharedPtr msg)
     rgbImage = msg;
 }
 
-geometry_msgs::msg::TransformStamped Robot::getPose(rclcpp::Time time) const
+geometry_msgs::msg::PoseStamped::SharedPtr Robot::getPose(rclcpp::Time time) const
 {
-    geometry_msgs::msg::TransformStamped transformStamped;
+    auto poseMsg = std::make_shared<geometry_msgs::msg::PoseStamped>();
+    
     try {
+        geometry_msgs::msg::TransformStamped transformStamped;
         transformStamped = tfBuffer->lookupTransform("map", "camera", time);
 
-        geometry_msgs::msg::PoseStamped poseMsg;
-        poseMsg.header = transformStamped.header;
-        poseMsg.pose.position.x = transformStamped.transform.translation.x;
-        poseMsg.pose.position.y = transformStamped.transform.translation.y;
-        poseMsg.pose.position.z = transformStamped.transform.translation.z;
-        poseMsg.pose.orientation = transformStamped.transform.rotation;
+        poseMsg->header = transformStamped.header;
+        poseMsg->pose.position.x = transformStamped.transform.translation.x;
+        poseMsg->pose.position.y = transformStamped.transform.translation.y;
+        poseMsg->pose.position.z = transformStamped.transform.translation.z;
+        poseMsg->pose.orientation = transformStamped.transform.rotation;
 
-        posePub->publish(poseMsg);
+        posePub->publish(*poseMsg);
         
     } catch (tf2::TransformException &ex) {
         RCLCPP_WARN(node->get_logger(), "Could not get transform: %s", ex.what());
+        return nullptr;  // Im Fehlerfall nullptr zurückgeben
     }
-    return transformStamped;
+    
+    return poseMsg;
 }
 
 sensor_msgs::msg::Image::SharedPtr Robot::getImage() const

@@ -28,9 +28,11 @@ find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(seem_ros_interfaces REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 # find_package(visualization_msgs REQUIRED)
 # find_package(std_msgs REQUIRED)
-# find_package(nav_msgs REQUIRED)
 # find_package(frontier_msgs REQUIRED)
 # find_package(graph_node_msgs REQUIRED)
 # find_package(tf2_ros REQUIRED)
@@ -62,6 +64,7 @@ add_executable(value_map_node
   src/value_map/semantic_value_map.cpp
   src/value_map/service_handler.cpp
   src/value_map/robot.cpp
+  src/value_map/color.cpp
 )
 
 # Link ROS 2 dependencies
@@ -72,9 +75,12 @@ ament_target_dependencies(value_map_node
   cv_bridge
   seem_ros_interfaces
   tf2_ros
+  nav_msgs
+  OpenCV
+  tf2
+  tf2_geometry_msgs
   # visualization_msgs
   # std_msgs
-  # nav_msgs
   # frontier_msgs
   # graph_node_msgs
   # pcl_conversions
