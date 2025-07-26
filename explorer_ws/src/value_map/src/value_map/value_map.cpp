@@ -51,7 +51,7 @@ CallbackReturn ValueMap::on_activate(const rclcpp_lifecycle::State &)
     RCLCPP_INFO(this->get_logger(), "%s[Transition]%s Activating ValueMap...", BLUE, RESET);
 
     timer = this->create_wall_timer(
-        std::chrono::milliseconds(10),
+        std::chrono::milliseconds(100),    
         std::bind(&ValueMap::timerCallback, this)
     );
 
@@ -113,19 +113,20 @@ void ValueMap::timerCallback()
     sensor_msgs::msg::Image::SharedPtr rgbImage = robot->getImage();
 
     // If no image is available, return
-    if (rgbImage == nullptr) return;
+    if (!rgbImage) return;
 
     // Get pose
-    geometry_msgs::msg::TransformStamped pose = robot->getPose(rgbImage->header.stamp);
+    geometry_msgs::msg::PoseStamped::SharedPtr pose = robot->getPose(rgbImage->header.stamp);
 
     // If pose is empty, return
-    if (pose.header.frame_id.empty()) return;
+    if (!pose) return;
 
     // Get cosine similarity score
     double score = serviceHandler->getSemanticSimilarityScore(*rgbImage, "chair");
     semScore.setScore(score);
     semScore.setHeader(rgbImage->header);
 
-
+    // Update semantic map
+    semanticMap->updateSemanticMap(semScore, *pose);
 
 }

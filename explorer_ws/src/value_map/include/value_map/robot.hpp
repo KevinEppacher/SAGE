@@ -12,7 +12,7 @@ class Robot {
     public:
         Robot(rclcpp_lifecycle::LifecycleNode* node);
         ~Robot();
-        geometry_msgs::msg::TransformStamped getPose(rclcpp::Time time = rclcpp::Time(0)) const;
+        geometry_msgs::msg::PoseStamped::SharedPtr getPose(rclcpp::Time time = rclcpp::Time(0)) const;
         sensor_msgs::msg::Image::SharedPtr getImage() const;
 
         //************ Lifecycle Callbacks ************//

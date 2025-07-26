@@ -44,7 +44,6 @@ class ValueMap : public LifecycleNode {
 
         //************ Timers ************//
         rclcpp::TimerBase::SharedPtr timer;
-        
 
         //************ Miscellaneous Functions ************//
 
