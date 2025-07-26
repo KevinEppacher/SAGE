@@ -25,6 +25,9 @@ bool SemanticValueMap::on_configure()
   
   valueMapRawPub = node->create_publisher<sensor_msgs::msg::PointCloud2>("value_map_raw", rclcpp::QoS(10));
 
+  node->declare_parameter<float>("confidence_sharpness", 2.0);
+  
+  node->get_parameter("confidence_sharpness", confidenceSharpness);
 
   return true;
 }
@@ -78,27 +81,22 @@ void SemanticValueMap::updateSemanticMap(const SemanticScore& semScore, const ge
   }
 
   double fovDeg = getHorizontalFOV(camInfo);
-  RCLCPP_INFO(node->get_logger(), "Using FOV angle: %.2f", fovDeg);
 
   // --- Step 1: Decay previous values ---
-  double decayFactor = 0.95;
+  double decayFactor = 0.99;
   valueMap *= decayFactor;
   confidenceMap *= decayFactor;
-  RCLCPP_INFO(node->get_logger(), "Applied decay to value and confidence maps.");
 
   // --- Step 2: Generate FOV cone mask ---
   cv::Mat fovMask = generateTopdownConeMask(pose.pose, *map, fovDeg, 10.0);
-  RCLCPP_INFO(node->get_logger(), "FOV mask generated. Non-zero count: %d", cv::countNonZero(fovMask));
 
   // --- Step 3: Compute confidence values ---
   cv::Mat confidence = computeConfidenceMap(pose.pose, *map, fovDeg, fovMask);
-  RCLCPP_INFO(node->get_logger(), "Confidence map computed.");
 
   int width = map->info.width;
   int height = map->info.height;
 
   float newValue = semScore.getScore();
-  RCLCPP_INFO(node->get_logger(), "New semantic score: %.2f", newValue);
 
   int updates = 0;
   for (int row = 0; row < height; ++row)
@@ -125,7 +123,6 @@ void SemanticValueMap::updateSemanticMap(const SemanticScore& semScore, const ge
     }
   }
 
-  RCLCPP_INFO(node->get_logger(), "Updated %d cells in value map.", updates);
   publishValueMapRaw();
   publishValueMapInferno();
 }
@@ -200,12 +197,6 @@ double SemanticValueMap::getHorizontalFOV(const sensor_msgs::msg::CameraInfo::Sh
   double fov = 2 * atan2(width / 2, fx ) * 180 / M_PI;
 
   return fov;
-}
-
-void SemanticValueMap::publish()
-{
-  publishValueMapInferno();
-  publishValueMapRaw();
 }
 
 void SemanticValueMap::publishValueMapInferno()
@@ -420,7 +411,8 @@ cv::Mat SemanticValueMap::computeConfidenceMap(
 
       if (std::abs(angleDiff) <= halfFov)
       {
-        float weight = std::cos(scaledAngle) * std::cos(scaledAngle);
+        float exponent = confidenceSharpness;
+        float weight = std::pow(std::cos(scaledAngle), exponent);
         confidenceMap.at<float>(row, col) = weight;
       }
     }
