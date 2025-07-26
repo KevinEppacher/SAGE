@@ -1,5 +1,6 @@
-value_map:
+semantic_frontier_exploration:
   value_map_node:
     ros__parameters:
       vlm_target_namespace: "/seem_ros"
       timer_frequency: 5.0
+      confidence_sharpness: 2.0

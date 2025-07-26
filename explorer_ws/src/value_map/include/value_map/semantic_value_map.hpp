@@ -43,15 +43,11 @@ class SemanticValueMap {
     rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>::SharedPtr valueMapInfernoPub;
     rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>::SharedPtr valueMapRawPub;
 
-
-    //************ Timers ************//
-
     //************ Miscellaneous Functions ************//
     void resizeMapPreservingValues(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
     double getHorizontalFOV(const sensor_msgs::msg::CameraInfo::SharedPtr camInfo);
     void publishValueMapRaw();
     void publishValueMapInferno();
-    void publish();
 
     cv::Mat generateTopdownConeMask(
       const geometry_msgs::msg::Pose& pose,
@@ -68,8 +64,6 @@ class SemanticValueMap {
     float getYawAngle(const geometry_msgs::msg::Pose& pose) const;
     float normalizeAngle(float angle) const;
 
-
-
     //************ Member Variables ************//
     rclcpp_lifecycle::LifecycleNode* node;  // pointer to lifecycle node
 
@@ -81,6 +75,7 @@ class SemanticValueMap {
     cv::Mat confidenceMap;
     bool mapInitialized = false;
     float maxSemanticScore = 0.0f;
+    float confidenceSharpness = 10.0f;  // exponent = 2.0 --> Standard, exponent > 2.0 --> Sharper confidence decay, exponent < 2.0 --> Smoother confidence decay
 
 };
 
