@@ -15,15 +15,24 @@ bool Robot::on_configure()
     RCLCPP_INFO(node->get_logger(), "Configuring Robot...");
     // Configuration logic here
 
+    node->declare_parameter<std::string>("robot.parent_frame", "map");
+    node->declare_parameter<std::string>("robot.child_frame", "camera");
+    node->declare_parameter<std::string>("rgb_topic", "/rgb");
+
+    node->get_parameter("robot.parent_frame", parentFrame);
+    node->get_parameter("robot.child_frame", childFrame);
+    node->get_parameter("rgb_topic", rgbTopic);
+
     rgbSub = node->create_subscription<sensor_msgs::msg::Image>(
-    "/rgb", 10,
-    std::bind(&Robot::rgbCallback, this, std::placeholders::_1)
+        rgbTopic, 10,
+        std::bind(&Robot::rgbCallback, this, std::placeholders::_1)
     );
 
     node_wrapper = std::make_shared<rclcpp::Node>(
         "value_map_tf_node", 
         rclcpp::NodeOptions().start_parameter_services(false)
     );
+
 
     tfBuffer = std::make_shared<tf2_ros::Buffer>(node->get_clock());
     tfListener = std::make_shared<tf2_ros::TransformListener>(*tfBuffer, node_wrapper, true);
@@ -88,7 +97,7 @@ geometry_msgs::msg::PoseStamped::SharedPtr Robot::getPose(rclcpp::Time time) con
     
     try {
         geometry_msgs::msg::TransformStamped transformStamped;
-        transformStamped = tfBuffer->lookupTransform("map", "camera", time);
+        transformStamped = tfBuffer->lookupTransform(parentFrame, childFrame, time);
 
         poseMsg->header = transformStamped.header;
         poseMsg->pose.position.x = transformStamped.transform.translation.x;

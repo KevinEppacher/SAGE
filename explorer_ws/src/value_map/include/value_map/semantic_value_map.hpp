@@ -17,6 +17,9 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/utils.h>
 #include <tf2/LinearMath/Matrix3x3.h>
+#include <cv_bridge/cv_bridge.h>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui.hpp>
 
 class SemanticValueMap {
   public:
@@ -35,6 +38,10 @@ class SemanticValueMap {
     bool on_shutdown();
 
   private:
+    //************ Parameter Callback ************//
+    rcl_interfaces::msg::SetParametersResult onParameterChange(const std::vector<rclcpp::Parameter> &params);
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr paramCallbackHandle;
+    
     //************ Subscribers ************//
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr mapSub;
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cameraInfoSub;
@@ -76,6 +83,12 @@ class SemanticValueMap {
     bool mapInitialized = false;
     float maxSemanticScore = 0.0f;
     float confidenceSharpness = 10.0f;  // exponent = 2.0 --> Standard, exponent > 2.0 --> Sharper confidence decay, exponent < 2.0 --> Smoother confidence decay
+    double decayFactor = 0.99;  // decay factor for previous values
+    float maxRange = 10.0;  // Default maximum range for semantic mapping
+    std::string mapTopic = "/map";  // Topic for the occupancy grid map
+    std::string cameraInfoTopic = "/camera_info";  // Topic for the camera info
+    bool visualizeConfidenceMap = false;  // Flag to visualize the confidence map
+    bool confidenceWindowOpen = false;
 
 };
 
