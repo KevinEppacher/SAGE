@@ -4,4 +4,4 @@ semantic_frontier_exploration:
       publish_frequency: 10.0  # Hz
       min_cluster_size: 5
       max_cluster_size: 150
-      value_map_namespace: "/value_map"
+      value_map_namespace: "/semantic_frontier_exploration"  # Namespace for the Value Map Node

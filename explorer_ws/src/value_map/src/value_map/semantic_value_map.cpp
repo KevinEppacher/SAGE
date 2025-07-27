@@ -15,21 +15,67 @@ bool SemanticValueMap::on_configure()
 {
   RCLCPP_INFO(node->get_logger(), "SemanticValueMap: Configuring...");
 
+  node->declare_parameter<float>("semantic_map.confidence_sharpness", 2.0);
+  node->declare_parameter<double>("semantic_map.decay_factor", 0.99);
+  node->declare_parameter<float>("semantic_map.max_range", 10.0f);
+  node->declare_parameter<std::string>("semantic_map.map_topic", "/map");
+  node->declare_parameter<std::string>("semantic_map.camera_info_topic", "/camera_info");
+  node->declare_parameter<bool>("semantic_map.visualize_confidence_map", false);
+
+  node->get_parameter("semantic_map.confidence_sharpness", confidenceSharpness);
+  node->get_parameter("semantic_map.decay_factor", decayFactor);
+  node->get_parameter("semantic_map.max_range", maxRange);
+  node->get_parameter("semantic_map.map_topic", mapTopic);
+  node->get_parameter("semantic_map.camera_info_topic", cameraInfoTopic);
+  node->get_parameter("semantic_map.visualize_confidence_map", visualizeConfidenceMap);
+
+  paramCallbackHandle = node->add_on_set_parameters_callback(
+    std::bind(&SemanticValueMap::onParameterChange, this, std::placeholders::_1)
+  );
+
   mapSub = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
-    "/map", 10, std::bind(&SemanticValueMap::mapCallback, this, std::placeholders::_1));
+    mapTopic, 10, std::bind(&SemanticValueMap::mapCallback, this, std::placeholders::_1));
 
   cameraInfoSub = node->create_subscription<sensor_msgs::msg::CameraInfo>(
-    "/camera_info", 10, std::bind(&SemanticValueMap::cameraInfoCallback, this, std::placeholders::_1));
+    cameraInfoTopic, 10, std::bind(&SemanticValueMap::cameraInfoCallback, this, std::placeholders::_1));
 
   valueMapInfernoPub = node->create_publisher<sensor_msgs::msg::PointCloud2>("value_map", rclcpp::QoS(10));
   
   valueMapRawPub = node->create_publisher<sensor_msgs::msg::PointCloud2>("value_map_raw", rclcpp::QoS(10));
 
-  node->declare_parameter<float>("confidence_sharpness", 2.0);
-  
-  node->get_parameter("confidence_sharpness", confidenceSharpness);
-
   return true;
+}
+
+rcl_interfaces::msg::SetParametersResult SemanticValueMap::onParameterChange(const std::vector<rclcpp::Parameter> &params)
+{
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+    result.reason = "Parameters updated";
+
+    for (const auto &param : params)
+    {
+        if (param.get_name() == "semantic_map.confidence_sharpness") {
+            confidenceSharpness = param.as_double();
+            RCLCPP_INFO(node->get_logger(), "Updated confidence_sharpness to %.2f", confidenceSharpness);
+        } else if (param.get_name() == "semantic_map.decay_factor") {
+            decayFactor = param.as_double();
+            RCLCPP_INFO(node->get_logger(), "Updated decay_factor to %.2f", decayFactor);
+        } else if (param.get_name() == "semantic_map.max_range") {
+            maxRange = param.as_double();
+            RCLCPP_INFO(node->get_logger(), "Updated max_range to %.2f", maxRange);
+        } else if (param.get_name() == "semantic_map.map_topic") {
+            mapTopic = param.as_string();
+            RCLCPP_INFO(node->get_logger(), "Updated map_topic to %s", mapTopic.c_str());
+        } else if (param.get_name() == "semantic_map.camera_info_topic") {
+            cameraInfoTopic = param.as_string();
+            RCLCPP_INFO(node->get_logger(), "Updated camera_info_topic to %s", cameraInfoTopic.c_str());
+        } else if (param.get_name() == "semantic_map.visualize_confidence_map") {
+            visualizeConfidenceMap = param.as_bool();
+            RCLCPP_INFO(node->get_logger(), "Updated visualize_confidence_map to %s", visualizeConfidenceMap ? "true" : "false");
+        }        
+    }
+
+    return result;
 }
 
 bool SemanticValueMap::on_activate() 
@@ -83,12 +129,11 @@ void SemanticValueMap::updateSemanticMap(const SemanticScore& semScore, const ge
   double fovDeg = getHorizontalFOV(camInfo);
 
   // --- Step 1: Decay previous values ---
-  double decayFactor = 0.99;
   valueMap *= decayFactor;
   confidenceMap *= decayFactor;
 
   // --- Step 2: Generate FOV cone mask ---
-  cv::Mat fovMask = generateTopdownConeMask(pose.pose, *map, fovDeg, 10.0);
+  cv::Mat fovMask = generateTopdownConeMask(pose.pose, *map, fovDeg, maxRange);
 
   // --- Step 3: Compute confidence values ---
   cv::Mat confidence = computeConfidenceMap(pose.pose, *map, fovDeg, fovMask);
@@ -249,7 +294,14 @@ void SemanticValueMap::publishValueMapInferno()
 
         auto [r, g, b] = valueToInfernoRGB(value, 0.0f, maxSemanticScore);
         uint32_t rgb_uint = (r << 16) | (g << 8) | b;
-        float rgb = *reinterpret_cast<float*>(&rgb_uint);
+        
+        // Safe type conversion using union to avoid strict-aliasing issues
+        union {
+          uint32_t as_uint;
+          float as_float;
+        } rgb_converter;
+        rgb_converter.as_uint = rgb_uint;
+        float rgb = rgb_converter.as_float;
 
         *iter_x = x; ++iter_x;
         *iter_y = y; ++iter_y;
@@ -333,7 +385,6 @@ cv::Mat SemanticValueMap::generateTopdownConeMask(
   float robotY = (pose.position.y - origin.position.y) / resolution;
 
   // --- Compute robot yaw --- //
-  const auto& q = pose.orientation;
   float yaw = getYawAngle(pose);
 
   float fovRad = fovDeg * M_PI / 180.0f;
@@ -418,6 +469,17 @@ cv::Mat SemanticValueMap::computeConfidenceMap(
     }
   }
 
+  if (visualizeConfidenceMap) {
+    cv::Mat vis;
+    confidenceMap.convertTo(vis, CV_8UC1, 255.0);
+    cv::flip(vis, vis, 0);
+    cv::resize(vis, vis, cv::Size(), 3.0, 3.0, cv::INTER_NEAREST);
+    cv::imshow("Confidence Map", vis);
+    cv::waitKey(1);
+  } else {
+    cv::destroyWindow("Confidence Map");
+    confidenceWindowOpen = false;
+  }
   return confidenceMap;
 }
 

@@ -24,6 +24,10 @@ CallbackReturn ValueMap::on_configure(const rclcpp_lifecycle::State &)
 {
     RCLCPP_INFO(this->get_logger(), "%s[Transition]%s Configuring ValueMap...", BLUE, RESET);
 
+    this->declare_parameter<double>("timer_frequency", 5.0);
+
+    this->get_parameter("timer_frequency", timerFrequency);
+
     if(!semanticMap->on_configure()) 
     {
         RCLCPP_INFO(this->get_logger(), "%s[Status]%s Could not %sconfigure%s Node.", BLUE, RESET, RED, RESET);
@@ -51,7 +55,7 @@ CallbackReturn ValueMap::on_activate(const rclcpp_lifecycle::State &)
     RCLCPP_INFO(this->get_logger(), "%s[Transition]%s Activating ValueMap...", BLUE, RESET);
 
     timer = this->create_wall_timer(
-        std::chrono::milliseconds(100),    
+        std::chrono::milliseconds(static_cast<int>(timerFrequency)),    
         std::bind(&ValueMap::timerCallback, this)
     );
 

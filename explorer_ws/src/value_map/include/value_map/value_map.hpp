@@ -53,6 +53,7 @@ class ValueMap : public LifecycleNode {
         std::unique_ptr<Robot> robot;
         //************ Member Variables ************//
         SemanticScore semScore;
+        double timerFrequency = 100.0;  // Default timer frequency in ms
 };
 
 #endif // VALUE_MAP_H

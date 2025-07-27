@@ -1,6 +1,16 @@
 semantic_frontier_exploration:
   value_map_node:
     ros__parameters:
-      vlm_target_namespace: "/seem_ros"
-      timer_frequency: 5.0
-      confidence_sharpness: 2.0
+      vlm_target_namespace: "/seem_ros" # Namespace for the Value Map Node
+      timer_frequency: 100.0  # Default timer frequency in ms
+      semantic_map:
+        confidence_sharpness: 2.0   # cs < 2.0 smoothens the map, cs > 2.0 sharpens it
+        decay_factor: 0.99          # decay factor for previous values
+        max_range: 10.0           # Maximum range for semantic mapping
+        map_topic: "/map"  # Topic for the occupancy grid map
+        camera_info_topic: "/camera_info"  # Topic for the camera info
+        visualize_confidence_map: false  # Flag to visualize the confidence map
+      robot:
+        parent_frame: "map" # Parent frame for the robot
+        child_frame: "camera" # Child frame for the robot
+        rgb_topic: "/rgb" # Topic for RGB camera images

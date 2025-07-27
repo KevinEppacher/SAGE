@@ -42,6 +42,10 @@ class Robot {
         // rclcpp::Time lastImageStamp;
         rclcpp_lifecycle::LifecycleNode* node;
 
+        std::string parentFrame = "map";  // Default parent frame for the robot
+        std::string childFrame = "camera";  // Default child frame for the robot
+        std::string rgbTopic = "/rgb";  // Default topic for RGB images
+
 };
 
 #endif // ROBOT_HPP
