@@ -5,6 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/install/seem_ros_interfaces/include",
+                "${workspaceFolder}/install/multimodal_query_msgs/include",
                 "${workspaceFolder}/install/*/include",
                 "${workspaceFolder}/build/*/rosidl_generator_cpp",
                 "/opt/ros/humble/include/**",

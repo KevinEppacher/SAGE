@@ -20,6 +20,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
+#include <multimodal_query_msgs/msg/semantic_prompt.hpp>
 
 class SemanticValueMap {
   public:
