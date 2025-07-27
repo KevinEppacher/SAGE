@@ -33,7 +33,6 @@ bool Robot::on_configure()
         rclcpp::NodeOptions().start_parameter_services(false)
     );
 
-
     tfBuffer = std::make_shared<tf2_ros::Buffer>(node->get_clock());
     tfListener = std::make_shared<tf2_ros::TransformListener>(*tfBuffer, node_wrapper, true);
 

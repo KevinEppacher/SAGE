@@ -21,6 +21,7 @@ def generate_launch_description():
         output='screen',
         emulate_tty=True,
         parameters=[param_file],
+        namespace='semantic_frontier_exploration',
         # arguments=['--ros-args', '--log-level', 'debug']
     )
 

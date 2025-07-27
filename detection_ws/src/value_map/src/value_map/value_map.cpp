@@ -25,8 +25,10 @@ CallbackReturn ValueMap::on_configure(const rclcpp_lifecycle::State &)
     RCLCPP_INFO(this->get_logger(), "%s[Transition]%s Configuring ValueMap...", BLUE, RESET);
 
     this->declare_parameter<double>("timer_frequency", 5.0);
+    this->declare_parameter<std::string>("semantic_prompt_topic", "/user_prompt");
 
     this->get_parameter("timer_frequency", timerFrequency);
+    this->get_parameter("semantic_prompt_topic", semanticPromptTopic);
 
     if(!semanticMap->on_configure()) 
     {
@@ -45,6 +47,9 @@ CallbackReturn ValueMap::on_configure(const rclcpp_lifecycle::State &)
         RCLCPP_INFO(this->get_logger(), "%s[Status]%s Could not %sconfigure%s Robot.", BLUE, RESET, RED, RESET);
         return CallbackReturn::FAILURE;
     }
+
+    semanticPromptSub = this->create_subscription<multimodal_query_msgs::msg::SemanticPrompt>(
+        semanticPromptTopic, 10, std::bind(&ValueMap::semanticPromptCallback, this, std::placeholders::_1));
 
     return CallbackReturn::SUCCESS;
 
@@ -126,11 +131,17 @@ void ValueMap::timerCallback()
     if (!pose) return;
 
     // Get cosine similarity score
-    double score = serviceHandler->getSemanticSimilarityScore(*rgbImage, "chair");
+    double score = serviceHandler->getSemanticSimilarityScore(*rgbImage, textPrompt);
     semScore.setScore(score);
     semScore.setHeader(rgbImage->header);
 
     // Update semantic map
     semanticMap->updateSemanticMap(semScore, *pose);
 
+}
+
+void ValueMap::semanticPromptCallback(const multimodal_query_msgs::msg::SemanticPrompt::SharedPtr msg)
+{
+    RCLCPP_INFO(this->get_logger(), "Received Semantic Prompt: %s", msg->text_query.c_str());
+    textPrompt = msg->text_query;
 }

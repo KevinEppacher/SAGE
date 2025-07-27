@@ -476,7 +476,8 @@ cv::Mat SemanticValueMap::computeConfidenceMap(
     cv::resize(vis, vis, cv::Size(), 3.0, 3.0, cv::INTER_NEAREST);
     cv::imshow("Confidence Map", vis);
     cv::waitKey(1);
-  } else {
+    confidenceWindowOpen = true;
+  } else if (confidenceWindowOpen) {
     cv::destroyWindow("Confidence Map");
     confidenceWindowOpen = false;
   }
