@@ -1,0 +1,6 @@
+graph_node_fusion:
+  graph_node_fusion:
+    ros__parameters:
+      exploitation_topic: "/semantic_frontier_exploration/graph_nodes"
+      exploration_topic: value2
+      detection_topic: value3
