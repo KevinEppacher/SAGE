@@ -8,8 +8,8 @@ int main(int argc, char ** argv)
   auto node = std::make_shared<ValueMap>();
   rclcpp::executors::SingleThreadedExecutor exec;
   exec.add_node(node->get_node_base_interface());
-  node->configure();
-  node->activate();
+  // node->configure();
+  // node->activate();
   exec.spin();
   rclcpp::shutdown();
   return 0;
