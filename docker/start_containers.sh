@@ -12,7 +12,7 @@ cd ~/Documents/4_Semester/SAGE/IsaacLab || {
 }
 
 # Step 2: Start the ROS2 container using the internal script
-echo "Starting ros2 container via IsaacLab..."
+echo "Starting IsaacLab ROS2 container..."
 ./docker/container.py start ros2
 
 # Step 3: Navigate to the docker directory
