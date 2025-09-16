@@ -62,3 +62,5 @@ RUN pip install -r /app/requirements.txt
 
 # Source ROS setup
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
+RUN echo "source install/setup.bash" >> ~/.bashrc
+

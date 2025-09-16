@@ -68,3 +68,4 @@ RUN sudo apt update && sudo apt install -y \
 
 # Source ROS setup
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
+RUN echo "source install/setup.bash" >> ~/.bashrc
