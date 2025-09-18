@@ -22,3 +22,6 @@
 [submodule "exploitation_ws/src/openfusion_ros"]
 	path = exploitation_ws/src/openfusion_ros
 	url = https://github.com/KevinEppacher/openfusion_ros.git
+[submodule "detection_ws/src/yolo_ros"]
+	path = detection_ws/src/yolo_ros
+	url = https://github.com/KevinEppacher/yolo_ros.git
