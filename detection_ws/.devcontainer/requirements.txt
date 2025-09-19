@@ -34,3 +34,4 @@ wandb==0.15.12
 infinibatch==0.1.1
 gradio==3.42.0
 flask
+ultralytics
