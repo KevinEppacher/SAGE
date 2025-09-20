@@ -94,3 +94,5 @@ explorer_ws/core.*
 lavis_ws/src/LAVIS
 
 exploitation_ws/src/openfusion_ros_v0/*
+
+*.ts
