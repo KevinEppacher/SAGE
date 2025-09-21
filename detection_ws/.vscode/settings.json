@@ -3,5 +3,8 @@
         "./install/seem_ros_interfaces/local/lib/python3.10/dist-packages",
         "./install/yolo_ros_interfaces/local/lib/python3.10/dist-packages"
     ],
-    "cmake.sourceDirectory": "/app/src/multimodal_query_msgs"
+    "cmake.sourceDirectory": "/app/src/multimodal_query_msgs",
+    "terminal.integrated.fontFamily": "Agave Nerd Font",
+    "editor.fontFamily": "Agave Nerd Font",
+    "terminal.integrated.defaultProfile.linux": "bash"
 }

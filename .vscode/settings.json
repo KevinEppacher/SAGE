@@ -1,0 +1,5 @@
+{
+    "terminal.integrated.fontFamily": "Agave Nerd Font",
+    "editor.fontFamily": "Agave Nerd Font",
+    "terminal.integrated.defaultProfile.linux": "bash"
+}
