@@ -25,6 +25,3 @@
 [submodule "detection_ws/src/yolo_ros"]
 	path = detection_ws/src/yolo_ros
 	url = https://github.com/KevinEppacher/yolo_ros.git
-[submodule "explorer_ws/src/nova_carter"]
-	path = explorer_ws/src/nova_carter
-	url = https://github.com/NVIDIA-ISAAC-ROS/nova_carter.git
