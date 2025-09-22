@@ -14,11 +14,13 @@ setup(
         ('share/' + package_name, ['package.xml']),
         # Add templates and static files
         (os.path.join('share', package_name, 'templates'), glob('gui/templates/*.html')),
-        (os.path.join('share', package_name, 'static'), glob('gui/static/*')),
+        (os.path.join('share', package_name, 'static'), glob('gui/static/*.css') + glob('gui/static/*.js') + glob('gui/static/*.py')),
+        # Handle uploaded directory separately if it contains files
+        (os.path.join('share', package_name, 'static', 'uploaded'), glob('gui/static/uploaded/*') if os.path.exists('gui/static/uploaded') and os.listdir('gui/static/uploaded') else []),
     ],
     include_package_data=True,
     package_data={
-        'gui': ['templates/*.html', 'static/*']
+        'gui': ['templates/*.html', 'static/*.css', 'static/*.js', 'static/*.py', 'static/uploaded/*']
     },
     install_requires=['setuptools'],
     zip_safe=True,
