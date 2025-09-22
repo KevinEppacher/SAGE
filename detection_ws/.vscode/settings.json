@@ -1,7 +1,8 @@
 {
     "python.analysis.extraPaths": [
         "./install/seem_ros_interfaces/local/lib/python3.10/dist-packages",
-        "./install/yolo_ros_interfaces/local/lib/python3.10/dist-packages"
+        "./install/yolo_ros_interfaces/local/lib/python3.10/dist-packages",
+        "./install/multimodal_query_msgs/local/lib/python3.10/dist-packages"
     ],
     "cmake.sourceDirectory": "/app/src/multimodal_query_msgs",
     "terminal.integrated.fontFamily": "Agave Nerd Font",
