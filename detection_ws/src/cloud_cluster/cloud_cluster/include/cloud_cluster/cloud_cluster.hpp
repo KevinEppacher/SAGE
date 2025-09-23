@@ -16,6 +16,8 @@
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
+#include <sensor_msgs/point_cloud2_iterator.hpp>
+#include <unordered_map>
 
 // #include "cloud_cluster/graph_node_collection.hpp"
 #include <graph_node_msgs/graph_node_collection.hpp>
@@ -109,6 +111,8 @@ private:
     std::string frameId, semanticPointcloudTopic, targetFrame;
     std::unique_ptr<tf2_ros::Buffer> tfBuffer;
     std::shared_ptr<tf2_ros::TransformListener> tfListener;
+
+    std::unordered_map<uint16_t, pcl::PointCloud<pcl::PointXYZI>::Ptr> cloudsByInstance;
 
 };
 
