@@ -8,6 +8,9 @@
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/search/kdtree.h>
 #include <pcl/common/common.h>
+#include <pcl/filters/statistical_outlier_removal.h>  
+#include <pcl/filters/radius_outlier_removal.h>       
+#include <pcl/filters/voxel_grid.h>                   
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <vector>
 #include <chrono>
@@ -113,6 +116,8 @@ private:
     std::shared_ptr<tf2_ros::TransformListener> tfListener;
 
     std::unordered_map<uint16_t, pcl::PointCloud<pcl::PointXYZI>::Ptr> cloudsByInstance;
+
+    bool publishBoundingBoxesEnabled;
 
 };
 

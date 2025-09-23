@@ -8,3 +8,4 @@ cloud_cluster_node:
     frame_id: "odom"  # refrence frame for node graph
     target_frame: "odom"
     semantic_pointcloud_topic: "/yoloe/score_cloud"  # topic for point cloud data
+    publish_bounding_boxes: false
