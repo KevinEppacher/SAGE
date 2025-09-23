@@ -1,0 +1,115 @@
+#ifndef CLOUDCLUSTER_H
+#define CLOUDCLUSTER_H
+
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_types.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/search/kdtree.h>
+#include <pcl/common/common.h>
+#include <visualization_msgs/msg/marker_array.hpp>
+#include <vector>
+#include <chrono>
+#include <algorithm>
+#include <cmath>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
+
+// #include "cloud_cluster/graph_node_collection.hpp"
+#include <graph_node_msgs/graph_node_collection.hpp>
+
+/// \class CloudCluster
+/// \brief A ROS2 Node that processes semantic point clouds, performs clustering, and publishes visualization markers.
+/// 
+/// The node subscribes to a semantic point cloud, down-samples it using a voxel grid filter,
+/// extracts clusters using Euclidean clustering, calculates centroids and semantic scores,
+/// and publishes bounding boxes and centroids as RViz markers.
+class CloudCluster : public rclcpp::Node {
+public:
+    /// \brief Constructor. Initializes parameters, subscriptions, publishers, and timer.
+    CloudCluster();
+
+    /// \brief Destructor. Cleans up node.
+    ~CloudCluster();
+
+private:
+    // === ROS Interface ===
+
+    /// \brief Subscriber for semantic point cloud input (sensor_msgs::msg::PointCloud2)
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr semanticPointcloudSub;
+
+    /// \brief Parameter callback handle (for dynamic reconfiguration)
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr paramCallbackHandle;
+
+    /// \brief Publisher for RViz bounding box markers
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr markerPub;
+
+    /// \brief Wall timer to trigger periodic processing
+    rclcpp::TimerBase::SharedPtr timer;
+
+    // === Callback Functions ===
+
+    /// \brief Receives incoming semantic point cloud messages
+    /// \param msg Shared pointer to incoming ROS2 PointCloud2 message
+    void semanticCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
+
+    /// \brief Callback for updating parameters dynamically
+    /// \param params Vector of changed parameters
+    /// \return SetParametersResult indicating success
+    rcl_interfaces::msg::SetParametersResult onParameterChange(const std::vector<rclcpp::Parameter> &params);
+
+    /// \brief Main processing function called at a fixed rate via timer
+    void timerCallback();
+
+    // === Internal Processing ===
+
+    /// \brief Loads ROS parameters and initializes class variables
+    void getParameters();
+
+    /// \brief Computes the centroid of a given point cloud
+    /// \param cloud Shared pointer to the PCL point cloud
+    /// \return geometry_msgs::msg::Point representing the centroid
+    geometry_msgs::msg::Point getCentroid(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
+
+    /// \brief Computes a semantic score for a given cluster based on the red channel and size
+    /// \param cloud Shared pointer to the clustered point cloud
+    /// \return A score value (higher means more likely to be relevant)
+    double getScoreCluster(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
+
+    /// \brief Publishes bounding box markers around given clusters
+    /// \param clusters Vector of point indices representing each cluster
+    /// \param cloud The full filtered point cloud from which the clusters were extracted
+    void publishBoundingBoxes(const std::vector<pcl::PointIndices>& clusters, pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
+
+    // === Internal Data ===
+
+    /// \brief Latest incoming semantic point cloud (shared pointer)
+    pcl::PointCloud<pcl::PointXYZI>::Ptr semanticPointcloud;
+
+    /// \brief Frequency at which clustering and visualization should be updated (Hz)
+    double publishFrequency;
+
+    /// \brief Euclidean clustering tolerance (in meters)
+    double clusterTolerance;
+
+    /// \brief Minimum cluster size (in points)
+    int minClusterSize;
+
+    /// \brief Maximum cluster size (in points)
+    int maxClusterSize;
+
+    /// \brief Leaf size for voxel grid filter (in meters)
+    double voxelLeafSize;
+
+    /// \brief Collection of all GraphNodes (with position and score)
+    std::shared_ptr<GraphNodeCollection> graphNodes;
+
+    std::string frameId, semanticPointcloudTopic, targetFrame;
+    std::unique_ptr<tf2_ros::Buffer> tfBuffer;
+    std::shared_ptr<tf2_ros::TransformListener> tfListener;
+
+};
+
+#endif // CLOUDCLUSTER_H

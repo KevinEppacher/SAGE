@@ -1,0 +1,377 @@
+#include "cloud_cluster.hpp"
+
+CloudCluster::CloudCluster() : Node("cluster_node") 
+{
+    RCLCPP_INFO(this->get_logger(), "CloudCluster Node started");
+
+    getParameters();
+
+    paramCallbackHandle = this->add_on_set_parameters_callback(
+        std::bind(&CloudCluster::onParameterChange, this, std::placeholders::_1)
+    );
+
+    // Define subscribers
+    semanticPointcloudSub = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+        semanticPointcloudTopic, 10,
+        std::bind(&CloudCluster::semanticCloudCallback, this, std::placeholders::_1)
+    );
+
+    // Define publishers
+    markerPub = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+        "bounding_boxes", 10
+    );
+    
+
+    // Define timers
+    auto interval = std::chrono::duration<double>(1.0 / publishFrequency);
+    RCLCPP_INFO(this->get_logger(), "Publishing with a time interval of %.3f seconds", interval.count());
+    timer = this->create_wall_timer(
+        std::chrono::duration_cast<std::chrono::milliseconds>(interval),
+        std::bind(&CloudCluster::timerCallback, this)
+    );
+
+    // Initialize the point cloud
+    semanticPointcloud = pcl::PointCloud<pcl::PointXYZI>::Ptr(new pcl::PointCloud<pcl::PointXYZI>());
+
+    graphNodes = std::make_shared<GraphNodeCollection>(this);
+
+}
+
+CloudCluster::~CloudCluster() 
+{
+    RCLCPP_INFO(this->get_logger(), "CloudCluster Node stopped");
+}
+
+void CloudCluster::getParameters()
+{
+    this->declare_parameter("publish_frequency", 2.0);
+    this->declare_parameter("cluster_tolerance", 0.15);
+    this->declare_parameter("min_cluster_size", 50);
+    this->declare_parameter("max_cluster_size", 25000);
+    this->declare_parameter("voxel_leaf_size", 0.03);
+    this->declare_parameter("semantic_pointcloud_topic", "/openfusion_ros/semantic_pointcloud_xyzi");
+    this->declare_parameter("target_frame", "map");
+
+    this->get_parameter("publish_frequency", publishFrequency);
+    this->get_parameter("cluster_tolerance", clusterTolerance);
+    this->get_parameter("min_cluster_size", minClusterSize);
+    this->get_parameter("max_cluster_size", maxClusterSize);
+    this->get_parameter("voxel_leaf_size", voxelLeafSize);    
+    this->get_parameter("semantic_pointcloud_topic", semanticPointcloudTopic);
+    this->get_parameter("target_frame", targetFrame);
+
+    // TF buffer + listener
+    tfBuffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+    tfListener = std::make_shared<tf2_ros::TransformListener>(*tfBuffer);
+
+    RCLCPP_INFO(this->get_logger(), "Loaded parameters:");
+    for (const auto &name : this->list_parameters({}, 10).names)
+    {
+        auto param = this->get_parameter(name);
+        switch (param.get_type())
+        {
+            case rclcpp::ParameterType::PARAMETER_DOUBLE:
+                RCLCPP_INFO(this->get_logger(), " - %s: %f", name.c_str(), param.as_double());
+                break;
+            case rclcpp::ParameterType::PARAMETER_INTEGER:
+                RCLCPP_INFO(this->get_logger(), " - %s: %ld", name.c_str(), param.as_int());
+                break;
+            case rclcpp::ParameterType::PARAMETER_STRING:
+                RCLCPP_INFO(this->get_logger(), " - %s: %s", name.c_str(), param.as_string().c_str());
+                break;
+            case rclcpp::ParameterType::PARAMETER_BOOL:
+                RCLCPP_INFO(this->get_logger(), " - %s: %s", name.c_str(), param.as_bool() ? "true" : "false");
+                break;
+            default:
+                RCLCPP_INFO(this->get_logger(), " - %s: [unsupported type]", name.c_str());
+                break;
+        }
+    }
+}
+
+void CloudCluster::semanticCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+{
+    // desired output frame
+    const std::string& dst = targetFrame;
+    const std::string src = msg->header.frame_id;
+
+    sensor_msgs::msg::PointCloud2 cloud_tf;
+
+    try {
+        // lookup at message timestamp
+        geometry_msgs::msg::TransformStamped T =
+            tfBuffer->lookupTransform(dst, src, msg->header.stamp, rclcpp::Duration::from_seconds(0.1));
+
+        tf2::doTransform(*msg, cloud_tf, T);   // transform PointCloud2 to dst
+    } catch (const tf2::TransformException& ex) {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                             "TF transform %s->%s failed: %s", src.c_str(), dst.c_str(), ex.what());
+        return; // skip this frame
+    }
+
+    // now convert to PCL in target frame
+    pcl::fromROSMsg(cloud_tf, *semanticPointcloud);
+}
+
+rcl_interfaces::msg::SetParametersResult CloudCluster::onParameterChange(const std::vector<rclcpp::Parameter> &params)
+{
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+    result.reason = "Parameters updated";
+
+    for (const auto &param : params)
+    {
+        if (param.get_name() == "publish_frequency") {
+            publishFrequency = param.as_double();
+            RCLCPP_INFO(this->get_logger(), "Updated publish_frequency to %.2f", publishFrequency);
+        } else if (param.get_name() == "cluster_tolerance") {
+            clusterTolerance = param.as_double();
+            RCLCPP_INFO(this->get_logger(), "Updated cluster_tolerance to %.2f", clusterTolerance);
+        } else if (param.get_name() == "min_cluster_size") {
+            minClusterSize = param.as_int();
+            RCLCPP_INFO(this->get_logger(), "Updated min_cluster_size to %d", minClusterSize);
+        } else if (param.get_name() == "max_cluster_size") {
+            maxClusterSize = param.as_int();
+            RCLCPP_INFO(this->get_logger(), "Updated max_cluster_size to %d", maxClusterSize);
+        }else if (param.get_name() == "voxel_leaf_size") {
+            voxelLeafSize = param.as_double();
+            RCLCPP_INFO(this->get_logger(), "Updated voxel_leaf_size to %.3f", voxelLeafSize);
+        }
+    }
+
+    return result;
+}
+
+geometry_msgs::msg::Point CloudCluster::getCentroid(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
+{
+    geometry_msgs::msg::Point centroid;
+    if (cloud->empty()) return centroid;
+
+    double x = 0, y = 0, z = 0;
+    for (const auto& pt : cloud->points) 
+    {
+        x += pt.x;
+        y += pt.y;
+        z += pt.z;
+    }
+
+    size_t n = cloud->points.size();
+    centroid.x = x / n;
+    centroid.y = y / n;
+    centroid.z = z / n;
+
+    return centroid;
+}
+
+double CloudCluster::getScoreCluster(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster)
+{
+    if (cluster->empty()) return 0.0;
+
+    std::vector<float> red_values;
+    for (const auto& pt : cluster->points)
+    {
+        float r = static_cast<float>(pt.intensity) / 255.0f;  // Normalize to 0–1
+        if (std::isfinite(r)) red_values.push_back(r);
+    }
+
+    if (red_values.empty()) return 0.0;
+
+    std::sort(red_values.begin(), red_values.end());
+
+    // Use e.g. the 75th percentile → robust against a few bright pixels
+    size_t index = static_cast<size_t>(0.75 * red_values.size());
+    float percentile_score = red_values[std::min(index, red_values.size() - 1)];
+
+    // Damp with cluster size (logarithmic growth)
+    double size_factor = std::log(static_cast<double>(cluster->size()) + 1.0);  // +1 to avoid log(0)
+    double score = percentile_score * size_factor;
+
+    return score;
+}
+
+void CloudCluster::publishBoundingBoxes(const std::vector<pcl::PointIndices>& clusters, pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
+{
+    visualization_msgs::msg::MarkerArray marker_array;
+    int id = 0;
+
+    for (const auto& indices : clusters)
+    {
+        pcl::PointCloud<pcl::PointXYZI>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZI>());
+        for (int idx : indices.indices)
+        {
+            const auto& pt = cloud->points[idx];
+            if (!std::isfinite(pt.x) || !std::isfinite(pt.y) || !std::isfinite(pt.z)) continue;
+            cluster->points.push_back(pt);
+        }
+
+        // Skip empty clusters
+        if (cluster->points.empty()) continue;
+
+        // Bounding Box berechnen auf cluster
+        float min_x = std::numeric_limits<float>::max();
+        float min_y = std::numeric_limits<float>::max();
+        float min_z = std::numeric_limits<float>::max();
+        float max_x = std::numeric_limits<float>::lowest();
+        float max_y = std::numeric_limits<float>::lowest();
+        float max_z = std::numeric_limits<float>::lowest();
+
+        for (const auto& pt : cluster->points)
+        {
+            if (!std::isfinite(pt.x) || !std::isfinite(pt.y) || !std::isfinite(pt.z)) continue;
+
+            min_x = std::min(min_x, pt.x);
+            min_y = std::min(min_y, pt.y);
+            min_z = std::min(min_z, pt.z);
+            max_x = std::max(max_x, pt.x);
+            max_y = std::max(max_y, pt.y);
+            max_z = std::max(max_z, pt.z);
+        }
+
+        float center_x = (min_x + max_x) / 2.0;
+        float center_y = (min_y + max_y) / 2.0;
+        float center_z = (min_z + max_z) / 2.0;
+
+        float size_x = std::max(0.01f, max_x - min_x);
+        float size_y = std::max(0.01f, max_y - min_y);
+        float size_z = std::max(0.01f, max_z - min_z);
+
+        visualization_msgs::msg::Marker box;
+        box.header.frame_id = graphNodes->getFrameId();
+        box.header.stamp = this->get_clock()->now();
+        box.ns = "cloud_cluster/bbox";
+        box.id = id++;
+        box.type = visualization_msgs::msg::Marker::CUBE;
+        box.action = visualization_msgs::msg::Marker::ADD;
+
+        box.pose.position.x = center_x;
+        box.pose.position.y = center_y;
+        box.pose.position.z = center_z;
+        box.pose.orientation.w = 1.0;
+
+        box.scale.x = size_x;
+        box.scale.y = size_y;
+        box.scale.z = size_z;
+
+        box.color.r = 0.0f;
+        box.color.g = 1.0f;
+        box.color.b = 0.0f;
+        box.color.a = 0.3f;
+
+        // box.lifetime = rclcpp::Duration::from_seconds(0.5);
+
+        marker_array.markers.push_back(box);
+    }
+
+    markerPub->publish(marker_array);
+}
+
+void CloudCluster::timerCallback()
+{
+    auto start = std::chrono::steady_clock::now();
+
+    auto t0 = std::chrono::steady_clock::now();
+
+    // Originale Punktwolke kopieren
+    pcl::PointCloud<pcl::PointXYZI>::Ptr input = semanticPointcloud;
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>());
+
+    // VoxelGrid-Filter anwenden
+    pcl::VoxelGrid<pcl::PointXYZI> voxel;
+    voxel.setInputCloud(input);
+    voxel.setLeafSize(
+        static_cast<float>(voxelLeafSize),
+        static_cast<float>(voxelLeafSize),
+        static_cast<float>(voxelLeafSize));
+    voxel.filter(*cloud);
+
+    if (cloud->empty()) 
+    {
+        RCLCPP_WARN(this->get_logger(), "Point cloud is empty");
+        return;
+    }
+
+    // Clustering
+    pcl::search::KdTree<pcl::PointXYZI>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZI>());
+    tree->setInputCloud(cloud);
+
+    std::vector<pcl::PointIndices> clusterIndices;
+    pcl::EuclideanClusterExtraction<pcl::PointXYZI> ec;
+    ec.setClusterTolerance(clusterTolerance);
+    ec.setMinClusterSize(minClusterSize);
+    ec.setMaxClusterSize(maxClusterSize);
+    ec.setSearchMethod(tree);
+    ec.setInputCloud(cloud);
+    ec.extract(clusterIndices);
+
+    auto t1 = std::chrono::steady_clock::now();
+
+    // Publish bounding boxes
+    publishBoundingBoxes(clusterIndices, cloud);
+
+    auto t2 = std::chrono::steady_clock::now();
+
+    graphNodes->clear();
+    
+    int clusterId = 0;
+    for (const auto& indices : clusterIndices)
+    {
+        pcl::PointCloud<pcl::PointXYZI>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZI>());
+        for (int idx : indices.indices)
+        {
+            cluster->points.push_back(cloud->points[idx]);
+        }
+
+        if (cluster->points.empty()) continue;
+
+        GraphNode node;
+
+        node.setId(clusterId);
+
+        geometry_msgs::msg::Point centroid = getCentroid(cluster);
+        node.setPosition(centroid);
+        
+        double score = getScoreCluster(cluster);
+        node.setScore(score);
+
+        graphNodes->addNode(node);
+
+        clusterId++;
+    }
+
+    auto t3 = std::chrono::steady_clock::now();
+
+    graphNodes->normalizeGraphNodes();
+
+    auto t4 = std::chrono::steady_clock::now();
+
+    graphNodes->publishPosMarkers();
+
+    graphNodes->publishGraphNodeArray();
+
+    auto t5 = std::chrono::steady_clock::now();
+
+    RCLCPP_DEBUG(this->get_logger(), "Clustering took %.3f s", std::chrono::duration<double>(t1 - t0).count());
+    RCLCPP_DEBUG(this->get_logger(), "Publishing bounding boxes took %.3f s", std::chrono::duration<double>(t2 - t1).count());
+    RCLCPP_DEBUG(this->get_logger(), "GraphNode creation took %.3f s", std::chrono::duration<double>(t3 - t2).count());
+    RCLCPP_DEBUG(this->get_logger(), "GraphNode normalization took %.3f s", std::chrono::duration<double>(t4 - t3).count());
+    RCLCPP_DEBUG(this->get_logger(), "Publishing markers took %.3f s", std::chrono::duration<double>(t5 - t4).count());
+    RCLCPP_DEBUG(this->get_logger(), "Total processing time: %.3f s", std::chrono::duration<double>(t5 - t0).count());
+
+    auto end = std::chrono::steady_clock::now();
+    double elapsed = std::chrono::duration<double>(end - start).count();
+
+    double max_duration = 1.0 / publishFrequency;
+    if (elapsed > max_duration)
+    {
+        RCLCPP_WARN(this->get_logger(),
+            "Loop took %.3f s, which exceeds the set interval of %.3f s",
+            elapsed, max_duration);
+    }
+    else
+    {
+        RCLCPP_DEBUG(this->get_logger(),
+            "Loop took %.3f s (interval: %.3f s)",
+            elapsed, max_duration);
+    }
+}
+

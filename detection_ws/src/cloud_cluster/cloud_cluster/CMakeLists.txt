@@ -1,0 +1,113 @@
+cmake_minimum_required(VERSION 3.22)
+project(cloud_cluster)
+
+# Set CMake policy for modern find_package behavior
+cmake_policy(SET CMP0074 NEW)
+
+# Enable warnings for GCC or Clang
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+############################################################
+# Find Required Packages
+############################################################
+
+# Core build system for ROS 2
+find_package(ament_cmake REQUIRED)
+
+# ROS 2 packages
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
+find_package(pcl_conversions REQUIRED)
+find_package(graph_node_msgs REQUIRED)
+find_package(rosgraph_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_sensor_msgs REQUIRED)
+
+# Point Cloud Library (PCL) components
+find_package(PCL REQUIRED COMPONENTS common io filters segmentation search)
+
+############################################################
+# Include Directories
+############################################################
+
+include_directories(
+  include                           # Local headers
+  include/cloud_cluster
+  ${PCL_INCLUDE_DIRS}               # PCL headers
+  ${graph_node_msgs_INCLUDE_DIRS}   # Graph node messages
+)
+
+#####################################################################
+#                        Declare Executables                        #
+#####################################################################
+
+# Main clustering node
+add_executable(cloud_cluster_node
+  src/main.cpp
+  src/cloud_cluster/cloud_cluster.cpp
+)
+
+# Link ROS 2 dependencies
+ament_target_dependencies(cloud_cluster_node
+  rclcpp
+  sensor_msgs
+  visualization_msgs
+  pcl_conversions
+  graph_node_msgs
+  rosgraph_msgs
+  tf2_ros
+  tf2_sensor_msgs
+)
+
+# Link PCL libraries
+target_link_libraries(cloud_cluster_node
+  graph_node_msgs::graph_node_lib
+)
+
+# Define PCL macros (if any)
+target_compile_definitions(cloud_cluster_node PUBLIC ${PCL_DEFINITIONS})
+
+# Use C++17 standard
+target_compile_features(cloud_cluster_node PUBLIC cxx_std_17)
+
+#####################################################################
+#                           Installation                            #
+#####################################################################
+
+# Install the node binary into the ROS 2 lib directory
+install(TARGETS cloud_cluster_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+#####################################################################
+#                      Linting and Testing                          #
+#####################################################################
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+
+  # Optionally disable some linters (uncomment if needed)
+  set(ament_cmake_cpplint_FOUND TRUE)
+  set(ament_cmake_copyright_FOUND TRUE)
+
+  ament_lint_auto_find_test_dependencies()
+endif()
+
+#####################################################################
+#                           Finalization                            #
+#####################################################################
+
+# Install launch files
+install(DIRECTORY
+  config
+  include
+  launch
+  rviz
+  src  
+  DESTINATION share/${PROJECT_NAME}
+)
+
+ament_package()
