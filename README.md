@@ -106,3 +106,8 @@ This comes from Chromium sandboxing inside the AppImage. Workarounds (setuid bit
 - Avoid self-references or cycles in payloads/references.
 - Set a valid `defaultPrim` (e.g. `"World"`).
 - Load the scene first, then enable ROS2-Bridge, and add cameras step by step.
+
+## How to start container
+```bash
+docker compose up -d <container-service>
+```
