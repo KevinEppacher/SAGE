@@ -51,6 +51,7 @@ void CloudCluster::getParameters()
     this->declare_parameter("voxel_leaf_size", 0.03);
     this->declare_parameter("semantic_pointcloud_topic", "/openfusion_ros/semantic_pointcloud_xyzi");
     this->declare_parameter("target_frame", "map");
+    this->declare_parameter("publish_bounding_boxes", true);
 
     this->get_parameter("publish_frequency", publishFrequency);
     this->get_parameter("cluster_tolerance", clusterTolerance);
@@ -59,6 +60,7 @@ void CloudCluster::getParameters()
     this->get_parameter("voxel_leaf_size", voxelLeafSize);    
     this->get_parameter("semantic_pointcloud_topic", semanticPointcloudTopic);
     this->get_parameter("target_frame", targetFrame);
+    this->get_parameter("publish_bounding_boxes", publishBoundingBoxesEnabled);
 
     // TF buffer + listener
     tfBuffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -159,9 +161,13 @@ rcl_interfaces::msg::SetParametersResult CloudCluster::onParameterChange(const s
         } else if (param.get_name() == "max_cluster_size") {
             maxClusterSize = param.as_int();
             RCLCPP_INFO(this->get_logger(), "Updated max_cluster_size to %d", maxClusterSize);
-        }else if (param.get_name() == "voxel_leaf_size") {
+        } else if (param.get_name() == "voxel_leaf_size") {
             voxelLeafSize = param.as_double();
             RCLCPP_INFO(this->get_logger(), "Updated voxel_leaf_size to %.3f", voxelLeafSize);
+        } else if (param.get_name() == "publish_bounding_boxes") {
+            publishBoundingBoxesEnabled = param.as_bool();
+            RCLCPP_INFO(this->get_logger(), "Updated publish_bounding_boxes to %s", 
+                        publishBoundingBoxesEnabled ? "true" : "false");
         }
     }
 
@@ -317,22 +323,22 @@ void CloudCluster::timerCallback()
     int globalBoxId = 0;
     int nodeId = 0;
 
-    // params shared objects
-    pcl::VoxelGrid<pcl::PointXYZI> voxel;
-    pcl::search::KdTree<pcl::PointXYZI>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZI>());
-    pcl::EuclideanClusterExtraction<pcl::PointXYZI> ec;
-    ec.setClusterTolerance(clusterTolerance);
-    ec.setMinClusterSize(minClusterSize);
-    ec.setMaxClusterSize(maxClusterSize);
-    ec.setSearchMethod(tree);
+    if (publishBoundingBoxesEnabled) {
+        visualization_msgs::msg::Marker clear;
+        clear.action = visualization_msgs::msg::Marker::DELETEALL;
+        clear.header.frame_id = graphNodes->getFrameId();
+        clear.header.stamp = this->get_clock()->now();
+        all_boxes.markers.push_back(clear);
+    }
 
     for (auto& kv : cloudsByInstance) {
         uint16_t inst = kv.first;
         pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in = kv.second;
         if (!cloud_in || cloud_in->empty()) continue;
 
-        // voxel
+        // optional voxel filter
         pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>());
+        pcl::VoxelGrid<pcl::PointXYZI> voxel;
         voxel.setInputCloud(cloud_in);
         voxel.setLeafSize(static_cast<float>(voxelLeafSize),
                           static_cast<float>(voxelLeafSize),
@@ -340,28 +346,17 @@ void CloudCluster::timerCallback()
         voxel.filter(*cloud);
         if (cloud->empty()) continue;
 
-        // cluster
-        tree->setInputCloud(cloud);
-        std::vector<pcl::PointIndices> clusterIndices;
-        ec.setInputCloud(cloud);
-        ec.extract(clusterIndices);
+        // compute bbox
+        float min_x=FLT_MAX,min_y=FLT_MAX,min_z=FLT_MAX;
+        float max_x=-FLT_MAX,max_y=-FLT_MAX,max_z=-FLT_MAX;
+        for (const auto& pt : cloud->points) {
+            if (!std::isfinite(pt.x) || !std::isfinite(pt.y) || !std::isfinite(pt.z)) continue;
+            min_x = std::min(min_x, pt.x); min_y = std::min(min_y, pt.y); min_z = std::min(min_z, pt.z);
+            max_x = std::max(max_x, pt.x); max_y = std::max(max_y, pt.y); max_z = std::max(max_z, pt.z);
+        }
+        if (!(min_x<max_x && min_y<max_y && min_z<max_z)) continue;
 
-        // boxes and nodes for this instance
-        for (const auto& indices : clusterIndices) {
-            pcl::PointCloud<pcl::PointXYZI>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZI>());
-            cluster->points.reserve(indices.indices.size());
-            for (int idx : indices.indices) cluster->points.push_back(cloud->points[idx]);
-            if (cluster->empty()) continue;
-
-            // bbox
-            float min_x=FLT_MAX,min_y=FLT_MAX,min_z=FLT_MAX;
-            float max_x=-FLT_MAX,max_y=-FLT_MAX,max_z=-FLT_MAX;
-            for (const auto& pt : cluster->points) {
-                if (!std::isfinite(pt.x) || !std::isfinite(pt.y) || !std::isfinite(pt.z)) continue;
-                min_x = std::min(min_x, pt.x); min_y = std::min(min_y, pt.y); min_z = std::min(min_z, pt.z);
-                max_x = std::max(max_x, pt.x); max_y = std::max(max_y, pt.y); max_z = std::max(max_z, pt.z);
-            }
-
+        if (publishBoundingBoxesEnabled) {
             visualization_msgs::msg::Marker box;
             box.header.frame_id = graphNodes->getFrameId();
             box.header.stamp = this->get_clock()->now();
@@ -369,7 +364,6 @@ void CloudCluster::timerCallback()
             box.id = globalBoxId++;
             box.type = visualization_msgs::msg::Marker::CUBE;
             box.action = visualization_msgs::msg::Marker::ADD;
-
             box.pose.position.x = 0.5f*(min_x+max_x);
             box.pose.position.y = 0.5f*(min_y+max_y);
             box.pose.position.z = 0.5f*(min_z+max_z);
@@ -377,33 +371,34 @@ void CloudCluster::timerCallback()
             box.scale.x = std::max(0.01f, max_x-min_x);
             box.scale.y = std::max(0.01f, max_y-min_y);
             box.scale.z = std::max(0.01f, max_z-min_z);
-            // subtle per-instance tint
             box.color.r = (inst * 37 % 255) / 255.0f;
             box.color.g = 1.0f;
             box.color.b = (inst * 73 % 255) / 255.0f;
             box.color.a = 0.3f;
             all_boxes.markers.push_back(box);
-
-            // graph node
-            GraphNode node;
-            int id = nodeId++;
-            node.setId(id);
-            geometry_msgs::msg::Point c = getCentroid(cluster);
-            node.setPosition(c);
-            double score = getScoreCluster(cluster);
-            node.setScore(score);
-            graphNodes->addNode(node);
         }
+
+        // graph node
+        GraphNode node;
+        int id = nodeId++;
+        node.setId(id);
+        auto c = getCentroid(cloud);
+        node.setPosition(c);
+        double score = getScoreCluster(cloud);
+        node.setScore(score);
+        graphNodes->addNode(node);
     }
 
     // publish
-    markerPub->publish(all_boxes);
-    graphNodes->normalizeGraphNodes();
+    if (publishBoundingBoxesEnabled) 
+    {
+        markerPub->publish(all_boxes);
+    }
+    
     graphNodes->publishPosMarkers();
     graphNodes->publishGraphNodeArray();
 
     auto t1 = std::chrono::steady_clock::now();
-    RCLCPP_DEBUG(this->get_logger(), "Per-instance pipeline took %.3f s",
+    RCLCPP_DEBUG(this->get_logger(), "Per-instance (no clustering) took %.3f s",
                  std::chrono::duration<double>(t1 - t0).count());
 }
-
