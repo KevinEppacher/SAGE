@@ -82,5 +82,5 @@
         "hash_set": "cpp",
         "stack": "cpp"
     },
-    "cmake.sourceDirectory": "/app/src/frontier_msgs"
+    "cmake.sourceDirectory": "/app/src/graph_node_msgs"
 }
