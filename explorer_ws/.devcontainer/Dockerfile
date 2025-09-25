@@ -60,7 +60,8 @@ RUN sudo apt-get update && sudo apt-get install -y \
 RUN sudo apt update && sudo apt install -y \
     ros-${ROS_DISTRO}-navigation2 \
     ros-${ROS_DISTRO}-nav2-bringup \
-    ros-${ROS_DISTRO}-nav2-costmap-2d
+    ros-${ROS_DISTRO}-nav2-costmap-2d \
+    ros-${ROS_DISTRO}-pointcloud-to-laserscan
 
 RUN sudo apt update && sudo apt install -y \
     ros-${ROS_DISTRO}-rviz2 \
