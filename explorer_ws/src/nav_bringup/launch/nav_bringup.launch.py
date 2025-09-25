@@ -9,9 +9,6 @@ from launch.substitutions import LaunchConfiguration
 import os
 
 # source install/setup.bash && ros2 launch slam_toolbox online_async_launch.py params_file:=/app/src/nav_bringup/config/mapper_params_online_async.yaml use_sim_time:=true
-# sudo apt remove ros-humble-slam-toolbox
-# sudo apt autoremove
-# dpkg -l | grep slam-toolbox
 
 def generate_launch_description():
 
@@ -53,7 +50,8 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(slam_launch_file),
         launch_arguments={
             'slam_params_file': slam_params_file,
-            'use_sim_time': use_sim_time
+            'use_sim_time': use_sim_time,
+            # 'log_level': 'debug'
         }.items()
     )
 
@@ -78,8 +76,8 @@ def generate_launch_description():
     )
 
     ld = LaunchDescription()
-    ld.add_action(slam_toolbox_node)
     ld.add_action(sim_time_arg)
-    ld.add_action(rviz_node)
-    # ld.add_action(delayed_nav2_stack)
+    ld.add_action(slam_toolbox_node)
+    # ld.add_action(rviz_node)
+    ld.add_action(delayed_nav2_stack)
     return ld
