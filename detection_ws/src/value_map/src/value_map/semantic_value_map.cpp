@@ -1,5 +1,9 @@
 #include "semantic_value_map.hpp"
 
+static inline float pack_rgb_u32_to_float(uint32_t rgb_u32) {
+  union { uint32_t u; float f; } c; c.u = rgb_u32; return c.f;
+}
+
 SemanticValueMap::SemanticValueMap(rclcpp_lifecycle::LifecycleNode* node)
 : node(node)
 {
@@ -244,125 +248,116 @@ double SemanticValueMap::getHorizontalFOV(const sensor_msgs::msg::CameraInfo::Sh
   return fov;
 }
 
-void SemanticValueMap::publishValueMapInferno()
+void SemanticValueMap::publishValueMapInferno() 
 {
   if (!map) return;
 
   const auto& info = map->info;
   const auto& origin = info.origin;
-  int width = info.width;
-  int height = info.height;
-  float resolution = info.resolution;
+  const int width = info.width;
+  const int height = info.height;
+  const float resolution = info.resolution;
+
+  // Collect valid points first
+  std::vector<std::array<float,4>> pts;  // x,y,z,rgb
+  pts.reserve(width * height / 8);       // heuristic
+
+  for (int row = 0; row < height; ++row) {
+    const float y = origin.position.y + row * resolution;
+    const float x0 = origin.position.x; // for speed
+    for (int col = 0; col < width; ++col) {
+      const float v = valueMap.at<float>(row, col);
+      if (v <= 0.0f) continue;
+
+      const float x = x0 + col * resolution;
+      if (v > maxSemanticScore) maxSemanticScore = v;
+      auto [r, g, b] = valueToInfernoRGB(v, 0.0f, maxSemanticScore);
+      uint32_t rgb_u32 = (uint32_t(r) << 16) | (uint32_t(g) << 8) | uint32_t(b);
+      pts.push_back({x, y, 0.0f, pack_rgb_u32_to_float(rgb_u32)});
+    }
+  }
 
   sensor_msgs::msg::PointCloud2 cloud;
-  cloud.header.stamp = map->header.stamp;
+  cloud.header.stamp = node->get_clock()->now();           // << stamp with "now" to match TF
   cloud.header.frame_id = map->header.frame_id;
   cloud.height = 1;
   cloud.is_dense = false;
   cloud.is_bigendian = false;
 
-  sensor_msgs::PointCloud2Modifier modifier(cloud);
-  modifier.setPointCloud2Fields(
-    4,
-    "x", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "y", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "z", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "rgb", 1, sensor_msgs::msg::PointField::FLOAT32
-  );
-  modifier.resize(width * height);
+  sensor_msgs::PointCloud2Modifier mod(cloud);
+  mod.setPointCloud2Fields(
+      4,
+      "x", 1, sensor_msgs::msg::PointField::FLOAT32,
+      "y", 1, sensor_msgs::msg::PointField::FLOAT32,
+      "z", 1, sensor_msgs::msg::PointField::FLOAT32,
+      "rgb", 1, sensor_msgs::msg::PointField::FLOAT32);
+  mod.resize(pts.size());
 
-  sensor_msgs::PointCloud2Iterator<float> iter_x(cloud, "x");
-  sensor_msgs::PointCloud2Iterator<float> iter_y(cloud, "y");
-  sensor_msgs::PointCloud2Iterator<float> iter_z(cloud, "z");
-  sensor_msgs::PointCloud2Iterator<float> iter_rgb(cloud, "rgb");
+  sensor_msgs::PointCloud2Iterator<float> ix(cloud, "x");
+  sensor_msgs::PointCloud2Iterator<float> iy(cloud, "y");
+  sensor_msgs::PointCloud2Iterator<float> iz(cloud, "z");
+  sensor_msgs::PointCloud2Iterator<float> irgb(cloud, "rgb");
 
-  for (int row = 0; row < height; ++row)
-  {
-    for (int col = 0; col < width; ++col)
-    {
-      float value = valueMap.at<float>(row, col);
-      if (value > 0.0f)
-      {
-        float x = origin.position.x + col * resolution;
-        float y = origin.position.y + row * resolution;
-        float z = 0.0f;
-
-        if (value > maxSemanticScore)
-        {
-          maxSemanticScore = value;
-        }
-
-        auto [r, g, b] = valueToInfernoRGB(value, 0.0f, maxSemanticScore);
-        uint32_t rgb_uint = (r << 16) | (g << 8) | b;
-        
-        // Safe type conversion using union to avoid strict-aliasing issues
-        union {
-          uint32_t as_uint;
-          float as_float;
-        } rgb_converter;
-        rgb_converter.as_uint = rgb_uint;
-        float rgb = rgb_converter.as_float;
-
-        *iter_x = x; ++iter_x;
-        *iter_y = y; ++iter_y;
-        *iter_z = z; ++iter_z;
-        *iter_rgb = rgb; ++iter_rgb;
-      }
-    }
+  for (const auto& p : pts) {
+    *ix = p[0]; ++ix;
+    *iy = p[1]; ++iy;
+    *iz = p[2]; ++iz;
+    *irgb = p[3]; ++irgb;
   }
 
   valueMapInfernoPub->publish(cloud);
 }
 
-void SemanticValueMap::publishValueMapRaw()
+void SemanticValueMap::publishValueMapRaw() 
 {
   if (!map) return;
 
   const auto& info = map->info;
   const auto& origin = info.origin;
-  int width = info.width;
-  int height = info.height;
-  float resolution = info.resolution;
+  const int width = info.width;
+  const int height = info.height;
+  const float resolution = info.resolution;
+
+  std::vector<std::array<float,4>> pts;  // x,y,z,intensity
+  pts.reserve(width * height / 8);
+
+  for (int row = 0; row < height; ++row) {
+    const float y = origin.position.y + row * resolution;
+    const float x0 = origin.position.x;
+    for (int col = 0; col < width; ++col) {
+      const float v = valueMap.at<float>(row, col);
+      if (v <= 0.0f) continue;
+      const float x = x0 + col * resolution;
+      pts.push_back({x, y, 0.0f, v});
+    }
+  }
 
   sensor_msgs::msg::PointCloud2 cloud;
-  cloud.header.stamp = map->header.stamp;
+  cloud.header.stamp = node->get_clock()->now();           // << up-to-date stamp
   cloud.header.frame_id = map->header.frame_id;
   cloud.height = 1;
   cloud.is_dense = false;
   cloud.is_bigendian = false;
 
-  sensor_msgs::PointCloud2Modifier modifier(cloud);
-  modifier.setPointCloud2Fields(
-    4,
-    "x", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "y", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "z", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "intensity", 1, sensor_msgs::msg::PointField::FLOAT32
-  );
-  modifier.resize(width * height);
+  sensor_msgs::PointCloud2Modifier mod(cloud);
+  mod.setPointCloud2Fields(
+      4,
+      "x", 1, sensor_msgs::msg::PointField::FLOAT32,
+      "y", 1, sensor_msgs::msg::PointField::FLOAT32,
+      "z", 1, sensor_msgs::msg::PointField::FLOAT32,
+      "intensity", 1, sensor_msgs::msg::PointField::FLOAT32);
+  mod.resize(pts.size());
 
-  sensor_msgs::PointCloud2Iterator<float> iter_x(cloud, "x");
-  sensor_msgs::PointCloud2Iterator<float> iter_y(cloud, "y");
-  sensor_msgs::PointCloud2Iterator<float> iter_z(cloud, "z");
-  sensor_msgs::PointCloud2Iterator<float> iter_intensity(cloud, "intensity");
+  sensor_msgs::PointCloud2Iterator<float> ix(cloud, "x");
+  sensor_msgs::PointCloud2Iterator<float> iy(cloud, "y");
+  sensor_msgs::PointCloud2Iterator<float> iz(cloud, "z");
+  sensor_msgs::PointCloud2Iterator<float> ii(cloud, "intensity");
 
-  for (int row = 0; row < height; ++row)
-  {
-    for (int col = 0; col < width; ++col)
-    {
-      float value = valueMap.at<float>(row, col);
-      if (value > 0.0f)
-      {
-        float x = origin.position.x + col * resolution;
-        float y = origin.position.y + row * resolution;
-        float z = 0.0f;
-
-        *iter_x = x; ++iter_x;
-        *iter_y = y; ++iter_y;
-        *iter_z = z; ++iter_z;
-        *iter_intensity = value; ++iter_intensity;
-      }
-    }
+  for (const auto& p : pts) {
+    *ix = p[0]; ++ix;
+    *iy = p[1]; ++iy;
+    *iz = p[2]; ++iz;
+    *ii = p[3]; ++ii;
   }
 
   valueMapRawPub->publish(cloud);

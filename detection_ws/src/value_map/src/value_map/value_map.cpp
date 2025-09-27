@@ -7,7 +7,7 @@ ValueMap::ValueMap(const rclcpp::NodeOptions & options)
                 BLUE, RESET, GREEN, RESET);
 
     // Declare parameters
-    declare_parameter<std::string>("vlm_target_namespace", "/seem_ros");
+    declare_parameter<std::string>("vlm_target_namespace", "/blip2_ros");
 
     semanticMap = std::make_unique<SemanticValueMap>(this);
     serviceHandler = std::make_unique<ServiceHandler>(this);
@@ -118,6 +118,20 @@ CallbackReturn ValueMap::on_shutdown(const rclcpp_lifecycle::State &)
 
 void ValueMap::timerCallback()
 {
+    /////////////////////////////////////////////////////////////
+    // Test Case. Remove when done. Setting hardcoded text prompt.
+    // textPrompt = "door";
+    /////////////////////////////////////////////////////////////
+
+    const std::string prompt = textPrompt;  // or guard with a mutex if multithreaded
+    if (prompt.find_first_not_of(" \t\n\r") == std::string::npos) 
+    {
+        RCLCPP_INFO(this->get_logger(), "No text prompt received yet.");
+        return;
+    }
+
+    RCLCPP_DEBUG(this->get_logger(), "Current text prompt: %s", prompt.c_str());
+
     // Get image
     sensor_msgs::msg::Image::SharedPtr rgbImage = robot->getImage();
 
@@ -134,6 +148,8 @@ void ValueMap::timerCallback()
     double score = serviceHandler->getSemanticSimilarityScore(*rgbImage, textPrompt);
     semScore.setScore(score);
     semScore.setHeader(rgbImage->header);
+
+    RCLCPP_INFO(this->get_logger(), "%s%s Semantic Similarity: %.2f", BLUE, RESET, score);
 
     // Update semantic map
     semanticMap->updateSemanticMap(semScore, *pose);
