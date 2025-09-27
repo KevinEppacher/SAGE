@@ -56,7 +56,7 @@ class ValueMap : public LifecycleNode {
         //************ Member Variables ************//
         SemanticScore semScore;
         double timerFrequency = 100.0;  // Default timer frequency in ms
-        std::string textPrompt = "default";  // Default text prompt
+        std::string textPrompt;  // Default text prompt
         std::string semanticPromptTopic = "/user_prompt";  // Default topic for semantic prompts
 };
 

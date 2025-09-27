@@ -1,7 +1,7 @@
-semantic_frontier_exploration:
-  value_map_node:
+value_map:
+  value_map:
     ros__parameters:
-      vlm_target_namespace: "/seem_ros" # Namespace for the Value Map Node
+      vlm_target_namespace: "/blip2_ros" # Namespace for the Value Map Node
       timer_frequency: 100.0  # Default timer frequency in ms
       semantic_prompt_topic: "/user_prompt"  # Topic for semantic prompts
       semantic_map:
@@ -12,6 +12,6 @@ semantic_frontier_exploration:
         camera_info_topic: "/camera_info"  # Topic for the camera info
         visualize_confidence_map: false  # Flag to visualize the confidence map
       robot:
-        parent_frame: "map" # Parent frame for the robot
-        child_frame: "camera" # Child frame for the robot
-        rgb_topic: "/rgb" # Topic for RGB camera images
+        map_frame: "map" # Parent frame for the robot
+        camera_link_frame: "carter_camera_stereo_right" # Frame of the RGB camera
+      rgb_topic: "/rgb"  # Topic for the RGB images

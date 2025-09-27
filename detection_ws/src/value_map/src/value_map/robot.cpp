@@ -15,12 +15,12 @@ bool Robot::on_configure()
     RCLCPP_INFO(node->get_logger(), "Configuring Robot...");
     // Configuration logic here
 
-    node->declare_parameter<std::string>("robot.parent_frame", "map");
-    node->declare_parameter<std::string>("robot.child_frame", "camera");
+    node->declare_parameter<std::string>("robot.map_frame", "map");
+    node->declare_parameter<std::string>("robot.camera_link_frame", "XT_32_10hz");
     node->declare_parameter<std::string>("rgb_topic", "/rgb");
 
-    node->get_parameter("robot.parent_frame", parentFrame);
-    node->get_parameter("robot.child_frame", childFrame);
+    node->get_parameter("robot.map_frame", mapFrame);
+    node->get_parameter("robot.camera_link_frame", cameraFrame);
     node->get_parameter("rgb_topic", rgbTopic);
 
     rgbSub = node->create_subscription<sensor_msgs::msg::Image>(
@@ -96,7 +96,7 @@ geometry_msgs::msg::PoseStamped::SharedPtr Robot::getPose(rclcpp::Time time) con
     
     try {
         geometry_msgs::msg::TransformStamped transformStamped;
-        transformStamped = tfBuffer->lookupTransform(parentFrame, childFrame, time);
+        transformStamped = tfBuffer->lookupTransform(mapFrame, cameraFrame, time);
 
         poseMsg->header = transformStamped.header;
         poseMsg->pose.position.x = transformStamped.transform.translation.x;
@@ -118,4 +118,3 @@ sensor_msgs::msg::Image::SharedPtr Robot::getImage() const
 {
     return rgbImage;
 }
-

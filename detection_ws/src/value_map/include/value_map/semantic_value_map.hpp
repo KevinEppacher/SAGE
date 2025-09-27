@@ -21,6 +21,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 #include <multimodal_query_msgs/msg/semantic_prompt.hpp>
+#include <vector>
 
 class SemanticValueMap {
   public:

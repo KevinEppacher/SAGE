@@ -62,7 +62,7 @@ RUN pip install openai-whisper
 RUN sudo apt update && sudo apt install -y \
     ros-${ROS_DISTRO}-tf-transformations
 
-RUN sudo apt install -y \
+RUN sudo apt update && sudo apt install -y \
     ros-${ROS_DISTRO}-navigation2 \
     ros-${ROS_DISTRO}-nav2-bringup \
     ros-${ROS_DISTRO}-nav2-costmap-2d
