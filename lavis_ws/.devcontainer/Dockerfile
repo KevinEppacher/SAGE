@@ -54,7 +54,7 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --upgrade pip==23.2.1
 RUN pip install -r /app/requirements.txt
 
-sudo apt update && sudo apt install -y \
+RUN sudo apt update && sudo apt install -y \
     ros-${ROS_DISTRO}-navigation2 \
     ros-${ROS_DISTRO}-nav2-bringup \
     ros-${ROS_DISTRO}-nav2-costmap-2d
