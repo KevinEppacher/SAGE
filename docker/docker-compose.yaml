@@ -91,20 +91,6 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: all
       NVIDIA_REQUIRE_CUDA: "cuda>=11.3"
 
-  mp3d_downloader_container:
-    image: mp3d_downloader
-    build:
-      context: ../mp3d_ws
-      dockerfile: .devcontainer/Dockerfile
-    container_name: mp3d_downloader_container
-    command: /bin/bash
-    tty: true
-    volumes:
-      - ../../SAGE/mp3d_ws:/app
-    privileged: true
-    network_mode: host
-    ipc: host
-
   lavis_container:
     image: ros2/lavis
     build:
