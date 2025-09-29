@@ -13,6 +13,14 @@ rosdep update
 rosdep install --rosdistro humble --from-paths src --ignore-src -r -y
 ```
 
+### Install weights
+
+1. SAGE/exploitation_ws/src/openfusion_ros/openfusion_ros/openfusion_ros/zoo/xdecoder_seem/checkpoints/seem_focall_v1.pt:
+https://huggingface.co/xdecoder/SEEM/resolve/main/seem_focall_v1.pt
+
+2. SAGE/detection_ws/src/seem_ros/seem_ros/seem_ros/seem_focall_v0.pt:
+https://huggingface.co/xdecoder/SEEM/resolve/main/seem_focall_v0.pt
+
 ### X11 Forwarding for container
 ```bash
 # on host
@@ -63,16 +71,6 @@ sudo prime-select nvidia
 sudo reboot
 ```
 
-**Container run (important)**
-```bash
-docker run --gpus all --runtime=nvidia   -e OMNI_KIT_ALLOW_ROOT=1   -e VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json   -e __NV_PRIME_RENDER_OFFLOAD=1   -e __GLX_VENDOR_LIBRARY_NAME=nvidia   --shm-size=2g --ulimit memlock=-1 --ulimit stack=67108864   ...
-```
-
-**Stability flags for Isaac**
-```bash
-./isaaclab.sh   --/renderer/multiGpu/enabled=false   --/renderer/aftermath/enabled=false   --/rtx/gi/enable=false   --/app/window/drawMouse=false
-```
-
 **Recommendation:** Prefer **headless** mode (with WebRTC client for visualization). Use GUI only if strictly required.
 
 ---
@@ -99,15 +97,3 @@ Then start the WebRTC client:
 FATAL ... SUID sandbox helper binary ... chrome-sandbox ... needs to be owned by root and mode 4755
 ```
 This comes from Chromium sandboxing inside the AppImage. Workarounds (setuid bits) are unsafe. **Better:** run Isaac headless and use the official WebRTC client.
-
----
-
-## USD/Stage stability notes
-- Avoid self-references or cycles in payloads/references.
-- Set a valid `defaultPrim` (e.g. `"World"`).
-- Load the scene first, then enable ROS2-Bridge, and add cameras step by step.
-
-## How to start container
-```bash
-docker compose up -d <container-service>
-```
