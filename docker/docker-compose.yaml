@@ -17,6 +17,10 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    devices:
+      - /dev/fuse:/dev/fuse
+    security_opt:
+      - apparmor:unconfined
     volumes:
       - ../../SAGE/explorer_ws:/app
       - /tmp/.X11-unix:/tmp/.X11-unix
