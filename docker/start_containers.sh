@@ -23,4 +23,4 @@ cd ../docker || {
 
 # Step 4: Start the detection, explorer, and exploitation containers via docker-compose
 echo "Starting detection, explorer, and exploitation containers with docker-compose..."
-docker compose up detection_container explorer_container exploitation_container
+docker compose up -d detection_container explorer_container exploitation_container lavis_container
