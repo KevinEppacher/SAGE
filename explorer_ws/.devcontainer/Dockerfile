@@ -28,6 +28,23 @@ RUN apt-get update && \
     echo "$USERNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME && \
     chmod 0440 /etc/sudoers.d/$USERNAME
 
+#####################################
+## Custom install as non-root user ##
+#####################################
+
+USER root
+RUN apt-get update && apt-get install -y curl
+RUN curl -L -o /usr/local/bin/Groot2.AppImage \
+  https://s3.us-west-1.amazonaws.com/download.behaviortree.dev/groot2_linux_installer/Groot2-v1.6.1-x86_64.AppImage \
+  && chmod +x /usr/local/bin/Groot2.AppImage
+
+RUN apt-get update && apt-get install -y fuse3 \
+ && groupadd -f fuse && usermod -aG fuse ${USERNAME}
+
+#########################################
+## End Custom install as non-root user ##
+#########################################
+
 # Switch from root to user
 USER $USERNAME
 
@@ -68,12 +85,18 @@ RUN sudo apt update && sudo apt install -y \
     ros-${ROS_DISTRO}-tf2-tools \
     ros-${ROS_DISTRO}-rqt-tf-tree
 
-# # Install python3-pip
-# RUN apt-get update && apt-get install -y \
-#     python3-pip
+# --- BehaviorTree.CPP + ZMQ + GUI deps ---
+RUN sudo apt update && sudo apt install -y --no-install-recommends \
+    ros-${ROS_DISTRO}-behaviortree-cpp-v3 \
+    libzmq3-dev \
+    libfuse2 curl git cmake \
+ && sudo rm -rf /var/lib/apt/lists/*
 
-# # Install colcon with pip
-# RUN pip install -U colcon-clean
+ # --- cppzmq (header-only) for Jammy: install from source ---
+ RUN git clone --depth=1 https://github.com/zeromq/cppzmq /tmp/cppzmq \
+ && cmake -S /tmp/cppzmq -B /tmp/cppzmq/build -DCPPZMQ_BUILD_TESTS=OFF -DCPPZMQ_BUILD_EXAMPLES=OFF \
+ && sudo cmake --install /tmp/cppzmq/build \
+ && rm -rf /tmp/cppzmq
 
 ########################################################
 # End Custom installations
@@ -85,4 +108,4 @@ RUN sudo apt update && sudo apt upgrade -y
 # Source ROS setup
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 RUN echo "source install/setup.bash" >> ~/.bashrc
-
+RUN echo 'alias groot="/usr/local/bin/Groot2.AppImage"' >> /home/${USERNAME}/.bashrc
