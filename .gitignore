@@ -96,3 +96,5 @@ lavis_ws/src/LAVIS
 exploitation_ws/src/openfusion_ros_v0/*
 
 *.ts
+
+explorer_ws/src/tb3_autonomy/
