@@ -17,6 +17,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(behaviortree_cpp_v3 REQUIRED)
+find_package(behaviortree_cpp REQUIRED)
 
 ############################################################
 # Include Directories
@@ -30,7 +31,6 @@ include_directories(
 #                        Declare Executables                        #
 #####################################################################
 
-# Main clustering node
 add_executable(bt_demo_node
   src/bt_demo_node.cpp
 )
@@ -45,12 +45,28 @@ ament_target_dependencies(bt_demo_node
 target_compile_features(bt_demo_node PUBLIC cxx_std_17)
 
 #####################################################################
+
+add_executable(sage_bt_node
+  src/sage_bt_node.cpp
+)
+
+# Link ROS 2 dependencies
+ament_target_dependencies(sage_bt_node
+  behaviortree_cpp_v3
+  rclcpp
+)
+
+# Use C++17 standard
+target_compile_features(sage_bt_node PUBLIC cxx_std_17)
+
+#####################################################################
 #                           Installation                            #
 #####################################################################
 
 # Install the node binary into the ROS 2 lib directory
 install(TARGETS
   bt_demo_node
+  sage_bt_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
