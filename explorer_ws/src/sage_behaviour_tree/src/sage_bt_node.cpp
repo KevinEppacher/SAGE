@@ -1,7 +1,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
-#include <behaviortree_cpp_v3/bt_factory.h>
-#include <behaviortree_cpp_v3/loggers/bt_zmq_publisher.h>
+#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp/xml_parsing.h"
+#include "behaviortree_cpp/loggers/groot2_publisher.h"
 #include <chrono>
 #include <thread>
 #include <memory>
@@ -26,6 +27,7 @@ public:
   static BT::PortsList providedPorts() { return { BT::InputPort<int>("ms") }; }
   BT::NodeStatus tick() override {
     int ms = getInput<int>("ms").value_or(300);
+    std::cout << "[WaitMs] sleeping for " << ms << " ms\n";
     std::this_thread::sleep_for(std::chrono::milliseconds(ms));
     return BT::NodeStatus::SUCCESS;
   }
@@ -46,6 +48,7 @@ public:
     }
 
     const std::string location_file = this->get_parameter("location_file").as_string();
+    RCLCPP_INFO(this->get_logger(), "Using tree XML file: %s", xml.c_str());
 
     // Build tree
     BT::BehaviorTreeFactory factory;
@@ -58,16 +61,19 @@ public:
 
     tree_ = factory.createTreeFromFile(xml, blackboard);
 
-    // One ZMQ publisher (v3)
-    publisher_ = std::make_unique<BT::PublisherZMQ>(tree_, 25, 1666, 1667);
+    // Print static structure once
+    BT::printTreeRecursively(tree_.rootNode());
+
+    // One Groot2 publisher
+    publisher_ptr_ = std::make_unique<BT::Groot2Publisher>(tree_, 1668);
 
     // Tick at fixed rate
     timer_ = this->create_wall_timer(
       std::chrono::milliseconds(50),
       [this]() {
-        const auto status = tree_.tickRoot();
-        if (status != BT::NodeStatus::RUNNING) {
-          tree_.rootNode()->halt(); // restart cycle to keep Groot active
+        BT::NodeStatus tree_status = tree_.tickOnce();
+        if (tree_status != BT::NodeStatus::RUNNING) {
+          tree_.haltTree();
         }
       });
   }
@@ -75,7 +81,7 @@ public:
 private:
   rclcpp::TimerBase::SharedPtr timer_;
   BT::Tree tree_;
-  std::unique_ptr<BT::PublisherZMQ> publisher_;
+  std::unique_ptr<BT::Groot2Publisher> publisher_ptr_;
 };
 
 int main(int argc, char** argv) {
