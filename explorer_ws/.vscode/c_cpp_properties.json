@@ -6,6 +6,7 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/install/*/include",
                 "${workspaceFolder}/build/*/rosidl_generator_cpp",
+                "/base_ws/install/*/include",
                 "/opt/ros/humble/include/**",
                 "/usr/include/**"
             ],
@@ -22,6 +23,7 @@
                 "${workspaceFolder}/install/seem_ros_interfaces/include",
                 "${workspaceFolder}/install/*/include",
                 "${workspaceFolder}/build/*/rosidl_generator_cpp",
+                "/base_ws/install/*/include",
                 "/opt/ros/humble/include/**"
             ],
             "defines": [],

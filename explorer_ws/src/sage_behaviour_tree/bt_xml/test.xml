@@ -3,12 +3,17 @@
       main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <Sequence>
-      <AlwaysSuccess name="Init"/>
-      <AlwaysSuccess name="Work"/>
+      <Work/>
+      <WaitMs/>
+      <Init/>
     </Sequence>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
-  <TreeNodesModel/>
+  <TreeNodesModel>
+    <Action ID="Init"/>
+    <Action ID="WaitMs"/>
+    <Action ID="Work"/>
+  </TreeNodesModel>
 
 </root>

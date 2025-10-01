@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="3" project_name="Project">
-    <include path="install/sage_behaviour_tree/share/sage_behaviour_tree/bt_xml/demo.xml"/>
-    <!-- Description of Node Models (used by Groot) -->
-    <TreeNodesModel/>
-</root>
