@@ -12,6 +12,7 @@
 #include "behaviortree_cpp/behavior_tree.h"
 
 #include <graph_node_msgs/msg/graph_node_array.hpp>
+#include <graph_node_msgs/msg/graph_node.hpp>
 
 using namespace std::chrono_literals;
 
@@ -20,6 +21,127 @@ using namespace std::chrono_literals;
 #define GREEN  "\033[92m"
 #define YELLOW "\033[93m"
 #define BOLD   "\033[1m"
+
+//////////////////////////////////////////////////////////////////////////////////
+
+
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp_action/rclcpp_action.hpp>
+
+#include "behaviortree_cpp/action_node.h"   // BT::StatefulActionNode
+#include "behaviortree_cpp/basic_types.h"   // Ports
+
+#include <nav2_msgs/action/navigate_to_pose.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/point.hpp>
+
+#include <graph_node_msgs/msg/graph_node.hpp>   // Your custom GraphNode msg
+
+// Optional if you want to compute orientation from yaw
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
+class GoToGraphNode : public BT::StatefulActionNode
+{
+public:
+    using NavigateToPose = nav2_msgs::action::NavigateToPose;
+    using GoalHandleNav = rclcpp_action::ClientGoalHandle<NavigateToPose>;
+
+    GoToGraphNode(const std::string& name,
+                  const BT::NodeConfiguration& config,
+                  rclcpp::Node::SharedPtr node_ptr)
+        : BT::StatefulActionNode(name, config), node_ptr_(std::move(node_ptr))
+    {}
+
+    static BT::PortsList providedPorts()
+    {
+        return {
+            BT::InputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>(
+                "graph_nodes", "GraphNode to navigate to")
+        };
+    }
+
+    BT::NodeStatus onStart() override
+    {
+        if (!node_ptr_) {
+            RCLCPP_ERROR(rclcpp::get_logger("GoToGraphNode"), "No ROS2 node provided!");
+            return BT::NodeStatus::FAILURE;
+        }
+
+        // Get target node from blackboard
+        auto node_res = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_nodes");
+        if (!node_res) {
+            RCLCPP_WARN(node_ptr_->get_logger(), "[%s] No graph node to go to", this->name().c_str());
+            return BT::NodeStatus::FAILURE;
+        }
+        target_node_ = node_res.value();
+
+        // Create action client
+        client_ptr_ = rclcpp_action::create_client<NavigateToPose>(node_ptr_, "/navigate_to_pose");
+
+        if (!client_ptr_->wait_for_action_server(1s)) {
+            RCLCPP_ERROR(node_ptr_->get_logger(), "[%s] NavigateToPose server not available", this->name().c_str());
+            return BT::NodeStatus::FAILURE;
+        }
+
+        // Build goal
+        NavigateToPose::Goal goal;
+        goal.pose.header.frame_id = "map";
+        goal.pose.header.stamp = node_ptr_->now();
+        goal.pose.pose.position = target_node_->position;
+
+        // Orientation = identity quaternion (no rotation), unless you want to compute from GraphNode
+        goal.pose.pose.orientation.w = 1.0;
+
+        // Send goal
+        using namespace std::placeholders;
+        auto options = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
+        options.result_callback = std::bind(&GoToGraphNode::resultCallback, this, _1);
+
+        done_flag_ = false;
+        client_ptr_->async_send_goal(goal, options);
+
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    "[%s] Sent goal to GraphNode ID=%d (x=%.2f, y=%.2f, score=%.2f)",
+                    this->name().c_str(), target_node_->id,
+                    target_node_->position.x, target_node_->position.y, target_node_->score);
+
+        return BT::NodeStatus::RUNNING;
+    }
+
+    BT::NodeStatus onRunning() override
+    {
+        if (done_flag_) {
+            if (nav_result_ == rclcpp_action::ResultCode::SUCCEEDED) {
+                RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Goal reached", this->name().c_str());
+                return BT::NodeStatus::SUCCESS;
+            }
+            RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Failed to reach goal", this->name().c_str());
+            return BT::NodeStatus::FAILURE;
+        }
+        return BT::NodeStatus::RUNNING;
+    }
+
+    void onHalted() override
+    {
+        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Halted", this->name().c_str());
+        // Here you could cancel the action goal if needed
+    }
+
+private:
+    void resultCallback(const GoalHandleNav::WrappedResult& result)
+    {
+        done_flag_ = true;
+        nav_result_ = result.code;
+    }
+
+    rclcpp::Node::SharedPtr node_ptr_;
+    rclcpp_action::Client<NavigateToPose>::SharedPtr client_ptr_;
+
+    std::shared_ptr<graph_node_msgs::msg::GraphNode> target_node_;
+    bool done_flag_{false};
+    rclcpp_action::ResultCode nav_result_{};
+};
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -33,16 +155,16 @@ public:
     {
         RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Initialized", this->name().c_str());
 
-        // Subscribe once to the topic (topic comes from port/blackboard)
+        // Subscribe once (topic comes from blackboard/port)
         std::string topic;
         getInput<std::string>("detection_graph_node_topic", topic);
 
         sub_ = node_ptr_->create_subscription<graph_node_msgs::msg::GraphNodeArray>(
             topic, 10,
             [this](const graph_node_msgs::msg::GraphNodeArray::SharedPtr msg) {
-                latest_msg_ = *msg;
+                latest_msg_ = msg;
                 received_message_ = true;
-                missed_ticks_ = 0;  // reset counter when a message arrives
+                missed_ticks_ = 0;  // reset when new message arrives
             });
     }
 
@@ -53,13 +175,15 @@ public:
             BT::InputPort<std::string>("detection_graph_node_topic",
                                        "/detection_graph_nodes/graph_nodes",
                                        "GraphNodeArray topic"),
-            BT::InputPort<int>("max_missed_ticks", 10, "Max ticks to wait for a message")
+            BT::InputPort<int>("max_missed_ticks", 10, "Max ticks to wait for a message"),
+            BT::OutputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>(
+                "graph_nodes", "Best GraphNode detected")
         };
     }
 
     BT::NodeStatus tick() override
     {
-        // Handle case: no message yet
+        // Case 1: no message yet
         if (!received_message_) {
             missed_ticks_++;
             int max_missed = 10;
@@ -69,7 +193,7 @@ public:
                 RCLCPP_WARN(node_ptr_->get_logger(),
                             "[%s] No message received for %d ticks. Returning FAILURE",
                             this->name().c_str(), missed_ticks_);
-                missed_ticks_ = 0;  // reset counter on failure
+                missed_ticks_ = 0;
                 return BT::NodeStatus::FAILURE;
             }
 
@@ -79,42 +203,44 @@ public:
             return BT::NodeStatus::RUNNING;
         }
 
-        // Normal detection logic
+        // Get threshold from port
         double threshold = 0.8;
         getInput<double>("detection_threshold", threshold);
 
+        // Find best node
         double max_score = -1.0;
-        for (const auto &n : latest_msg_.nodes) {
-            if (n.score > max_score)
+        std::shared_ptr<graph_node_msgs::msg::GraphNode> best_node = nullptr;
+        for (const auto &n : latest_msg_->nodes) {
+            if (n.score > max_score) {
                 max_score = n.score;
+                best_node = std::make_shared<graph_node_msgs::msg::GraphNode>(n);
+            }
         }
 
-        if (max_score == -1.0) {
+        if (!best_node) {
             RCLCPP_WARN(node_ptr_->get_logger(),
                         "[%s] Message contained no nodes. Returning FAILURE",
                         this->name().c_str());
             return BT::NodeStatus::FAILURE;
         }
 
-        if (max_score >= threshold) {
-            RCLCPP_INFO(node_ptr_->get_logger(),
-                        GREEN BOLD "[%s] DETECTED. Highest=%.3f >= %.2f" RESET,
-                        this->name().c_str(), max_score, threshold);
-            return BT::NodeStatus::SUCCESS;
-        }
+        // Publish best node to blackboard
+        setOutput("graph_nodes", best_node);
 
         RCLCPP_INFO(node_ptr_->get_logger(),
-                    YELLOW BOLD "[%s] Not detected. Highest=%.3f < %.2f" RESET,
-                    this->name().c_str(), max_score, threshold);
-        return BT::NodeStatus::FAILURE;
+                    "[%s] Best node ID=%d Score=%.3f (Threshold=%.2f)",
+                    this->name().c_str(), best_node->id, best_node->score, threshold);
+
+        return (max_score >= threshold) ? BT::NodeStatus::SUCCESS
+                                        : BT::NodeStatus::FAILURE;
     }
 
 private:
     rclcpp::Node::SharedPtr node_ptr_;
     rclcpp::Subscription<graph_node_msgs::msg::GraphNodeArray>::SharedPtr sub_;
-    graph_node_msgs::msg::GraphNodeArray latest_msg_;
+    graph_node_msgs::msg::GraphNodeArray::SharedPtr latest_msg_;
     bool received_message_{false};
-    int missed_ticks_{0};  // counter for ticks without messages
+    int missed_ticks_{0};
 };
 
 
@@ -153,6 +279,7 @@ private:
     {
         BT::BehaviorTreeFactory factory;
         factory.registerNodeType<IsDetected>("IsDetected", shared_from_this());
+        factory.registerNodeType<GoToGraphNode>("GoToGraphNode", shared_from_this());
 
         // Seed blackboard from ROS parameters
         auto bb = BT::Blackboard::create();
