@@ -16,7 +16,14 @@ endif()
 # Core build system for ROS 2
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
+find_package(lifecycle_msgs REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
+find_package(graph_node_msgs REQUIRED)
+find_package(rclcpp_action REQUIRED)
+find_package(nav2_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
 ############################################################
 # Include Directories
@@ -36,8 +43,15 @@ add_executable(sage_bt_node
 
 # Link ROS 2 dependencies
 ament_target_dependencies(sage_bt_node
-  behaviortree_cpp
-  rclcpp
+    behaviortree_cpp
+    rclcpp
+    rclcpp_lifecycle
+    lifecycle_msgs
+    graph_node_msgs
+    rclcpp_action
+    nav2_msgs
+    tf2
+    tf2_geometry_msgs
 )
 
 # Use C++17 standard

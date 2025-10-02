@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="3"
+      main_tree_to_execute="SAGE_SingleObject">
+  <BehaviorTree ID="SAGE_SingleObject">
+    <Repeat num_cycles="10">
+      <Sequence>
+        <IsDetected/>
+      </Sequence>
+    </Repeat>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Condition ID="IsDetected"
+               editable="true"/>
+  </TreeNodesModel>
+
+</root>

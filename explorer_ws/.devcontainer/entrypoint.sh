@@ -19,5 +19,12 @@ then
   echo "Sourced overlay workspace (main packages)"
 fi
 
+# Source bash aliases if they exist
+if [ -f /app/.bash_aliases ]
+then
+  source /app/.bash_aliases
+  echo "Sourced bash aliases"
+fi
+
 # Execute the command passed into this entrypoint
 exec "$@"

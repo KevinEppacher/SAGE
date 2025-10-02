@@ -1,0 +1,27 @@
+<root main_tree_to_execute="SAGE_SingleObject">
+  <BehaviorTree ID="SAGE_SingleObject">
+    <ReactiveSequence name="Loop">
+      <!-- 1) First let detection preempt everything -->
+      <Selector name="DetectedOrSearch">
+        <!-- A) Detected branch: go to highest-scoring fusion node and confirm -->
+        <Sequence name="DetectedBranch">
+          <IsDetected threshold="{det_thr}"/>                 <!-- SUCCESS if any detection >= thr -->
+          <SelectBestDetection out_goal="{goal}"/>            <!-- picks max-score detection node -->
+          <NavigateToPose goal="{goal}"/>                     <!-- RUNNING until reached, then SUCCESS -->
+          <TakePicture/>                                      <!-- returns SUCCESS/FAILURE -->
+        </Sequence>
+
+        <!-- B) Search branch: choose best of exploration/exploitation or rotate -->
+        <Sequence name="SearchBranch">
+          <Selector name="PickOrRotate">
+            <Sequence name="PickGoal">
+              <SelectGoalWeighted exp_weight="{exp_weight}" out_goal="{goal}"/>
+              <NavigateToPose goal="{goal}"/>                 <!-- RUNNING then SUCCESS -->
+            </Sequence>
+            <Rotate360/>                                      <!-- if no goal available, do one 360 then FAILURE to retry -->
+          </Selector>
+        </Sequence>
+      </Selector>
+    </ReactiveSequence>
+  </BehaviorTree>
+</root>
