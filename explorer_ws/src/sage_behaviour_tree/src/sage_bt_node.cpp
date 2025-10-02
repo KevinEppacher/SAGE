@@ -4,8 +4,6 @@
 #include <iostream>
 
 #include <rclcpp/rclcpp.hpp>
-#include <rclcpp_lifecycle/lifecycle_node.hpp>
-
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
 #include "behaviortree_cpp/bt_factory.h"
@@ -15,19 +13,15 @@
 
 #include <graph_node_msgs/msg/graph_node_array.hpp>
 
-using rclcpp_lifecycle::LifecycleNode;
-using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 using namespace std::chrono_literals;
 
 // ANSI color codes
-#define RESET "\033[0m"
-#define RED "\033[91m"
-#define GREEN "\033[92m"
+#define RESET  "\033[0m"
+#define GREEN  "\033[92m"
 #define YELLOW "\033[93m"
-#define BLUE "\033[94m"
-#define BOLD "\033[1m"
+#define BOLD   "\033[1m"
 
-using namespace std::chrono_literals;
+//////////////////////////////////////////////////////////////////////////////////
 
 class IsDetected : public BT::ConditionNode
 {
@@ -35,111 +29,142 @@ public:
     IsDetected(const std::string& name,
                const BT::NodeConfiguration& config,
                rclcpp::Node::SharedPtr node_ptr)
-        : BT::ConditionNode(name, config), node_ptr_{node_ptr}
+        : BT::ConditionNode(name, config), node_ptr_(std::move(node_ptr))
     {
-        std::cout << "[" << this->name() << "] Initialized" << std::endl;
+        RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Initialized", this->name().c_str());
+
+        // Subscribe once to the topic (topic comes from port/blackboard)
+        std::string topic;
+        getInput<std::string>("detection_graph_node_topic", topic);
+
+        sub_ = node_ptr_->create_subscription<graph_node_msgs::msg::GraphNodeArray>(
+            topic, 10,
+            [this](const graph_node_msgs::msg::GraphNodeArray::SharedPtr msg) {
+                latest_msg_ = *msg;
+                received_message_ = true;
+            });
     }
 
     static BT::PortsList providedPorts()
     {
         return {
-            BT::InputPort<double>("threshold", 0.8, "detection threshold"),
-            BT::InputPort<std::string>("topic", "/detection_graph_nodes/graph_nodes",
+            BT::InputPort<double>("detection_threshold", 0.8, "Detection threshold"),
+            BT::InputPort<std::string>("detection_graph_node_topic", "/detection_graph_nodes/graph_nodes",
                                        "GraphNodeArray topic")
         };
     }
 
     BT::NodeStatus tick() override
     {
-        RCLCPP_INFO(node_ptr_->get_logger(), "IsDetected ticked");
-        return BT::NodeStatus::SUCCESS;
+        if (!received_message_) {
+            RCLCPP_INFO(node_ptr_->get_logger(),
+                        "[%s] Waiting for first message...", this->name().c_str());
+            return BT::NodeStatus::RUNNING;
+        }
+
+        double threshold = 0.8;
+        getInput<double>("detection_threshold", threshold);
+
+        double max_score = -1.0;
+        for (const auto &n : latest_msg_.nodes) {
+            if (n.score > max_score)
+                max_score = n.score;
+        }
+
+        if (max_score >= threshold) {
+            RCLCPP_INFO(node_ptr_->get_logger(),
+                        GREEN BOLD "[%s] DETECTED. Highest=%.3f >= %.2f" RESET,
+                        this->name().c_str(), max_score, threshold);
+            return BT::NodeStatus::SUCCESS;
+        }
+
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    YELLOW BOLD "[%s] Not detected. Highest=%.3f < %.2f" RESET,
+                    this->name().c_str(), max_score, threshold);
+        return BT::NodeStatus::FAILURE;
     }
 
 private:
     rclcpp::Node::SharedPtr node_ptr_;
+    rclcpp::Subscription<graph_node_msgs::msg::GraphNodeArray>::SharedPtr sub_;
+    graph_node_msgs::msg::GraphNodeArray latest_msg_;
+    bool received_message_{false};
 };
 
 //////////////////////////////////////////////////////////////////////////////////
 
-class SageBehaviorTreeNode : public rclcpp::Node {
-    public:
-        SageBehaviorTreeNode() : Node("autonomy_node") {
-            // Read the location file and shuffle it
-            this->declare_parameter<std::string>("location_file", default_location_file);
-            location_file_ = this->get_parameter("location_file").as_string();
+class SageBehaviorTreeNode : public rclcpp::Node
+{
+public:
+    SageBehaviorTreeNode() : Node("sage_behavior_tree_node")
+    {
+        // Declare parameters with defaults
+        declare_parameter<std::string>("location_file", "");
+        declare_parameter<std::string>("tree_xml_file", "");
+        declare_parameter<double>("detection.threshold", 0.8);
+        declare_parameter<std::string>("detection.graph_node_topic",
+                                       "/detection_graph_nodes/graph_nodes");
 
-            RCLCPP_INFO(this->get_logger(),"Using location file %s", location_file_.c_str());
+        location_file_ = get_parameter("location_file").as_string();
+        tree_xml_file_ = get_parameter("tree_xml_file").as_string();
+        RCLCPP_INFO(get_logger(), "Using location file %s", location_file_.c_str());
+    }
 
-            // Declare and get the other node parameters.
-            this->declare_parameter<std::string>("tree_xml_file", default_bt_xml_file);
-            tree_xml_file_ = this->get_parameter("tree_xml_file").as_string();
-            
-            this->declare_parameter<std::string>("target_color", "");
-            target_color_ = this->get_parameter("target_color").as_string();
+    void execute()
+    {
+        create_behavior_tree();
 
-            if (target_color_ != "") {
-                RCLCPP_INFO(this->get_logger(), "Searching for target color %s...",
-                    target_color_.c_str());
-            }
-        }
+        timer_ = create_wall_timer(500ms,
+                   std::bind(&SageBehaviorTreeNode::update_behavior_tree, this));
 
-        void execute() {
-            // Build and initialize the behavior tree based on parameters.
-            create_behavior_tree();
+        rclcpp::spin(shared_from_this());
+        rclcpp::shutdown();
+    }
 
-            // Create a timer to tick the behavior tree.
-            const auto timer_period = 500ms;
-            timer_ = this->create_wall_timer(
-                timer_period,
-                std::bind(&SageBehaviorTreeNode::update_behavior_tree, this));
+private:
+    void create_behavior_tree()
+    {
+        BT::BehaviorTreeFactory factory;
+        factory.registerNodeType<IsDetected>("IsDetected", shared_from_this());
 
-            rclcpp::spin(shared_from_this());
-            rclcpp::shutdown();
-        }
+        // Seed blackboard from ROS parameters
+        auto bb = BT::Blackboard::create();
+        bb->set("detection_threshold", get_parameter("detection.threshold").as_double());
+        bb->set("detection_graph_node_topic", get_parameter("detection.graph_node_topic").as_string());
+        bb->set("location_file", location_file_);
 
-        void create_behavior_tree() {
-            // Build a behavior tree from XML and set it up for logging
-            BT::BehaviorTreeFactory factory;
-            factory.registerNodeType<IsDetected>("IsDetected", shared_from_this());
+        tree_ = factory.createTreeFromFile(tree_xml_file_, bb);
 
-            auto blackboard = BT::Blackboard::create();
-            blackboard->set<std::string>("location_file", location_file_);
-            tree_ = factory.createTreeFromFile(tree_xml_file_, blackboard);
-            
-            // Set up tree logging to monitor the tree in Groot2.
-            // Default ports (1666/1667) are used by the Nav2 behavior tree, so we use another port.
-            // NOTE: You must have the PRO version of Groot2 to view live tree updates.
-            publisher_ptr_ = std::make_unique<BT::Groot2Publisher>(tree_, 1668);
-        }
+        // Print tree structure to stdout
+        BT::printTreeRecursively(tree_.rootNode());
 
-        void update_behavior_tree() {
-            // Tick the behavior tree.
-            BT::NodeStatus tree_status = tree_.tickOnce();
-            if (tree_status == BT::NodeStatus::RUNNING) {
-                return;
-            }
-            // Cancel the timer if we hit a terminal state.
-            if (tree_status == BT::NodeStatus::SUCCESS) {
-                RCLCPP_INFO(this->get_logger(), "Finished with status SUCCESS");
-                timer_->cancel();
-            } else if (tree_status == BT::NodeStatus::FAILURE) {
-                RCLCPP_INFO(this->get_logger(), "Finished with status FAILURE");
-                timer_->cancel();
-            }
-        }
+        publisher_ptr_ = std::make_unique<BT::Groot2Publisher>(tree_, 1668);
+    }
 
-        // Configuration parameters.
-        std::string tree_xml_file_;
-        std::string location_file_;
-        std::string target_color_;
+    void update_behavior_tree()
+    {
+        BT::NodeStatus status = tree_.tickOnce();
+        if (status == BT::NodeStatus::RUNNING)
+            return;
 
-        // ROS and BehaviorTree.CPP variables.
-        rclcpp::TimerBase::SharedPtr timer_;
-        BT::Tree tree_;
-        std::unique_ptr<BT::Groot2Publisher> publisher_ptr_;
-        std::string default_location_file, default_bt_xml_file;
+        if (status == BT::NodeStatus::SUCCESS)
+            RCLCPP_INFO(get_logger(), "Finished with SUCCESS");
+        else if (status == BT::NodeStatus::FAILURE)
+            RCLCPP_INFO(get_logger(), "Finished with FAILURE");
+
+        timer_->cancel();
+    }
+
+    // Members
+    std::string tree_xml_file_;
+    std::string location_file_;
+
+    rclcpp::TimerBase::SharedPtr timer_;
+    BT::Tree tree_;
+    std::unique_ptr<BT::Groot2Publisher> publisher_ptr_;
 };
 
+//////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char **argv)
 {

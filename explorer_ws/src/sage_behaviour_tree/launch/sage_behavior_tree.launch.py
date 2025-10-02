@@ -23,6 +23,12 @@ def generate_launch_description():
         'test_single_search.xml'
     )
 
+    sage_bt_config = os.path.join(
+        get_package_share_directory("sage_behaviour_tree"),
+        'config',
+        'sage_bt_config.yaml'
+    )
+
     # Behaviour Tree node
     sage_bt_node = Node(
         package='sage_behaviour_tree',
@@ -31,8 +37,11 @@ def generate_launch_description():
         namespace='sage_behaviour_tree',
         output='screen',
         emulate_tty=True,
-        parameters=[{'use_sim_time': use_sim_time},
-                    {'tree_xml_file': tree_path}] 
+        parameters=[
+            {'use_sim_time': use_sim_time},
+            {'tree_xml_file': tree_path},
+            sage_bt_config
+        ] 
     )
     
     groot_gui = ExecuteProcess(
