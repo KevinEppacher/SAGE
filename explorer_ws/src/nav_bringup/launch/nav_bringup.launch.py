@@ -45,6 +45,12 @@ def generate_launch_description():
         'navigation_launch.py'
     )
 
+    nav2_config =  os.path.join(
+        get_package_share_directory('nav_bringup'),
+        'config',
+        'nav2_params.yaml'
+    )
+
     # SLAM Toolbox
     slam_toolbox_node = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(slam_launch_file),
@@ -60,6 +66,7 @@ def generate_launch_description():
         launch_arguments={
             'use_sim_time': use_sim_time,
             'autostart': 'true',
+            'params_file': nav2_config
         }.items()
     )
 

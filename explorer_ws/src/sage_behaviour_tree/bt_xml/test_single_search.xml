@@ -2,26 +2,34 @@
 <root BTCPP_format="3"
       main_tree_to_execute="SAGE_SingleObject">
   <BehaviorTree ID="SAGE_SingleObject">
-    <Repeat num_cycles="10">
+    <RetryUntilSuccessful num_attempts="100">
       <Fallback>
         <Sequence>
           <IsDetected detection_threshold="{detection_threshold}"
-                      detection_graph_node_topic="/detection_graph_nodes/graph_nodes"/>
+                      detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
+                      max_missed_ticks="{max_missed_ticks}"
+                      graph_nodes="{graph_nodes}"/>
+          <GoToGraphNode graph_nodes="{graph_nodes}"/>
         </Sequence>
-        <AlwaysSuccess/>
+        <AlwaysFailure/>
       </Fallback>
-    </Repeat>
+    </RetryUntilSuccessful>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
+    <Action ID="GoToGraphNode">
+      <input_port name="graph_nodes"/>
+    </Action>
     <Condition ID="IsDetected">
-        <input_port name="detection_threshold"
-                default="0.8"/>
-        <input_port name="detection_graph_node_topic"
-                default="/detection_graph_nodes/graph_nodes"/>
-        <input_port name="max_missed_ticks"
-                default="10"/>
+      <input_port name="detection_threshold"
+                  default="0.8"/>
+      <input_port name="detection_graph_node_topic"
+                  default="/detection_graph_nodes/graph_nodes"/>
+      <input_port name="max_missed_ticks"
+                  default="8"/>
+      <output_port name="graph_nodes"
+                   default="latest_nodes"/>
     </Condition>
   </TreeNodesModel>
 
