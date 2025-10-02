@@ -42,6 +42,7 @@ public:
             [this](const graph_node_msgs::msg::GraphNodeArray::SharedPtr msg) {
                 latest_msg_ = *msg;
                 received_message_ = true;
+                missed_ticks_ = 0;  // reset counter when a message arrives
             });
     }
 
@@ -49,19 +50,36 @@ public:
     {
         return {
             BT::InputPort<double>("detection_threshold", 0.8, "Detection threshold"),
-            BT::InputPort<std::string>("detection_graph_node_topic", "/detection_graph_nodes/graph_nodes",
-                                       "GraphNodeArray topic")
+            BT::InputPort<std::string>("detection_graph_node_topic",
+                                       "/detection_graph_nodes/graph_nodes",
+                                       "GraphNodeArray topic"),
+            BT::InputPort<int>("max_missed_ticks", 10, "Max ticks to wait for a message")
         };
     }
 
     BT::NodeStatus tick() override
     {
+        // Handle case: no message yet
         if (!received_message_) {
+            missed_ticks_++;
+            int max_missed = 10;
+            getInput<int>("max_missed_ticks", max_missed);
+
+            if (missed_ticks_ >= max_missed) {
+                RCLCPP_WARN(node_ptr_->get_logger(),
+                            "[%s] No message received for %d ticks. Returning FAILURE",
+                            this->name().c_str(), missed_ticks_);
+                missed_ticks_ = 0;  // reset counter on failure
+                return BT::NodeStatus::FAILURE;
+            }
+
             RCLCPP_INFO(node_ptr_->get_logger(),
-                        "[%s] Waiting for first message...", this->name().c_str());
+                        "[%s] Waiting for first message... (%d/%d)",
+                        this->name().c_str(), missed_ticks_, max_missed);
             return BT::NodeStatus::RUNNING;
         }
 
+        // Normal detection logic
         double threshold = 0.8;
         getInput<double>("detection_threshold", threshold);
 
@@ -69,6 +87,13 @@ public:
         for (const auto &n : latest_msg_.nodes) {
             if (n.score > max_score)
                 max_score = n.score;
+        }
+
+        if (max_score == -1.0) {
+            RCLCPP_WARN(node_ptr_->get_logger(),
+                        "[%s] Message contained no nodes. Returning FAILURE",
+                        this->name().c_str());
+            return BT::NodeStatus::FAILURE;
         }
 
         if (max_score >= threshold) {
@@ -89,7 +114,9 @@ private:
     rclcpp::Subscription<graph_node_msgs::msg::GraphNodeArray>::SharedPtr sub_;
     graph_node_msgs::msg::GraphNodeArray latest_msg_;
     bool received_message_{false};
+    int missed_ticks_{0};  // counter for ticks without messages
 };
+
 
 //////////////////////////////////////////////////////////////////////////////////
 

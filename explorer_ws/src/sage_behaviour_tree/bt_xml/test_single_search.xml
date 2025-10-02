@@ -16,10 +16,12 @@
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
     <Condition ID="IsDetected">
-      <input_port name="detection_threshold"
-                  default="0.8"/>
-      <input_port name="detection_graph_node_topic"
-                  default="/detection_graph_nodes/graph_nodes"/>
+        <input_port name="detection_threshold"
+                default="0.8"/>
+        <input_port name="detection_graph_node_topic"
+                default="/detection_graph_nodes/graph_nodes"/>
+        <input_port name="max_missed_ticks"
+                default="10"/>
     </Condition>
   </TreeNodesModel>
 
