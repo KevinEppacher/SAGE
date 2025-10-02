@@ -80,7 +80,19 @@
         "valarray": "cpp",
         "hash_map": "cpp",
         "hash_set": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "charconv": "cpp",
+        "ranges": "cpp"
     },
-    "cmake.sourceDirectory": "/app/src/graph_node_msgs"
+    "cmake.sourceDirectory": "/app/src/graph_node_msgs",
+    // "C_Cpp.formatting": "clangFormat",
+    // "C_Cpp.clangFormat_style": "{ BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100, AllowShortFunctionsOnASingleLine: None, AllowShortIfStatementsOnASingleLine: false, AllowShortLoopsOnASingleLine: false, SpaceAfterCStyleCast: true }",
+    // "editor.formatOnSave": true,
+    // "editor.tabSize": 6,
+    // "editor.insertSpaces": true
+    
+    // This is for tab size (especially for cpp files)
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false
 }

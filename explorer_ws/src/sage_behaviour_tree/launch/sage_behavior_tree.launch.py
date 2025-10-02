@@ -20,7 +20,7 @@ def generate_launch_description():
     tree_path = os.path.join(
         get_package_share_directory("sage_behaviour_tree"),
         'bt_xml',
-        'test.xml'
+        'test_single_search.xml'
     )
 
     # Behaviour Tree node

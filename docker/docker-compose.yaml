@@ -121,6 +121,14 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: all
       NVIDIA_REQUIRE_CUDA: "cuda>=11.3"
 
+  # BLIP2 ROS launcher
+  blip2-launcher:
+    extends: lavis_container
+    command: bash -c "cd /app && colcon build && source install/setup.bash && ros2 launch blip2_ros blip2_ros.launch.py"
+
+  detection-launcher:
+    extends: detection_container
+    command: bash -c "cd /app && colcon build && source install/setup.bash && ros2 launch sage_commander detection_ws.launch.py"
 
 volumes:
   ros2_ws:
