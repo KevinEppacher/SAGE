@@ -22,6 +22,106 @@ using namespace std::chrono_literals;
 #define YELLOW "\033[93m"
 #define BOLD   "\033[1m"
 
+
+//////////////////////////////////////////////////////////////////////////////////
+
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp_action/rclcpp_action.hpp>
+#include "behaviortree_cpp/action_node.h"
+
+#include <nav2_msgs/action/spin.hpp>
+
+class Spin360 : public BT::StatefulActionNode
+{
+public:
+    using Spin = nav2_msgs::action::Spin;
+    using GoalHandleSpin = rclcpp_action::ClientGoalHandle<Spin>;
+
+    Spin360(const std::string& name,
+            const BT::NodeConfiguration& config,
+            rclcpp::Node::SharedPtr node_ptr)
+        : BT::StatefulActionNode(name, config), node_ptr_(std::move(node_ptr))
+    {}
+
+    static BT::PortsList providedPorts()
+    {
+        return {
+            BT::InputPort<double>("spin_angle", 6.28319, "Angle to spin in radians (default 360°)"),
+            BT::InputPort<double>("spin_duration", 15.0, "Max time allowed for spin (s)")
+        };
+    }
+
+    BT::NodeStatus onStart() override
+    {
+        if (!node_ptr_) {
+            RCLCPP_ERROR(rclcpp::get_logger("Spin360"), "No ROS2 node provided!");
+            return BT::NodeStatus::FAILURE;
+        }
+
+        // Read inputs
+        double spin_angle = 6.28319; // default 2π rad
+        double spin_duration = 15.0;
+        getInput<double>("spin_angle", spin_angle);
+        getInput<double>("spin_duration", spin_duration);
+
+        // Create action client
+        client_ptr_ = rclcpp_action::create_client<Spin>(node_ptr_, "/spin");
+        if (!client_ptr_->wait_for_action_server(1s)) {
+            RCLCPP_ERROR(node_ptr_->get_logger(), "[%s] Spin action server not available", this->name().c_str());
+            return BT::NodeStatus::FAILURE;
+        }
+
+        // Build goal
+        Spin::Goal goal;
+        goal.target_yaw = spin_angle;  
+        goal.time_allowance = rclcpp::Duration::from_seconds(spin_duration);
+
+        using namespace std::placeholders;
+        auto options = rclcpp_action::Client<Spin>::SendGoalOptions();
+        options.result_callback = std::bind(&Spin360::resultCallback, this, _1);
+
+        done_flag_ = false;
+        client_ptr_->async_send_goal(goal, options);
+
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    "[%s] Started spin %.2f rad (%.1f°) with duration %.1f s",
+                    this->name().c_str(), spin_angle, spin_angle * 180.0 / M_PI, spin_duration);
+
+        return BT::NodeStatus::RUNNING;
+    }
+
+    BT::NodeStatus onRunning() override
+    {
+        if (done_flag_) {
+            if (nav_result_ == rclcpp_action::ResultCode::SUCCEEDED) {
+                RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Spin completed successfully", this->name().c_str());
+                return BT::NodeStatus::SUCCESS;
+            }
+            RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Spin failed", this->name().c_str());
+            return BT::NodeStatus::FAILURE;
+        }
+        return BT::NodeStatus::RUNNING;
+    }
+
+    void onHalted() override
+    {
+        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Halted", this->name().c_str());
+    }
+
+private:
+    void resultCallback(const GoalHandleSpin::WrappedResult& result)
+    {
+        done_flag_ = true;
+        nav_result_ = result.code;
+    }
+
+    rclcpp::Node::SharedPtr node_ptr_;
+    rclcpp_action::Client<Spin>::SharedPtr client_ptr_;
+    bool done_flag_{false};
+    rclcpp_action::ResultCode nav_result_{};
+};
+
+
 //////////////////////////////////////////////////////////////////////////////////
 
 
@@ -280,6 +380,7 @@ private:
         BT::BehaviorTreeFactory factory;
         factory.registerNodeType<IsDetected>("IsDetected", shared_from_this());
         factory.registerNodeType<GoToGraphNode>("GoToGraphNode", shared_from_this());
+        factory.registerNodeType<Spin360>("Spin360", shared_from_this());
 
         // Seed blackboard from ROS parameters
         auto bb = BT::Blackboard::create();

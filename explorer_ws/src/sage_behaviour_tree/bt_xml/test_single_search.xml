@@ -2,7 +2,9 @@
 <root BTCPP_format="3"
       main_tree_to_execute="SAGE_SingleObject">
   <BehaviorTree ID="SAGE_SingleObject">
-    <RetryUntilSuccessful num_attempts="100">
+    <Sequence>
+      <Spin360 spin_angle="6.28319"
+               spin_duration="15.0"/>
       <Fallback>
         <Sequence>
           <IsDetected detection_threshold="{detection_threshold}"
@@ -13,7 +15,7 @@
         </Sequence>
         <AlwaysFailure/>
       </Fallback>
-    </RetryUntilSuccessful>
+    </Sequence>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
@@ -31,6 +33,12 @@
       <output_port name="graph_nodes"
                    default="latest_nodes"/>
     </Condition>
+    <Action ID="Spin360">
+      <input_port name="spin_angle"
+                  default="6.28319"/>
+      <input_port name="spin_duration"
+                  default="15.0"/>
+    </Action>
   </TreeNodesModel>
 
 </root>
