@@ -91,6 +91,7 @@ install(DIRECTORY
   include
   bt_xml
   src
+  config
   DESTINATION share/${PROJECT_NAME}
 )
 

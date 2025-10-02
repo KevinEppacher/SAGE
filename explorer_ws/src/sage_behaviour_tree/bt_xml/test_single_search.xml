@@ -3,16 +3,24 @@
       main_tree_to_execute="SAGE_SingleObject">
   <BehaviorTree ID="SAGE_SingleObject">
     <Repeat num_cycles="10">
-      <Sequence>
-        <IsDetected/>
-      </Sequence>
+      <Fallback>
+        <Sequence>
+          <IsDetected detection_threshold="{detection_threshold}"
+                      detection_graph_node_topic="/detection_graph_nodes/graph_nodes"/>
+        </Sequence>
+        <AlwaysSuccess/>
+      </Fallback>
     </Repeat>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
-    <Condition ID="IsDetected"
-               editable="true"/>
+    <Condition ID="IsDetected">
+      <input_port name="detection_threshold"
+                  default="0.8"/>
+      <input_port name="detection_graph_node_topic"
+                  default="/detection_graph_nodes/graph_nodes"/>
+    </Condition>
   </TreeNodesModel>
 
 </root>
