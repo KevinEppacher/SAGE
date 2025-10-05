@@ -46,8 +46,8 @@ public:
     static BT::PortsList providedPorts()
     {
         return {
-            BT::InputPort<double>("spin_angle", 6.28319, "Angle to spin in radians (default 360°)"),
-            BT::InputPort<double>("spin_duration", 15.0, "Max time allowed for spin (s)")
+            BT::InputPort<double>("spin_angle", 6.28319, "Angle to spin in radians"),
+            BT::InputPort<double>("spin_duration", 15.0, "Max spin duration (seconds)")
         };
     }
 
@@ -58,22 +58,21 @@ public:
             return BT::NodeStatus::FAILURE;
         }
 
-        // Read inputs
-        double spin_angle = 6.28319; // default 2π rad
-        double spin_duration = 15.0;
-        getInput<double>("spin_angle", spin_angle);
-        getInput<double>("spin_duration", spin_duration);
+        // Get inputs
+        double spin_angle, spin_duration;
+        getInput("spin_angle", spin_angle);
+        getInput("spin_duration", spin_duration);
 
-        // Create action client
+        // Create client
         client_ptr_ = rclcpp_action::create_client<Spin>(node_ptr_, "/spin");
         if (!client_ptr_->wait_for_action_server(1s)) {
-            RCLCPP_ERROR(node_ptr_->get_logger(), "[%s] Spin action server not available", this->name().c_str());
+            RCLCPP_ERROR(node_ptr_->get_logger(), "[%s] Spin action server not available", name().c_str());
             return BT::NodeStatus::FAILURE;
         }
 
         // Build goal
         Spin::Goal goal;
-        goal.target_yaw = spin_angle;  
+        goal.target_yaw = spin_angle;
         goal.time_allowance = rclcpp::Duration::from_seconds(spin_duration);
 
         using namespace std::placeholders;
@@ -81,11 +80,11 @@ public:
         options.result_callback = std::bind(&Spin360::resultCallback, this, _1);
 
         done_flag_ = false;
-        client_ptr_->async_send_goal(goal, options);
+        goal_handle_future_ = client_ptr_->async_send_goal(goal, options);
 
         RCLCPP_INFO(node_ptr_->get_logger(),
-                    "[%s] Started spin %.2f rad (%.1f°) with duration %.1f s",
-                    this->name().c_str(), spin_angle, spin_angle * 180.0 / M_PI, spin_duration);
+                    "[%s] Started spin %.2f rad (%.1f°), duration %.1f s",
+                    name().c_str(), spin_angle, spin_angle * 180.0 / M_PI, spin_duration);
 
         return BT::NodeStatus::RUNNING;
     }
@@ -94,18 +93,28 @@ public:
     {
         if (done_flag_) {
             if (nav_result_ == rclcpp_action::ResultCode::SUCCEEDED) {
-                RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Spin completed successfully", this->name().c_str());
+                RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Spin completed successfully", name().c_str());
                 return BT::NodeStatus::SUCCESS;
+            } else {
+                RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Spin failed", name().c_str());
+                return BT::NodeStatus::FAILURE;
             }
-            RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Spin failed", this->name().c_str());
-            return BT::NodeStatus::FAILURE;
         }
         return BT::NodeStatus::RUNNING;
     }
 
     void onHalted() override
     {
-        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Halted", this->name().c_str());
+        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Spin halted — cancelling action goal", name().c_str());
+
+        // Try to cancel if goal still running
+        if (client_ptr_ && goal_handle_future_.valid()) {
+            auto goal_handle = goal_handle_future_.get();
+            if (goal_handle) {
+                client_ptr_->async_cancel_goal(goal_handle);
+                RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Cancelled spin action", name().c_str());
+            }
+        }
     }
 
 private:
@@ -117,6 +126,7 @@ private:
 
     rclcpp::Node::SharedPtr node_ptr_;
     rclcpp_action::Client<Spin>::SharedPtr client_ptr_;
+    std::shared_future<typename GoalHandleSpin::SharedPtr> goal_handle_future_;
     bool done_flag_{false};
     rclcpp_action::ResultCode nav_result_{};
 };

@@ -1,23 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="4"
-      main_tree_to_execute="SAGE_SingleObject">
-  <BehaviorTree ID="SAGE_SingleObject">
-    <RetryUntilSuccessful num_attempts="-1">
-      <ReactiveFallback>
-        <Sequence>
-          <IsDetected detection_threshold="{detection_threshold}"
-                      detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
-                      max_missed_ticks="{max_missed_ticks}"
-                      graph_nodes="{graph_nodes}"/>
-          <GoToGraphNode graph_nodes="{graph_nodes}"/>
-        </Sequence>
-        <Sequence>
-          <Spin360 spin_angle="6.28319"
-                   spin_duration="15.0"/>
-        </Sequence>
-      </ReactiveFallback>
-    </RetryUntilSuccessful>
-  </BehaviorTree>
+<root BTCPP_format="4">
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
