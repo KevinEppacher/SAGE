@@ -5,7 +5,7 @@ for all searching_objects_list:
     rotate_robot(360)
 
     found_object = false
-    loop:
+    loop until object found:
         for fusion_node in fusionaded_graph_nodes:
             if(fusion_node.score > threshold)
                 navigate_to(fusion_node.pos)
