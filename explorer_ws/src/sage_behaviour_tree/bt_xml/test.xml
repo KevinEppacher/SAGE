@@ -2,18 +2,17 @@
 <root BTCPP_format="3"
       main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
-    <Sequence>
-      <Work/>
-      <WaitMs/>
-      <Init/>
+    <Sequence name="Search Location">
+      <Delay delay_msec="1000">
+        <AlwaysSuccess/>
+      </Delay>
+      <Delay delay_msec="2000">
+        <AlwaysFailure/>
+      </Delay>
     </Sequence>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
-  <TreeNodesModel>
-    <Action ID="Init"/>
-    <Action ID="WaitMs"/>
-    <Action ID="Work"/>
-  </TreeNodesModel>
+  <TreeNodesModel/>
 
 </root>
