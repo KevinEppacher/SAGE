@@ -26,13 +26,20 @@ public:
     void onHalted() override;
 
 private:
+    void sendSpinGoal(double yaw, double duration);
     void resultCallback(const GoalHandleSpin::WrappedResult& result);
 
     rclcpp::Node::SharedPtr node_ptr_;
     rclcpp_action::Client<Spin>::SharedPtr client_ptr_;
     std::shared_future<typename GoalHandleSpin::SharedPtr> goal_handle_future_;
+
     bool done_flag_{false};
+    bool phase_two_{false}; // true = spinning back (second phase)
     rclcpp_action::ResultCode nav_result_{};
+
+    double min_yaw_{0.0};
+    double max_yaw_{0.0};
+    double spin_duration_{15.0};
 };
 
 
