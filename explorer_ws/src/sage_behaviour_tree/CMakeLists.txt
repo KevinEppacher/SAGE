@@ -30,7 +30,7 @@ find_package(tf2_geometry_msgs REQUIRED)
 ############################################################
 
 include_directories(
-
+    include
 )
 
 #####################################################################
@@ -38,7 +38,10 @@ include_directories(
 #####################################################################
 
 add_executable(sage_bt_node
-  src/sage_bt_node.cpp
+    src/sage_bt_node.cpp
+    src/detection.cpp
+    src/navigation.cpp
+    src/core.cpp
 )
 
 # Link ROS 2 dependencies
