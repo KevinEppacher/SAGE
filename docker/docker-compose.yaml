@@ -121,14 +121,33 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: all
       NVIDIA_REQUIRE_CUDA: "cuda>=11.3"
 
-  # BLIP2 ROS launcher
-  blip2-launcher:
-    extends: lavis_container
-    command: bash -c "cd /app && colcon build && source install/setup.bash && ros2 launch blip2_ros blip2_ros.launch.py"
+  explorer-launcher:
+    extends: explorer_container
+    container_name: explorer_container
+    command: bash -c "cd /app && colcon build && source install/setup.bash && /bin/bash"
+    stdin_open: true
+    tty: true
+
+  exploitation-launcher:
+    extends: exploitation_container
+    container_name: exploitation_container
+    command: bash -c "cd /app && colcon build && source install/setup.bash && /bin/bash"
+    stdin_open: true
+    tty: true
 
   detection-launcher:
     extends: detection_container
-    command: bash -c "cd /app && colcon build && source install/setup.bash && ros2 launch sage_commander detection_ws.launch.py"
+    container_name: detection_container
+    command: bash -c "cd /app && colcon build && source install/setup.bash && /bin/bash"
+    stdin_open: true
+    tty: true
+
+  lavis-launcher:
+    extends: lavis_container
+    container_name: lavis_container
+    command: bash -c "cd /app && colcon build && source install/setup.bash && /bin/bash"
+    stdin_open: true
+    tty: true
 
 volumes:
   ros2_ws:
