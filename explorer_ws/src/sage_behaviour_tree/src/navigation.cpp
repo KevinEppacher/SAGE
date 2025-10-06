@@ -17,7 +17,8 @@ Spin360::Spin360(const std::string& name,
 BT::PortsList Spin360::providedPorts()
 {
     return {
-        BT::InputPort<double>("spin_angle", 6.28319, "Angle to spin in radians"),
+        BT::InputPort<double>("min_yaw", 0.0, "Yaw to rotate right (radians, negative)"),
+        BT::InputPort<double>("max_yaw", 6.28319, "Yaw to rotate left (radians, positive)"),
         BT::InputPort<double>("spin_duration", 15.0, "Max spin duration (seconds)")
     };
 }
@@ -26,49 +27,118 @@ BT::NodeStatus Spin360::onStart()
 {
     if (!node_ptr_) return BT::NodeStatus::FAILURE;
 
-    double spin_angle, spin_duration;
-    getInput("spin_angle", spin_angle);
-    getInput("spin_duration", spin_duration);
+    getInput("min_yaw", min_yaw_);
+    getInput("max_yaw", max_yaw_);
+    getInput("spin_duration", spin_duration_);
 
     client_ptr_ = rclcpp_action::create_client<Spin>(node_ptr_, "/spin");
-    if (!client_ptr_->wait_for_action_server(1s)) return BT::NodeStatus::FAILURE;
-
-    Spin::Goal goal;
-    goal.target_yaw = spin_angle;
-    goal.time_allowance = rclcpp::Duration::from_seconds(spin_duration);
-
-    using namespace std::placeholders;
-    auto options = rclcpp_action::Client<Spin>::SendGoalOptions();
-    options.result_callback = std::bind(&Spin360::resultCallback, this, _1);
+    if (!client_ptr_->wait_for_action_server(1s))
+    {
+        RCLCPP_ERROR(node_ptr_->get_logger(),
+                     "[%s] Spin action server not available.", name().c_str());
+        return BT::NodeStatus::FAILURE;
+    }
 
     done_flag_ = false;
-    goal_handle_future_ = client_ptr_->async_send_goal(goal, options);
+    phase_two_ = false;
+
+    // Start with first spin direction
+    if (max_yaw_ != 0.0)
+    {
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    "[%s] Starting first spin: +%.2f rad", name().c_str(), max_yaw_);
+        sendSpinGoal(max_yaw_, spin_duration_);
+    }
+    else if (min_yaw_ != 0.0)
+    {
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    "[%s] Only min_yaw specified: -%.2f rad", name().c_str(), std::abs(min_yaw_));
+        sendSpinGoal(min_yaw_, spin_duration_);
+    }
+    else
+    {
+        RCLCPP_WARN(node_ptr_->get_logger(),
+                    "[%s] Both yaw limits are 0 — skipping rotation.", name().c_str());
+        return BT::NodeStatus::SUCCESS;
+    }
+
     return BT::NodeStatus::RUNNING;
 }
 
 BT::NodeStatus Spin360::onRunning()
 {
-    if (done_flag_)
-        return (nav_result_ == rclcpp_action::ResultCode::SUCCEEDED)
-                   ? BT::NodeStatus::SUCCESS
-                   : BT::NodeStatus::FAILURE;
-    return BT::NodeStatus::RUNNING;
+    if (!done_flag_) return BT::NodeStatus::RUNNING;
+
+    // First spin completed, start second one if needed
+    if (!phase_two_ && min_yaw_ != 0.0 && max_yaw_ != 0.0)
+    {
+        phase_two_ = true;
+        done_flag_ = false;
+
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    "[%s] First spin done — now spinning back %.2f rad", name().c_str(), min_yaw_);
+        sendSpinGoal(min_yaw_, spin_duration_);
+        return BT::NodeStatus::RUNNING;
+    }
+
+    // All done
+    if (nav_result_ == rclcpp_action::ResultCode::SUCCEEDED)
+    {
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    "[%s] Spin complete.", name().c_str());
+        return BT::NodeStatus::SUCCESS;
+    }
+
+    RCLCPP_WARN(node_ptr_->get_logger(),
+                "[%s] Spin failed or cancelled (code %d).",
+                name().c_str(), static_cast<int>(nav_result_));
+    return BT::NodeStatus::FAILURE;
 }
 
 void Spin360::onHalted()
 {
-    if (client_ptr_ && goal_handle_future_.valid()) {
+    if (client_ptr_ && goal_handle_future_.valid())
+    {
         auto goal_handle = goal_handle_future_.get();
-        if (goal_handle) client_ptr_->async_cancel_goal(goal_handle);
+        if (goal_handle)
+        {
+            RCLCPP_INFO(node_ptr_->get_logger(),
+                        "[%s] Cancelling spin...", name().c_str());
+            client_ptr_->async_cancel_goal(goal_handle);
+        }
     }
+}
+
+void Spin360::sendSpinGoal(double yaw, double duration)
+{
+    Spin::Goal goal;
+    goal.target_yaw = yaw;
+    goal.time_allowance = rclcpp::Duration::from_seconds(duration);
+
+    using namespace std::placeholders;
+    auto options = rclcpp_action::Client<Spin>::SendGoalOptions();
+    options.result_callback = std::bind(&Spin360::resultCallback, this, _1);
+
+    goal_handle_future_ = client_ptr_->async_send_goal(goal, options);
 }
 
 void Spin360::resultCallback(const GoalHandleSpin::WrappedResult& result)
 {
     done_flag_ = true;
     nav_result_ = result.code;
-}
 
+    std::string code;
+    switch (result.code)
+    {
+        case rclcpp_action::ResultCode::SUCCEEDED: code = "SUCCEEDED"; break;
+        case rclcpp_action::ResultCode::ABORTED: code = "ABORTED"; break;
+        case rclcpp_action::ResultCode::CANCELED: code = "CANCELED"; break;
+        default: code = "UNKNOWN"; break;
+    }
+
+    RCLCPP_INFO(node_ptr_->get_logger(),
+                "[%s] Spin result: %s", name().c_str(), code.c_str());
+}
 
 // -------------------- GoToGraphNode -------------------- //
 

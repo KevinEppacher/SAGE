@@ -124,56 +124,62 @@ bool SemanticValueMap::on_shutdown()
 
 void SemanticValueMap::updateSemanticMap(const SemanticScore& semScore, const geometry_msgs::msg::PoseStamped& pose)
 {
-  if (!map)
-  {
+    if (!map)
+    {
     RCLCPP_WARN(node->get_logger(), "No occupancy grid map received yet.");
     return;
-  }
-
-  double fovDeg = getHorizontalFOV(camInfo);
-
-  // --- Step 1: Decay previous values ---
-  valueMap *= decayFactor;
-  confidenceMap *= decayFactor;
-
-  // --- Step 2: Generate FOV cone mask ---
-  cv::Mat fovMask = generateTopdownConeMask(pose.pose, *map, fovDeg, maxRange);
-
-  // --- Step 3: Compute confidence values ---
-  cv::Mat confidence = computeConfidenceMap(pose.pose, *map, fovDeg, fovMask);
-
-  int width = map->info.width;
-  int height = map->info.height;
-
-  float newValue = semScore.getScore();
-
-  int updates = 0;
-  for (int row = 0; row < height; ++row)
-  {
-    for (int col = 0; col < width; ++col)
-    {
-      if (fovMask.at<uint8_t>(row, col) == 0)
-        continue;
-
-      float prevValue = valueMap.at<float>(row, col);
-      float prevConf = confidenceMap.at<float>(row, col);
-      float newConf = confidence.at<float>(row, col);
-
-      if ((prevConf + newConf) == 0.0f)
-        continue;
-
-      float fusedValue = (prevValue * prevConf + newValue * newConf) / (prevConf + newConf);
-      float fusedConf = (prevConf * prevConf + newConf * newConf) / (prevConf + newConf);
-
-      valueMap.at<float>(row, col) = fusedValue;
-      confidenceMap.at<float>(row, col) = fusedConf;
-
-      ++updates;
     }
-  }
 
-  publishValueMapRaw();
-  publishValueMapInferno();
+    double fovDeg = getHorizontalFOV(camInfo);
+
+    // --- Step 1: Decay previous values ---
+    valueMap *= decayFactor;
+    confidenceMap *= decayFactor;
+
+    // --- Step 2: Generate FOV cone mask ---
+    cv::Mat fovMask = generateTopdownConeMask(pose.pose, *map, fovDeg, maxRange);
+
+    // --- Step 3: Compute confidence values ---
+    cv::Mat confidence = computeConfidenceMap(pose.pose, *map, fovDeg, fovMask);
+
+    int width = map->info.width;
+    int height = map->info.height;
+
+    float newValue = semScore.getScore();
+
+    int updates = 0;
+    for (int row = 0; row < height; ++row)
+    {
+        for (int col = 0; col < width; ++col)
+            {
+                if (fovMask.at<uint8_t>(row, col) == 0)
+                continue;
+
+                float prevValue = valueMap.at<float>(row, col);
+                float prevConf = confidenceMap.at<float>(row, col);
+                float newConf = confidence.at<float>(row, col);
+
+                if ((prevConf + newConf) == 0.0f)
+                continue;
+
+            // Apply confidence shaping to semantic score itself
+            float weightedValue = newValue * newConf;
+
+            // Fuse only inside FOV, lower confidence → smaller update
+            float fusedValue = (1.0f - newConf) * prevValue + newConf * weightedValue;
+
+            // Keep confidence updated for future blending
+            float fusedConf = std::max(static_cast<float>(prevConf * decayFactor), newConf);
+
+            valueMap.at<float>(row, col) = fusedValue;
+            confidenceMap.at<float>(row, col) = fusedConf;
+
+                ++updates;
+            }
+    }
+
+    publishValueMapRaw();
+    publishValueMapInferno();
 }
 
 void SemanticValueMap::mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg) 
@@ -442,27 +448,24 @@ cv::Mat SemanticValueMap::computeConfidenceMap(
   float yaw = getYawAngle(pose);
   float halfFov = (cameraFovDeg * M_PI / 180.0f) / 2.0f;
 
-  for (int row = 0; row < height; ++row)
-  {
-    for (int col = 0; col < width; ++col)
-    {
-      if (fovMask.at<uint8_t>(row, col) == 0)
+    float sigma = (halfFov) / confidenceSharpness;  // smaller sharpness → wider bell
+    for (int row = 0; row < height; ++row) {
+    for (int col = 0; col < width; ++col) {
+        if (fovMask.at<uint8_t>(row, col) == 0)
         continue;
 
-      float dx = static_cast<float>(col) - robotX;
-      float dy = static_cast<float>(row) - robotY;
-      float angle = std::atan2(dy, dx);
-      float angleDiff = normalizeAngle(angle - yaw);
-      float scaledAngle = angleDiff / halfFov * (M_PI / 2.0f);
+        float dx = static_cast<float>(col) - robotX;
+        float dy = static_cast<float>(row) - robotY;
+        float angle = std::atan2(dy, dx);
+        float angleDiff = normalizeAngle(angle - yaw);
 
-      if (std::abs(angleDiff) <= halfFov)
-      {
-        float exponent = confidenceSharpness;
-        float weight = std::pow(std::cos(scaledAngle), exponent);
+        if (std::abs(angleDiff) <= halfFov) {
+        // Gaussian bell-curve weighting
+        float weight = std::exp(-0.5f * std::pow(angleDiff / sigma, 2.0f));
         confidenceMap.at<float>(row, col) = weight;
-      }
+        }
     }
-  }
+    }
 
   if (visualizeConfidenceMap) {
     cv::Mat vis;
