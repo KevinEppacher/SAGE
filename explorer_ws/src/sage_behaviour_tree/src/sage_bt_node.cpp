@@ -209,7 +209,8 @@ public:
         options.result_callback = std::bind(&GoToGraphNode::resultCallback, this, _1);
 
         done_flag_ = false;
-        client_ptr_->async_send_goal(goal, options);
+
+        goal_handle_future_ = client_ptr_->async_send_goal(goal, options);
 
         RCLCPP_INFO(node_ptr_->get_logger(),
                     "[%s] Sent goal to GraphNode ID=%d (x=%.2f, y=%.2f, score=%.2f)",
@@ -234,8 +235,16 @@ public:
 
     void onHalted() override
     {
-        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Halted", this->name().c_str());
-        // Here you could cancel the action goal if needed
+        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Cancelling action goal", name().c_str());
+
+        // Try to cancel if goal still running
+        if (client_ptr_ && goal_handle_future_.valid()) {
+            auto goal_handle = goal_handle_future_.get();
+            if (goal_handle) {
+                client_ptr_->async_cancel_goal(goal_handle);
+                RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Cancelled action", name().c_str());
+            }
+        }
     }
 
 private:
@@ -243,14 +252,15 @@ private:
     {
         done_flag_ = true;
         nav_result_ = result.code;
+        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Navigation result: %d", this->name().c_str(), static_cast<int>(result.code));
     }
 
     rclcpp::Node::SharedPtr node_ptr_;
     rclcpp_action::Client<NavigateToPose>::SharedPtr client_ptr_;
-
     std::shared_ptr<graph_node_msgs::msg::GraphNode> target_node_;
     bool done_flag_{false};
     rclcpp_action::ResultCode nav_result_{};
+    std::shared_future<typename rclcpp_action::ClientGoalHandle<NavigateToPose>::SharedPtr> goal_handle_future_;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
