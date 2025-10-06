@@ -5,6 +5,7 @@
   <TreeNodesModel>
     <Action ID="GoToGraphNode">
       <input_port name="graph_nodes"/>
+      <input_port name="approach_radius"/>
     </Action>
     <Condition ID="IsDetected">
       <input_port name="detection_threshold"
@@ -16,6 +17,14 @@
       <output_port name="graph_nodes"
                    default="latest_nodes"/>
     </Condition>
+    <Action ID="SetParameterNode">
+      <input_port name="target_node"
+                  default="/value_map"/>
+      <input_port name="parameter_name"
+                  default="decay_factor"/>
+      <input_port name="value"
+                  default="1.0"/>
+    </Action>
     <Action ID="Spin360">
       <input_port name="spin_angle"
                   default="6.28319"/>

@@ -2,22 +2,47 @@
 <root BTCPP_format="4"
       main_tree_to_execute="SAGE_SingleObject">
   <BehaviorTree ID="SAGE_SingleObject">
-    <RetryUntilSuccessful num_attempts="-1">
-      <ReactiveFallback>
-        <Sequence>
-          <IsDetected detection_threshold="{detection_threshold}"
-                      detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
-                      max_missed_ticks="{max_missed_ticks}"
-                      graph_nodes="{graph_nodes}"/>
-          <GoToGraphNode graph_nodes="{graph_nodes}"
-                         approach_radius="3"/>
-        </Sequence>
-        <Sequence>
-          <Spin360 spin_angle="6.28319"
-                   spin_duration="15.0"/>
-        </Sequence>
-      </ReactiveFallback>
-    </RetryUntilSuccessful>
+    <Sequence>
+      <SetBlackboard value="6.28319"
+                     output_key="spin_angle"/>
+      <RetryUntilSuccessful num_attempts="-1">
+        <ReactiveFallback>
+          <ReactiveSequence>
+            <IsDetected detection_threshold="{detection_threshold}"
+                        detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
+                        max_missed_ticks="{max_missed_ticks}"
+                        graph_nodes="{graph_nodes}"/>
+            <GoToGraphNode graph_nodes="{graph_nodes}"
+                           approach_radius="3"
+                           goal_topic="/goal_pose"/>
+          </ReactiveSequence>
+          <Sequence>
+            <SetParameterNode target_node="/value_map/value_map"
+                              parameter_name="semantic_map.decay_factor"
+                              value="1"/>
+            <Spin360 spin_angle="{spin_angle}"
+                     spin_duration="15.0"/>
+            <SetParameterNode target_node="/value_map/value_map"
+                              parameter_name="semantic_map.decay_factor"
+                              value="0.99"/>
+            <ReactiveSequence>
+              <IsDetected detection_threshold="0.05"
+                          detection_graph_node_topic="/exploration_graph_nodes/graph_nodes"
+                          max_missed_ticks="8"
+                          graph_nodes="{exploration_nodes}"/>
+              <Delay delay_msec="1000">
+                <GoToGraphNode graph_nodes="{exploration_nodes}"
+                               approach_radius="0"
+                               goal_topic="/goal_pose"/>
+              </Delay>
+            </ReactiveSequence>
+            <SetBlackboard value="1.57"
+                           output_key="spin_angle"/>
+            <AlwaysFailure/>
+          </Sequence>
+        </ReactiveFallback>
+      </RetryUntilSuccessful>
+    </Sequence>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
@@ -25,6 +50,7 @@
     <Action ID="GoToGraphNode">
       <input_port name="graph_nodes"/>
       <input_port name="approach_radius"/>
+      <input_port name="goal_topic"/>
     </Action>
     <Condition ID="IsDetected">
       <input_port name="detection_threshold"
@@ -36,9 +62,17 @@
       <output_port name="graph_nodes"
                    default="latest_nodes"/>
     </Condition>
+    <Action ID="SetParameterNode">
+      <input_port name="target_node"
+                  default="/value_map"/>
+      <input_port name="parameter_name"
+                  default="decay_factor"/>
+      <input_port name="value"
+                  default="1.0"/>
+    </Action>
     <Action ID="Spin360">
       <input_port name="spin_angle"
-                  default="6.28319"/>
+                  default="{spin_angle}"/>
       <input_port name="spin_duration"
                   default="15.0"/>
     </Action>

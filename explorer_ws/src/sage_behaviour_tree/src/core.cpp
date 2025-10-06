@@ -1,6 +1,7 @@
 #include "sage_behaviour_tree/core.hpp"
 #include "sage_behaviour_tree/navigation.hpp"
 #include "sage_behaviour_tree/detection.hpp"
+#include "sage_behaviour_tree/utils.hpp"
 
 using namespace std::chrono_literals;
 
@@ -30,6 +31,7 @@ void SageBehaviorTreeNode::create_behavior_tree()
     factory.registerNodeType<IsDetected>("IsDetected", shared_from_this());
     factory.registerNodeType<GoToGraphNode>("GoToGraphNode", shared_from_this());
     factory.registerNodeType<Spin360>("Spin360", shared_from_this());
+    factory.registerNodeType<SetParameterNode>("SetParameterNode", shared_from_this());
 
     auto bb = BT::Blackboard::create();
     bb->set("detection_threshold", get_parameter("detection.threshold").as_double());
@@ -37,6 +39,7 @@ void SageBehaviorTreeNode::create_behavior_tree()
     bb->set("location_file", location_file_);
 
     tree_ = factory.createTreeFromFile(tree_xml_file_, bb);
+    tree_.rootBlackboard()->debugMessage();
     BT::printTreeRecursively(tree_.rootNode());
     publisher_ptr_ = std::make_unique<BT::Groot2Publisher>(tree_, 1668);
 }

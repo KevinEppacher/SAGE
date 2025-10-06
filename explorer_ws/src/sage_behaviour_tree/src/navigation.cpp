@@ -2,9 +2,12 @@
 #include <chrono>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
+#include <cmath>
+#include <chrono>
 using namespace std::chrono_literals;
 
 // -------------------- Spin360 -------------------- //
+
 Spin360::Spin360(const std::string& name,
                  const BT::NodeConfiguration& config,
                  rclcpp::Node::SharedPtr node_ptr)
@@ -68,10 +71,12 @@ void Spin360::resultCallback(const GoalHandleSpin::WrappedResult& result)
 
 
 // -------------------- GoToGraphNode -------------------- //
+
 GoToGraphNode::GoToGraphNode(const std::string& name,
                              const BT::NodeConfiguration& config,
                              rclcpp::Node::SharedPtr node_ptr)
-    : BT::StatefulActionNode(name, config), node_ptr_(std::move(node_ptr))
+    : BT::StatefulActionNode(name, config),
+      node_ptr_(std::move(node_ptr))
 {}
 
 BT::PortsList GoToGraphNode::providedPorts()
@@ -79,106 +84,108 @@ BT::PortsList GoToGraphNode::providedPorts()
     return {
         BT::InputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>(
             "graph_nodes", "GraphNode to navigate to"),
-        BT::InputPort<double>("approach_radius", 2.0, "Approach distance in meters")
+        BT::InputPort<double>("approach_radius", 2.0, "Approach distance in meters"),
+        BT::InputPort<std::string>("goal_topic", "/goal_pose", "Goal topic to publish to")
     };
 }
 
 BT::NodeStatus GoToGraphNode::onStart()
 {
-    if (!node_ptr_) return BT::NodeStatus::FAILURE;
+    if (!node_ptr_) {
+        RCLCPP_ERROR(rclcpp::get_logger("GoToGraphNode"),
+                     "[%s] Node pointer is null!", name().c_str());
+        return BT::NodeStatus::FAILURE;
+    }
+
+    getInput("approach_radius", approach_radius_);
+    getInput("goal_topic", goal_topic_);
 
     auto node_res = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_nodes");
-    if (!node_res) return BT::NodeStatus::FAILURE;
+    if (!node_res) {
+        RCLCPP_WARN(node_ptr_->get_logger(),
+                    "[%s] No graph_nodes input provided.", name().c_str());
+        return BT::NodeStatus::FAILURE;
+    }
+
     target_node_ = node_res.value();
 
-    double approach_radius = 2.0;
-    getInput("approach_radius", approach_radius);
-
-    // Create action client
-    client_ptr_ = rclcpp_action::create_client<NavigateToPose>(node_ptr_, "/navigate_to_pose");
-    if (!client_ptr_->wait_for_action_server(1s)) {
-        RCLCPP_ERROR(node_ptr_->get_logger(), "[%s] NavigateToPose server not available", name().c_str());
-        return BT::NodeStatus::FAILURE;
+    // Create publisher if not yet created
+    if (!goal_pub_) {
+        goal_pub_ = node_ptr_->create_publisher<geometry_msgs::msg::PoseStamped>(goal_topic_, 10);
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    "[%s] Publishing goals to topic: %s",
+                    name().c_str(), goal_topic_.c_str());
     }
 
-    // --- Compute approach pose --- //
-    // The robot should stop 'approach_radius' meters away from the target,
-    // oriented toward the target center.
-
-    // 1. Compute direction vector from robot to target
-    geometry_msgs::msg::PoseStamped::SharedPtr robot_pose = std::make_shared<geometry_msgs::msg::PoseStamped>();
-    // (Ideally, you'd get this from TF lookup — but for simplicity, assume origin)
-    double rx = 0.0, ry = 0.0;  // Robot reference (replace with TF lookup later)
-    double tx = target_node_->position.x;
-    double ty = target_node_->position.y;
-
-    double dx = tx - rx;
-    double dy = ty - ry;
-    double dist = std::sqrt(dx * dx + dy * dy);
-
-    if (dist < 1e-3) {
-        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Target too close, skipping approach adjustment", name().c_str());
-        return BT::NodeStatus::FAILURE;
-    }
-
-    // 2. Compute approach point along line toward the target
-    double scale = (dist - approach_radius) / dist;
-    geometry_msgs::msg::Point approach_point;
-    approach_point.x = rx + dx * scale;
-    approach_point.y = ry + dy * scale;
-    approach_point.z = target_node_->position.z;
-
-    // 3. Compute yaw so the robot faces the target
-    double yaw = std::atan2(dy, dx);
-    tf2::Quaternion q;
-    q.setRPY(0, 0, yaw);
-    geometry_msgs::msg::Quaternion orientation = tf2::toMsg(q);
-
-    // 4. Create Nav2 goal
-    NavigateToPose::Goal goal;
-    goal.pose.header.frame_id = "map";
-    goal.pose.header.stamp = node_ptr_->now();
-    goal.pose.pose.position = approach_point;
-    goal.pose.pose.orientation = orientation;
-
-    using namespace std::placeholders;
-    auto options = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
-    options.result_callback = std::bind(&GoToGraphNode::resultCallback, this, _1);
-
-    done_flag_ = false;
-    goal_handle_future_ = client_ptr_->async_send_goal(goal, options);
-
-    RCLCPP_INFO(node_ptr_->get_logger(),
-                "[%s] Navigating to approach point (%.2f, %.2f) facing target (%.2f, %.2f), radius %.2f m",
-                name().c_str(),
-                approach_point.x, approach_point.y,
-                tx, ty, approach_radius);
-
+    last_publish_time_ = node_ptr_->now();
+    publishGoalToTarget(*target_node_);
     return BT::NodeStatus::RUNNING;
 }
 
 BT::NodeStatus GoToGraphNode::onRunning()
 {
-    if (done_flag_) {
-        if (nav_result_ == rclcpp_action::ResultCode::SUCCEEDED)
-            return BT::NodeStatus::SUCCESS;
-        else
-            return BT::NodeStatus::FAILURE;
+    // Check if new goal arrived on blackboard
+    auto node_res = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_nodes");
+    if (node_res && targetChanged(*node_res.value()))
+        target_node_ = node_res.value();
+
+    // Publish periodically
+    auto now = node_ptr_->now();
+    if ((now - last_publish_time_).seconds() >= 0.1) {
+        publishGoalToTarget(*target_node_);
+        last_publish_time_ = now;
     }
+
     return BT::NodeStatus::RUNNING;
 }
 
 void GoToGraphNode::onHalted()
 {
-    if (client_ptr_ && goal_handle_future_.valid()) {
-        auto goal_handle = goal_handle_future_.get();
-        if (goal_handle) client_ptr_->async_cancel_goal(goal_handle);
-    }
+    RCLCPP_INFO(node_ptr_->get_logger(),
+                "[%s] Halting — stopping goal publishing.", name().c_str());
 }
 
-void GoToGraphNode::resultCallback(const GoalHandleNav::WrappedResult& result)
+void GoToGraphNode::publishGoalToTarget(const graph_node_msgs::msg::GraphNode& node)
 {
-    done_flag_ = true;
-    nav_result_ = result.code;
-    RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Navigation result: %d", this->name().c_str(), static_cast<int>(result.code));
+    double rx = 0.0, ry = 0.0;  // TODO: Replace with TF lookup for robot pose
+    double tx = node.position.x;
+    double ty = node.position.y;
+
+    double dx = tx - rx;
+    double dy = ty - ry;
+    double dist = std::sqrt(dx * dx + dy * dy);
+    if (dist < 1e-3) return;
+
+    double scale = (dist - approach_radius_) / dist;
+    geometry_msgs::msg::Point approach_point;
+    approach_point.x = rx + dx * scale;
+    approach_point.y = ry + dy * scale;
+    approach_point.z = node.position.z;
+
+    double yaw = std::atan2(dy, dx);
+    tf2::Quaternion q;
+    q.setRPY(0, 0, yaw);
+    geometry_msgs::msg::Quaternion orientation = tf2::toMsg(q);
+
+    geometry_msgs::msg::PoseStamped goal_msg;
+    goal_msg.header.stamp = node_ptr_->now();
+    goal_msg.header.frame_id = "map";
+    goal_msg.pose.position = approach_point;
+    goal_msg.pose.orientation = orientation;
+
+    goal_pub_->publish(goal_msg);
+
+    RCLCPP_DEBUG(node_ptr_->get_logger(),
+                 "[%s] Published goal (%.2f, %.2f), yaw=%.2f rad",
+                 name().c_str(), approach_point.x, approach_point.y, yaw);
+}
+
+bool GoToGraphNode::targetChanged(const graph_node_msgs::msg::GraphNode& new_target) const
+{
+    if (!target_node_) return true;
+    if (target_node_->id != new_target.id) return true;
+
+    double dx = std::abs(target_node_->position.x - new_target.position.x);
+    double dy = std::abs(target_node_->position.y - new_target.position.y);
+    return (dx > 0.2 || dy > 0.2);
 }
