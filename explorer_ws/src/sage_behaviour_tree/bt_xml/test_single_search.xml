@@ -9,7 +9,8 @@
                       detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
                       max_missed_ticks="{max_missed_ticks}"
                       graph_nodes="{graph_nodes}"/>
-          <GoToGraphNode graph_nodes="{graph_nodes}"/>
+          <GoToGraphNode graph_nodes="{graph_nodes}"
+                         approach_radius="3"/>
         </Sequence>
         <Sequence>
           <Spin360 spin_angle="6.28319"
@@ -23,6 +24,7 @@
   <TreeNodesModel>
     <Action ID="GoToGraphNode">
       <input_port name="graph_nodes"/>
+      <input_port name="approach_radius"/>
     </Action>
     <Condition ID="IsDetected">
       <input_port name="detection_threshold"
