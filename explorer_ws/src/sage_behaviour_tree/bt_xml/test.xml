@@ -1,18 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="3"
+<root BTCPP_format="4"
       main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
-    <Sequence name="Search Location">
-      <Delay delay_msec="1000">
-        <AlwaysSuccess/>
-      </Delay>
-      <Delay delay_msec="2000">
-        <AlwaysFailure/>
-      </Delay>
-    </Sequence>
+    <SetParameterNode target_node="/value_map/value_map"
+                      parameter_name="semantic_map.decay_factor"
+                      value="0.99"/>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
-  <TreeNodesModel/>
+  <TreeNodesModel>
+    <Action ID="SetParameterNode">
+      <input_port name="target_node"
+                  default="/value_map/value_map"/>
+      <input_port name="parameter_name"
+                  default="semantic_map.decay_factor"/>
+      <input_port name="value"
+                  default="0.99"/>
+    </Action>
+  </TreeNodesModel>
 
 </root>

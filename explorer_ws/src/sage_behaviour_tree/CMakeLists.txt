@@ -42,6 +42,7 @@ add_executable(sage_bt_node
     src/detection.cpp
     src/navigation.cpp
     src/core.cpp
+    src/utils.cpp
 )
 
 # Link ROS 2 dependencies
