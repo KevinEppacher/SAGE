@@ -64,8 +64,8 @@ private:
     /// \brief Collection of all GraphNodes (with position and score)
     std::shared_ptr<GraphNodeCollection> graphNodes;
 
-    std::string valueMapNamespace;
-
+    std::string occupancyTopic;
+    std::string valueMapTopic;
 };
 
 #endif // SEMANTIC_FRONTIER_EXPLORATION_H
