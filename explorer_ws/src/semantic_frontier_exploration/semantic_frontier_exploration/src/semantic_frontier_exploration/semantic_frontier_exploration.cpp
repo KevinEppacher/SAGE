@@ -12,11 +12,9 @@ SemanticFrontier::SemanticFrontier() : Node("cluster_node")
     );
 
     // Define subscribers
-    occupancygridSub = this->create_subscription<nav_msgs::msg::OccupancyGrid>("/map", 10,std::bind(&SemanticFrontier::occupancyGridCallback, this, std::placeholders::_1));
+    occupancygridSub = this->create_subscription<nav_msgs::msg::OccupancyGrid>(occupancyTopic, 10,std::bind(&SemanticFrontier::occupancyGridCallback, this, std::placeholders::_1));
 
-    RCLCPP_INFO(this->get_logger(), "%s", (valueMapNamespace + "/value_map_raw").c_str());
-
-    valueMapSub = this->create_subscription<sensor_msgs::msg::PointCloud2>(valueMapNamespace + "/value_map_raw", 10,std::bind(&SemanticFrontier::valueMapCallback, this, std::placeholders::_1));
+    valueMapSub = this->create_subscription<sensor_msgs::msg::PointCloud2>(valueMapTopic, 10,std::bind(&SemanticFrontier::valueMapCallback, this, std::placeholders::_1));
 
     // Define timers
     auto interval = std::chrono::duration<double>(1.0 / publishFrequency);
@@ -51,13 +49,13 @@ void SemanticFrontier::valueMapCallback(const sensor_msgs::msg::PointCloud2::Sha
 
 void SemanticFrontier::getParameters()
 {
-    this->declare_parameter("publish_frequency", 1.0);
+    declare_parameter("publish_frequency", 1.0);
+    declare_parameter("occupancy_topic", "/map");
+    declare_parameter("value_map_topic", "/value_map_raw");
 
-    this->get_parameter("publish_frequency", publishFrequency);
-
-    this->declare_parameter("value_map_namespace", "/value_map");
-
-    this->get_parameter("value_map_namespace", valueMapNamespace);
+    publishFrequency = get_parameter("publish_frequency").as_double();
+    occupancyTopic = get_parameter("occupancy_topic").as_string();
+    valueMapTopic = get_parameter("value_map_topic").as_string();
 
     RCLCPP_INFO(this->get_logger(), "Loaded parameters:");
     for (const auto &name : this->list_parameters({}, 10).names)

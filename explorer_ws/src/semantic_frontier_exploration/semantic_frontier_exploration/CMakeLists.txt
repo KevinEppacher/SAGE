@@ -27,6 +27,8 @@ find_package(frontier_msgs REQUIRED)
 find_package(graph_node_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(pcl_conversions REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
 # find_package(nav2_costmap_2d REQUIRED)
 # find_package(rclcpp_components REQUIRED)
@@ -86,30 +88,31 @@ target_compile_features(semantic_frontier_exploration_node PUBLIC cxx_std_17)
 #####################################################################
 
 # Main clustering node
-add_executable(costmap_node
-  src/costmap_node.cpp
-  src/semantic_frontier_exploration/costmap.cpp
+add_executable(map_inflation_node
+  src/map_inflation_node.cpp
 )
 
 # Link ROS 2 dependencies
-ament_target_dependencies(costmap_node
+ament_target_dependencies(map_inflation_node
   rclcpp
+  rclcpp_lifecycle
   sensor_msgs
   visualization_msgs
   std_msgs
-  nav_msgs
   tf2_ros
+  tf2_geometry_msgs
+  nav_msgs
 )
 
 # Link OpenCV
-target_link_libraries(costmap_node ${OpenCV_LIBS})
+target_link_libraries(map_inflation_node ${OpenCV_LIBS})
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 # Define PCL macros (if any)
-target_compile_definitions(costmap_node PUBLIC ${PCL_DEFINITIONS})
+target_compile_definitions(map_inflation_node PUBLIC ${PCL_DEFINITIONS})
 
 # Use C++17 standard
-target_compile_features(costmap_node PUBLIC cxx_std_17)
+target_compile_features(map_inflation_node PUBLIC cxx_std_17)
 
 #####################################################################
 #                           Installation                            #
@@ -118,7 +121,7 @@ target_compile_features(costmap_node PUBLIC cxx_std_17)
 # Install the node binary into the ROS 2 lib directory
 install(TARGETS
   semantic_frontier_exploration_node
-  costmap_node
+  map_inflation_node
   DESTINATION lib/${PROJECT_NAME}
 )
 #####################################################################
