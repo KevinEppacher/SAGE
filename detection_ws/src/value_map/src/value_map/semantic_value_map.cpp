@@ -17,37 +17,39 @@ SemanticValueMap::~SemanticValueMap()
 
 bool SemanticValueMap::on_configure() 
 {
-  RCLCPP_INFO(node->get_logger(), "SemanticValueMap: Configuring...");
+    RCLCPP_INFO(node->get_logger(), "SemanticValueMap: Configuring...");
 
-  node->declare_parameter<float>("semantic_map.confidence_sharpness", 2.0);
-  node->declare_parameter<double>("semantic_map.decay_factor", 0.99);
-  node->declare_parameter<float>("semantic_map.max_range", 10.0f);
-  node->declare_parameter<std::string>("semantic_map.map_topic", "/map");
-  node->declare_parameter<std::string>("semantic_map.camera_info_topic", "/camera_info");
-  node->declare_parameter<bool>("semantic_map.visualize_confidence_map", false);
+    node->declare_parameter<float>("semantic_map.confidence_sharpness", 2.0);
+    node->declare_parameter<double>("semantic_map.decay_factor", 0.99);
+    node->declare_parameter<float>("semantic_map.max_range", 10.0f);
+    node->declare_parameter<std::string>("semantic_map.map_topic", "/map");
+    node->declare_parameter<std::string>("semantic_map.camera_info_topic", "/camera_info");
+    node->declare_parameter<bool>("semantic_map.visualize_confidence_map", false);
+    node->declare_parameter<float>("semantic_map.update_gain", 0.3f);
 
-  node->get_parameter("semantic_map.confidence_sharpness", confidenceSharpness);
-  node->get_parameter("semantic_map.decay_factor", decayFactor);
-  node->get_parameter("semantic_map.max_range", maxRange);
-  node->get_parameter("semantic_map.map_topic", mapTopic);
-  node->get_parameter("semantic_map.camera_info_topic", cameraInfoTopic);
-  node->get_parameter("semantic_map.visualize_confidence_map", visualizeConfidenceMap);
+    node->get_parameter("semantic_map.confidence_sharpness", confidenceSharpness);
+    node->get_parameter("semantic_map.decay_factor", decayFactor);
+    node->get_parameter("semantic_map.max_range", maxRange);
+    node->get_parameter("semantic_map.map_topic", mapTopic);
+    node->get_parameter("semantic_map.camera_info_topic", cameraInfoTopic);
+    node->get_parameter("semantic_map.visualize_confidence_map", visualizeConfidenceMap);
+    node->get_parameter("semantic_map.update_gain", updateGain);
 
-  paramCallbackHandle = node->add_on_set_parameters_callback(
+    paramCallbackHandle = node->add_on_set_parameters_callback(
     std::bind(&SemanticValueMap::onParameterChange, this, std::placeholders::_1)
-  );
+    );
 
-  mapSub = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
+    mapSub = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
     mapTopic, 10, std::bind(&SemanticValueMap::mapCallback, this, std::placeholders::_1));
 
-  cameraInfoSub = node->create_subscription<sensor_msgs::msg::CameraInfo>(
+    cameraInfoSub = node->create_subscription<sensor_msgs::msg::CameraInfo>(
     cameraInfoTopic, 10, std::bind(&SemanticValueMap::cameraInfoCallback, this, std::placeholders::_1));
 
-  valueMapInfernoPub = node->create_publisher<sensor_msgs::msg::PointCloud2>("value_map", rclcpp::QoS(10));
-  
-  valueMapRawPub = node->create_publisher<sensor_msgs::msg::PointCloud2>("value_map_raw", rclcpp::QoS(10));
+    valueMapInfernoPub = node->create_publisher<sensor_msgs::msg::PointCloud2>("value_map", rclcpp::QoS(10));
 
-  return true;
+    valueMapRawPub = node->create_publisher<sensor_msgs::msg::PointCloud2>("value_map_raw", rclcpp::QoS(10));
+
+    return true;
 }
 
 rcl_interfaces::msg::SetParametersResult SemanticValueMap::onParameterChange(const std::vector<rclcpp::Parameter> &params)
@@ -76,7 +78,10 @@ rcl_interfaces::msg::SetParametersResult SemanticValueMap::onParameterChange(con
         } else if (param.get_name() == "semantic_map.visualize_confidence_map") {
             visualizeConfidenceMap = param.as_bool();
             RCLCPP_INFO(node->get_logger(), "Updated visualize_confidence_map to %s", visualizeConfidenceMap ? "true" : "false");
-        }        
+        } else if (param.get_name() == "semantic_map.update_gain") {
+            updateGain = param.as_double();
+            RCLCPP_INFO(node->get_logger(), "Updated update_gain to %.2f", updateGain);
+        }
     }
 
     return result;
@@ -153,27 +158,23 @@ void SemanticValueMap::updateSemanticMap(const SemanticScore& semScore, const ge
         for (int col = 0; col < width; ++col)
             {
                 if (fovMask.at<uint8_t>(row, col) == 0)
-                continue;
+                    continue;
 
                 float prevValue = valueMap.at<float>(row, col);
                 float prevConf = confidenceMap.at<float>(row, col);
                 float newConf = confidence.at<float>(row, col);
 
                 if ((prevConf + newConf) == 0.0f)
-                continue;
+                    continue;
 
-            // Apply confidence shaping to semantic score itself
-            float weightedValue = newValue * newConf;
+                // confidence only affects how much to blend, not what value we blend in
+                float effConf = newConf * updateGain;        // update strength
+                float fusedValue = prevValue + effConf * (newValue - prevValue);
+                float fusedConf  = std::max(prevConf * static_cast<float>(decayFactor), newConf);
 
-            // Fuse only inside FOV, lower confidence → smaller update
-            float fusedValue = (1.0f - newConf) * prevValue + newConf * weightedValue;
-
-            // Keep confidence updated for future blending
-            float fusedConf = std::max(static_cast<float>(prevConf * decayFactor), newConf);
-
-            valueMap.at<float>(row, col) = fusedValue;
-            confidenceMap.at<float>(row, col) = fusedConf;
-
+                valueMap.at<float>(row, col) = fusedValue;
+                confidenceMap.at<float>(row, col) = fusedConf;
+                
                 ++updates;
             }
     }
