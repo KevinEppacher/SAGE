@@ -91,6 +91,7 @@ class SemanticValueMap {
     std::string cameraInfoTopic = "/camera_info";  // Topic for the camera info
     bool visualizeConfidenceMap = false;  // Flag to visualize the confidence map
     bool confidenceWindowOpen = false;
+    float updateGain = 0.3f;  // Default update gain
 
 };
 
