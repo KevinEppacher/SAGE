@@ -18,10 +18,10 @@ tmux split-window -v -t $SESSION:explorer.1
 
 tmux select-layout -t $SESSION:explorer tiled
 
-tmux send-keys -t $SESSION:explorer.0 "docker exec -it -u root -w /app ros2_explorer_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:explorer.1 "docker exec -it -u root -w /app ros2_explorer_container bash --init-file /app/.initrc" C-m
+tmux send-keys -t $SESSION:explorer.0 "docker exec -it -u root -w /app ros2_lavis_container bash --init-file /app/.initrc" C-m
+tmux send-keys -t $SESSION:explorer.1 "docker exec -it -u root -w /app ros2_detection_container bash --init-file /app/.initrc" C-m
 tmux send-keys -t $SESSION:explorer.2 "docker exec -it -u root -w /app ros2_explorer_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:explorer.3 "docker exec -it -u root -w /app ros2_explorer_container bash --init-file /app/.initrc" C-m
+tmux send-keys -t $SESSION:explorer.3 "docker exec -it -u root -w /app ros2_detection_container bash --init-file /app/.initrc" C-m
 
 ###########################################################
 # exploitation window

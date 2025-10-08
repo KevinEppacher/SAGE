@@ -7,55 +7,44 @@
                      output_key="min_yaw"/>
       <SetBlackboard value="6.28319"
                      output_key="max_yaw"/>
-      <SetParameterNode target_node="/value_map/value_map"
-                        parameter_name="semantic_map.confidence_sharpness"
-                        value="0.5"/>
       <RetryUntilSuccessful num_attempts="-1">
         <ReactiveFallback>
           <Sequence>
             <IsDetected detection_threshold="{detection_threshold}"
-                        detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
+                        detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
                         max_missed_ticks="{max_missed_ticks}"
                         graph_nodes="{graph_nodes}"/>
             <GoToGraphNode graph_nodes="{graph_nodes}"
-                           approach_radius="3"
-                           goal_topic="/goal_pose"/>
+                           approach_radius="4"
+                           goal_topic="/goal_pose"
+                           robot_frame="base_link"
+                           map_frame="map"/>
           </Sequence>
           <Sequence>
-            <Sequence>
-              <SetParameterNode target_node="/value_map/value_map"
-                                parameter_name="semantic_map.decay_factor"
-                                value="1"/>
-              <SetParameterNode target_node="/value_map/value_map"
-                                parameter_name="semantic_map.confidence_sharpness"
-                                value="0.5"/>
-            </Sequence>
+            <SetParameterNode target_node="/value_map/value_map"
+                              parameter_name="semantic_map.decay_factor"
+                              value="1"/>
             <Spin360 min_yaw="{min_yaw}"
                      max_yaw="{max_yaw}"
                      spin_duration="15.0"/>
-            <Sequence>
-              <SetParameterNode target_node="/value_map/value_map"
-                                parameter_name="semantic_map.decay_factor"
-                                value="0.99"/>
-              <SetParameterNode target_node="/value_map/value_map"
-                                parameter_name="semantic_map.confidence_sharpness"
-                                value="3"/>
-            </Sequence>
-            <ReactiveSequence>
-              <IsDetected detection_threshold="0.05"
-                          detection_graph_node_topic="/exploration_graph_nodes/graph_nodes"
-                          max_missed_ticks="8"
-                          graph_nodes="{exploration_nodes}"/>
-              <Delay delay_msec="1000">
-                <GoToGraphNode graph_nodes="{exploration_nodes}"
-                               approach_radius="0.5"
-                               goal_topic="/goal_pose"/>
-              </Delay>
-            </ReactiveSequence>
-            <SetBlackboard value="0.523"
-                           output_key="max_yaw"/>
             <SetBlackboard value="-0.523"
                            output_key="min_yaw"/>
+            <SetBlackboard value="0.523"
+                           output_key="max_yaw"/>
+            <SetParameterNode target_node="/value_map/value_map"
+                              parameter_name="semantic_map.decay_factor"
+                              value="0.99"/>
+            <ReactiveSequence>
+              <IsDetected detection_threshold="0.05"
+                          detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                          max_missed_ticks="8"
+                          graph_nodes="{exploration_nodes}"/>
+              <GoToGraphNode graph_nodes="{exploration_nodes}"
+                             approach_radius="3"
+                             goal_topic="/goal_pose"
+                             robot_frame="base_link"
+                             map_frame="map"/>
+            </ReactiveSequence>
             <AlwaysFailure/>
           </Sequence>
         </ReactiveFallback>
@@ -69,6 +58,8 @@
       <input_port name="graph_nodes"/>
       <input_port name="approach_radius"/>
       <input_port name="goal_topic"/>
+      <input_port name="robot_frame"/>
+      <input_port name="map_frame"/>
     </Action>
     <Condition ID="IsDetected">
       <input_port name="detection_threshold"
