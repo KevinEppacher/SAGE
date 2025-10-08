@@ -8,6 +8,9 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <string>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 
 class Spin360 : public BT::StatefulActionNode
 {
@@ -59,17 +62,18 @@ public:
     void onHalted() override;
 
 private:
-    // --- Internal helpers ---
     void publishGoalToTarget(const graph_node_msgs::msg::GraphNode& node);
     bool targetChanged(const graph_node_msgs::msg::GraphNode& new_target) const;
+    bool isWithinGoal(const graph_node_msgs::msg::GraphNode& node);
 
-    // --- ROS interfaces ---
     rclcpp::Node::SharedPtr node_ptr_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr goal_pub_;
+    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+    std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
-    // --- State ---
     std::shared_ptr<graph_node_msgs::msg::GraphNode> target_node_;
     rclcpp::Time last_publish_time_;
     std::string goal_topic_;
+    std::string robot_frame_, map_frame_;
     double approach_radius_{2.0};
 };

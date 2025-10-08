@@ -147,44 +147,56 @@ GoToGraphNode::GoToGraphNode(const std::string& name,
                              rclcpp::Node::SharedPtr node_ptr)
     : BT::StatefulActionNode(name, config),
       node_ptr_(std::move(node_ptr))
-{}
+{
+    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_ptr_->get_clock());
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+}
 
+// -------------------- Ports -------------------- //
 BT::PortsList GoToGraphNode::providedPorts()
 {
     return {
         BT::InputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>(
             "graph_nodes", "GraphNode to navigate to"),
         BT::InputPort<double>("approach_radius", 2.0, "Approach distance in meters"),
-        BT::InputPort<std::string>("goal_topic", "/goal_pose", "Goal topic to publish to")
+        BT::InputPort<std::string>("goal_topic", "/goal_pose", "Goal topic to publish to"),
+        BT::InputPort<std::string>("robot_frame", "base_link", "Robot frame for TF lookup"),
+        BT::InputPort<std::string>("map_frame", "map", "Map frame for TF lookup")
     };
 }
 
+// -------------------- onStart -------------------- //
 BT::NodeStatus GoToGraphNode::onStart()
 {
     if (!node_ptr_) {
-        RCLCPP_ERROR(rclcpp::get_logger("GoToGraphNode"),
-                     "[%s] Node pointer is null!", name().c_str());
+        RCLCPP_ERROR(node_ptr_->get_logger(), "[%s] Node pointer is null!", name().c_str());
         return BT::NodeStatus::FAILURE;
     }
 
     getInput("approach_radius", approach_radius_);
     getInput("goal_topic", goal_topic_);
+    getInput("robot_frame", robot_frame_);
+    getInput("map_frame", map_frame_);
 
     auto node_res = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_nodes");
     if (!node_res) {
-        RCLCPP_WARN(node_ptr_->get_logger(),
-                    "[%s] No graph_nodes input provided.", name().c_str());
+        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] No graph_nodes input provided.", name().c_str());
         return BT::NodeStatus::FAILURE;
     }
-
     target_node_ = node_res.value();
 
-    // Create publisher if not yet created
     if (!goal_pub_) {
         goal_pub_ = node_ptr_->create_publisher<geometry_msgs::msg::PoseStamped>(goal_topic_, 10);
         RCLCPP_INFO(node_ptr_->get_logger(),
-                    "[%s] Publishing goals to topic: %s",
-                    name().c_str(), goal_topic_.c_str());
+                    "[%s] Publishing goals to topic: %s", name().c_str(), goal_topic_.c_str());
+    }
+
+    // Check if already close enough
+    if (isWithinGoal(*target_node_)) {
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    "[%s] Already within approach radius (%.2fm) → SUCCESS.",
+                    name().c_str(), approach_radius_);
+        return BT::NodeStatus::SUCCESS;
     }
 
     last_publish_time_ = node_ptr_->now();
@@ -192,9 +204,17 @@ BT::NodeStatus GoToGraphNode::onStart()
     return BT::NodeStatus::RUNNING;
 }
 
+// -------------------- onRunning -------------------- //
 BT::NodeStatus GoToGraphNode::onRunning()
 {
-    // Check if new goal arrived on blackboard
+    // Check proximity before publishing
+    if (isWithinGoal(*target_node_)) {
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    "[%s] Within %.2fm of target — SUCCESS.",
+                    name().c_str(), approach_radius_);
+        return BT::NodeStatus::SUCCESS;
+    }
+
     auto node_res = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_nodes");
     if (node_res && targetChanged(*node_res.value()))
         target_node_ = node_res.value();
@@ -209,47 +229,58 @@ BT::NodeStatus GoToGraphNode::onRunning()
     return BT::NodeStatus::RUNNING;
 }
 
+// -------------------- onHalted -------------------- //
 void GoToGraphNode::onHalted()
 {
     RCLCPP_INFO(node_ptr_->get_logger(),
                 "[%s] Halting — stopping goal publishing.", name().c_str());
 }
 
+// -------------------- isWithinGoal -------------------- //
+bool GoToGraphNode::isWithinGoal(const graph_node_msgs::msg::GraphNode& node)
+{
+    try {
+        geometry_msgs::msg::TransformStamped tf =
+            tf_buffer_->lookupTransform(map_frame_, robot_frame_, tf2::TimePointZero);
+
+        double rx = tf.transform.translation.x;
+        double ry = tf.transform.translation.y;
+        double tx = node.position.x;
+        double ty = node.position.y;
+
+        double dist = std::hypot(tx - rx, ty - ry);
+        return dist <= approach_radius_;
+
+    } catch (const tf2::TransformException& ex) {
+        RCLCPP_WARN_THROTTLE(node_ptr_->get_logger(), *node_ptr_->get_clock(),
+                             2000, "[%s] TF lookup failed: %s", name().c_str(), ex.what());
+        return false;
+    }
+}
+
+// -------------------- publishGoalToTarget -------------------- //
 void GoToGraphNode::publishGoalToTarget(const graph_node_msgs::msg::GraphNode& node)
 {
-    double rx = 0.0, ry = 0.0;  // TODO: Replace with TF lookup for robot pose
     double tx = node.position.x;
     double ty = node.position.y;
-
-    double dx = tx - rx;
-    double dy = ty - ry;
-    double dist = std::sqrt(dx * dx + dy * dy);
-    if (dist < 1e-3) return;
-
-    double scale = (dist - approach_radius_) / dist;
-    geometry_msgs::msg::Point approach_point;
-    approach_point.x = rx + dx * scale;
-    approach_point.y = ry + dy * scale;
-    approach_point.z = node.position.z;
-
-    double yaw = std::atan2(dy, dx);
-    tf2::Quaternion q;
-    q.setRPY(0, 0, yaw);
-    geometry_msgs::msg::Quaternion orientation = tf2::toMsg(q);
 
     geometry_msgs::msg::PoseStamped goal_msg;
     goal_msg.header.stamp = node_ptr_->now();
     goal_msg.header.frame_id = "map";
-    goal_msg.pose.position = approach_point;
-    goal_msg.pose.orientation = orientation;
+    goal_msg.pose.position.x = tx;
+    goal_msg.pose.position.y = ty;
+    goal_msg.pose.position.z = node.position.z;
 
+    // Orientation toward goal
+    goal_msg.pose.orientation = tf2::toMsg(tf2::Quaternion(0, 0, 0, 1));
     goal_pub_->publish(goal_msg);
 
     RCLCPP_DEBUG(node_ptr_->get_logger(),
-                 "[%s] Published goal (%.2f, %.2f), yaw=%.2f rad",
-                 name().c_str(), approach_point.x, approach_point.y, yaw);
+                 "[%s] Published goal (%.2f, %.2f)",
+                 name().c_str(), tx, ty);
 }
 
+// -------------------- targetChanged -------------------- //
 bool GoToGraphNode::targetChanged(const graph_node_msgs::msg::GraphNode& new_target) const
 {
     if (!target_node_) return true;
