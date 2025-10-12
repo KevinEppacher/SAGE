@@ -122,7 +122,7 @@ void SemanticFrontier::timerCallback()
         geometry_msgs::msg::Point centroid = frontier.getCentroid();
         graphNode.setPosition(centroid);
         double score = getScoreFromValueMap(valueMapPcl, centroid);
-        if (score < 0.005) continue;  // Skip frontiers with low scores
+        if (score < 0.0) continue;  // Skip frontiers with low scores
         graphNode.setScore(score);
         graphNode.setId(id);
         graphNodes->addNode(graphNode);

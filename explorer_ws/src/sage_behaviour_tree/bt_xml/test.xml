@@ -1,21 +1,53 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4"
-      main_tree_to_execute="MainTree">
-  <BehaviorTree ID="MainTree">
-    <SetParameterNode target_node="/value_map/value_map"
-                      parameter_name="semantic_map.decay_factor"
-                      value="0.99"/>
+      main_tree_to_execute="SAGE_SingleObject">
+  <BehaviorTree ID="SAGE_SingleObject">
+    <RetryUntilSuccessful num_attempts="-1">
+      <ReactiveFallback>
+        <Sequence>
+          <IsDetected detection_threshold="0.1"
+                      detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
+                      max_missed_ticks="{max_missed_ticks}"
+                      graph_nodes="{graph_nodes}"/>
+          <GoToGraphNode graph_nodes="{graph_nodes}"
+                         approach_radius="2.5"
+                         goal_topic="/goal_pose"
+                         robot_frame="base_link"
+                         map_frame="map"/>
+        </Sequence>
+        <Spin360 min_yaw="0"
+                 max_yaw="6.2"
+                 spin_duration="15.0"/>
+      </ReactiveFallback>
+    </RetryUntilSuccessful>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
-    <Action ID="SetParameterNode">
-      <input_port name="target_node"
-                  default="/value_map/value_map"/>
-      <input_port name="parameter_name"
-                  default="semantic_map.decay_factor"/>
-      <input_port name="value"
-                  default="0.99"/>
+    <Action ID="GoToGraphNode">
+      <input_port name="graph_nodes"/>
+      <input_port name="approach_radius"/>
+      <input_port name="goal_topic"/>
+      <input_port name="robot_frame"/>
+      <input_port name="map_frame"/>
+    </Action>
+    <Condition ID="IsDetected">
+      <input_port name="detection_threshold"
+                  default="0.8"/>
+      <input_port name="detection_graph_node_topic"
+                  default="/detection_graph_nodes/graph_nodes"/>
+      <input_port name="max_missed_ticks"
+                  default="8"/>
+      <output_port name="graph_nodes"
+                   default="latest_nodes"/>
+    </Condition>
+    <Action ID="Spin360">
+      <input_port name="min_yaw"
+                  default="-3.14159"/>
+      <input_port name="max_yaw"
+                  default="3.14159"/>
+      <input_port name="spin_duration"
+                  default="10.0"/>
     </Action>
   </TreeNodesModel>
 

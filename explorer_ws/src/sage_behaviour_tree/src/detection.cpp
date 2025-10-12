@@ -34,22 +34,42 @@ BT::PortsList IsDetected::providedPorts()
 
 BT::NodeStatus IsDetected::tick()
 {
-    if (!received_message_) return BT::NodeStatus::RUNNING;
+    if (!received_message_) 
+    {
+        RCLCPP_WARN(node_ptr_->get_logger(), "No message received yet on the topic %s", 
+                    sub_->get_topic_name());
+        return BT::NodeStatus::RUNNING;
+    }
 
     double threshold = 0.8;
     getInput("detection_threshold", threshold);
 
     double max_score = -1.0;
     std::shared_ptr<graph_node_msgs::msg::GraphNode> best_node = nullptr;
-    for (auto &n : latest_msg_->nodes) {
-        if (n.score > max_score) {
+    for (auto &n : latest_msg_->nodes) 
+    {
+        if (n.score > max_score) 
+        {
             max_score = n.score;
             best_node = std::make_shared<graph_node_msgs::msg::GraphNode>(n);
         }
     }
 
-    if (!best_node) return BT::NodeStatus::FAILURE;
+    if (!best_node) 
+    {
+        RCLCPP_WARN(node_ptr_->get_logger(), "No nodes in the latest message");
+        return BT::NodeStatus::FAILURE;
+    }
     setOutput("graph_nodes", best_node);
+
+    RCLCPP_INFO(node_ptr_->get_logger(), "Best node ID: %d with score: %.2f. Returning SUCCESS", best_node->id, best_node->score);
+
+
+    if(max_score >= threshold) {
+        RCLCPP_INFO(node_ptr_->get_logger(), "Detection threshold met: %.2f >= %.2f", max_score, threshold);
+    } else {
+        RCLCPP_WARN(node_ptr_->get_logger(), "Detection threshold not met: %.2f < %.2f", max_score, threshold);
+    }   
 
     return (max_score >= threshold) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }

@@ -60,6 +60,8 @@ class GraphNodeFusion(Node):
 
     def cb_detection(self, msg):
         self.detection_nodes = list(msg.nodes)
+        print(f"Received {len(self.detection_nodes)} detection nodes")
+        self.pub_fused_detection.publish(GraphNodeArray(nodes=self.detection_nodes))
 
     # ---------- High-rate loop ----------
     def high_freq_cb(self):
