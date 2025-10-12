@@ -98,3 +98,6 @@ exploitation_ws/src/openfusion_ros_v0/*
 *.ts
 
 explorer_ws/src/tb3_autonomy/
+
+explorer_ws/src/nova_carter/
+
