@@ -36,7 +36,8 @@ RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-pointcloud-to-laserscan \
     ros-${ROS_DISTRO}-rviz2 \
     ros-${ROS_DISTRO}-tf2-tools \
-    ros-${ROS_DISTRO}-rqt-tf-tree
+    ros-${ROS_DISTRO}-rqt-tf-tree \
+    ros-${ROS_DISTRO}-nav2-mppi-controller
 
 # Install cppzmq (header-only) from source
 RUN git clone --depth=1 https://github.com/zeromq/cppzmq /tmp/cppzmq \

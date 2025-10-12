@@ -8,4 +8,3 @@ fused:
       approach_radius: 1.0
       max_visited: 200
       exploration_weight: 1.0
-      debug_mode: true

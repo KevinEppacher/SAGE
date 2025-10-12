@@ -39,10 +39,35 @@ BT::NodeStatus Spin360::onStart()
         return BT::NodeStatus::FAILURE;
     }
 
+    // ---- Abort all other navigation actions ---- //
+    {
+        auto abort_nav_goal = [&](const std::string& action_name)
+        {
+            try
+            {
+                auto generic_client =
+                    rclcpp_action::create_client<nav2_msgs::action::NavigateToPose>(
+                        node_ptr_, action_name);
+                if (generic_client->wait_for_action_server(100ms))
+                {
+                    RCLCPP_INFO(node_ptr_->get_logger(),
+                                "[%s] Aborting existing goal on %s", name().c_str(),
+                                action_name.c_str());
+                    generic_client->async_cancel_all_goals();
+                }
+            }
+            catch (...) {}
+        };
+
+        abort_nav_goal("/navigate_to_pose");
+        abort_nav_goal("/follow_path");
+        abort_nav_goal("/compute_path_to_pose");
+    }
+
     done_flag_ = false;
     phase_two_ = false;
 
-    // Start with first spin direction
+    // ---- Start spin ---- //
     if (max_yaw_ != 0.0)
     {
         RCLCPP_INFO(node_ptr_->get_logger(),

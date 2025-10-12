@@ -3,5 +3,5 @@ sage_behaviour_tree:
     ros__parameters:
       detection:
         graph_node_topic: "/detection_graph_nodes/graph_nodes"
-        threshold: 0.1
+        threshold: 0.6
       
