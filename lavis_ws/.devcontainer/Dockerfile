@@ -1,8 +1,11 @@
-# === Stage 1: CUDA 12.1 base with runtime ===
+# ROS distribution to use
+ARG ROS_DISTRO=humble
+ARG RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+# ARG RMW_IMPLEMENTATION=rmw_zenoh_cpp
+
 FROM nvidia/cuda:12.1.1-devel-ubuntu22.04 AS cuda
 
-# === Stage 2: ROS2 Humble with CUDA 12.1 copied in ===
-FROM osrf/ros:humble-desktop-full
+FROM osrf/ros:${ROS_DISTRO}-desktop-full
 
 # Copy CUDA runtime libs from the previous stage
 COPY --from=cuda /usr/local/cuda-12.1 /usr/local/cuda-12.1
@@ -14,6 +17,37 @@ ENV LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 ENV NVIDIA_REQUIRE_CUDA="cuda>=12.1"
+
+########################################################
+# Middleware installations
+########################################################
+
+# Install Zenoh RMW
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-rmw-zenoh-cpp \
+    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp
+
+# Set Zenoh as default RMW
+ENV RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION}
+
+# Copy Cyclone DDS XML config (must be present in build context)
+COPY cyclonedds.xml /root/cyclonedds.xml
+
+# Copy Zenoh config files (must be present in build context)
+COPY MY_ZENOH_ROUTER_CONFIG.json5 /root/MY_ZENOH_ROUTER_CONFIG.json5
+COPY MY_ZENOH_SESSION_CONFIG.json5 /root/MY_ZENOH_SESSION_CONFIG.json5
+
+RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
+    echo 'if [ "$RMW_IMPLEMENTATION" = "rmw_cyclonedds_cpp" ]; then export CYCLONEDDS_URI=file:///root/cyclonedds.xml; fi' >> /root/.bashrc && \
+    echo 'if [ "$RMW_IMPLEMENTATION" = "rmw_zenoh_cpp" ]; then export ZENOH_ROUTER_CONFIG_URI=/root/MY_ZENOH_ROUTER_CONFIG.json5; export ZENOH_SESSION_CONFIG=/root/MY_ZENOH_SESSION_CONFIG.json5; fi' >> /root/.bashrc && \
+    echo 'export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION}' >> /root/.bashrc && \
+    echo 'export RCUTILS_COLORIZED_OUTPUT=1' >> /root/.bashrc
+
+########################################################
+# End Middleware installations
+########################################################
+
+
 
 # Add ubuntu user with same UID/GID as host
 ARG USERNAME=ubuntu
@@ -43,8 +77,6 @@ RUN sudo apt update && sudo apt upgrade -y
 # Custom installations
 ########################################################
 
-
-
 RUN sudo apt update && sudo apt install -y \
     python3-pip
 
@@ -66,4 +98,10 @@ RUN sudo apt update && sudo apt install -y \
 # Source ROS setup
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 RUN echo "source install/setup.bash" >> ~/.bashrc
+
+# Set up the entrypoint
+COPY entrypoint.sh /
+RUN sudo chmod +x /entrypoint.sh
+ENTRYPOINT [ "/entrypoint.sh" ]
+RUN echo "source /entrypoint.sh" >> /home/${USERNAME}/.bashrc 
 
