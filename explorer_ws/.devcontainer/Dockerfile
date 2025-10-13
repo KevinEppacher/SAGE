@@ -1,9 +1,10 @@
 # ROS distribution to use
 ARG ROS_DISTRO=humble
+ARG RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
-########################################
-# Base Image with External Dependencies #
-########################################
+########################################################
+# Base Image with External Dependencies
+########################################################
 FROM osrf/ros:${ROS_DISTRO}-desktop-full as base
 ENV ROS_DISTRO=${ROS_DISTRO}
 SHELL ["/bin/bash", "-c"]
@@ -21,23 +22,41 @@ ENV NVIDIA_REQUIRE_CUDA "cuda>=11.3"
 ENV PATH /usr/local/cuda/bin:${PATH}
 ENV LD_LIBRARY_PATH /usr/local/cuda/lib64:${LD_LIBRARY_PATH}
 
-# Install basic packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git libcanberra-gtk-module libcanberra-gtk3-module fuse3 libfuse2 \
-    python3-pip python3-vcstool curl cmake \
-    libzmq3-dev libceres-dev
+########################################################
+# Middleware installations
+########################################################
 
-# Install ROS packages
+# Install both RMW middlewares
 RUN apt-get update && apt-get install -y \
-    ros-${ROS_DISTRO}-pcl-ros \
-    ros-${ROS_DISTRO}-navigation2 \
-    ros-${ROS_DISTRO}-nav2-bringup \
-    ros-${ROS_DISTRO}-nav2-costmap-2d \
-    ros-${ROS_DISTRO}-pointcloud-to-laserscan \
-    ros-${ROS_DISTRO}-rviz2 \
-    ros-${ROS_DISTRO}-tf2-tools \
-    ros-${ROS_DISTRO}-rqt-tf-tree \
-    ros-${ROS_DISTRO}-nav2-mppi-controller
+    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+    ros-${ROS_DISTRO}-rmw-zenoh-cpp
+
+# Copy Cyclone DDS XML config (must be present in build context)
+COPY cyclonedds.xml /etc/cyclonedds.xml
+
+# Copy Zenoh config files (must be present in build context)
+COPY MY_ZENOH_ROUTER_CONFIG.json5 /root/MY_ZENOH_ROUTER_CONFIG.json5
+COPY MY_ZENOH_SESSION_CONFIG.json5 /root/MY_ZENOH_SESSION_CONFIG.json5
+
+# --- Default configuration (CycloneDDS for local performance) ---
+ENV RCUTILS_COLORIZED_OUTPUT=1
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+# ENV CYCLONEDDS_URI=file:///etc/cyclonedds.xml
+ENV CYCLONEDDS_URI=/etc/cyclonedds.xml
+
+# --- Zenoh optional configuration placeholders (used when overridden) ---
+ENV ZENOH_ROUTER_CONFIG_URI=/root/MY_ZENOH_ROUTER_CONFIG.json5
+ENV ZENOH_SESSION_CONFIG=/root/MY_ZENOH_SESSION_CONFIG.json5
+
+# --- ROS setup for all shells ---
+RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc && \
+    echo 'echo \"Active RMW: $RMW_IMPLEMENTATION\"' >> /root/.bashrc && \
+    echo 'if [ \"$RMW_IMPLEMENTATION\" = \"rmw_cyclonedds_cpp\" ]; then echo \"Using CycloneDDS → $CYCLONEDDS_URI\"; fi' >> /root/.bashrc && \
+    echo 'if [ \"$RMW_IMPLEMENTATION\" = \"rmw_zenoh_cpp\" ]; then echo \"Using Zenoh → $ZENOH_SESSION_CONFIG\"; fi' >> /root/.bashrc
+
+########################################################
+# End Middleware installations
+########################################################
 
 # Install cppzmq (header-only) from source
 RUN git clone --depth=1 https://github.com/zeromq/cppzmq /tmp/cppzmq \
@@ -69,9 +88,9 @@ COPY entrypoint.sh /
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]
 
-###########################################
+########################################################
 # Development Overlay Image #
-###########################################
+########################################################
 FROM base AS dev
 
 # Dev container arguments
@@ -96,6 +115,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Switch to user
 USER $USERNAME
+
+########################################################
+# Custom installations
+########################################################
+
+# Install basic packages
+RUN sudo apt update && sudo apt install -y --no-install-recommends \
+    git libcanberra-gtk-module libcanberra-gtk3-module fuse3 libfuse2 \
+    python3-pip python3-vcstool curl cmake \
+    libzmq3-dev libceres-dev
+
+# Install ROS packages
+RUN sudo apt update && sudo apt install -y \
+    ros-${ROS_DISTRO}-pcl-ros \
+    ros-${ROS_DISTRO}-navigation2 \
+    ros-${ROS_DISTRO}-nav2-bringup \
+    ros-${ROS_DISTRO}-nav2-costmap-2d \
+    ros-${ROS_DISTRO}-pointcloud-to-laserscan \
+    ros-${ROS_DISTRO}-rviz2 \
+    ros-${ROS_DISTRO}-tf2-tools \
+    ros-${ROS_DISTRO}-rqt-tf-tree \
+    ros-${ROS_DISTRO}-nav2-mppi-controller
+
+########################################################
+# End Custom installations
+########################################################
 
 # Set bash as default shell for the user
 RUN sudo chsh -s /bin/bash $USERNAME

@@ -1,0 +1,11 @@
+<CycloneDDS>
+  <Domain>
+    <General>
+      <Interfaces>
+        <!-- Bind to docker0 only -->
+        <NetworkInterface name="docker0"/>
+      </Interfaces>
+      <AllowMulticast>true</AllowMulticast>
+    </General>
+  </Domain>
+</CycloneDDS>
