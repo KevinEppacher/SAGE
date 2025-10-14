@@ -1,0 +1,33 @@
+version: "3.8"
+
+services:
+  isaac-sim:
+    image: nvcr.io/nvidia/isaac-sim:4.5.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: isaac-sim
+    entrypoint: ["bash"]
+    stdin_open: true
+    tty: true
+    network_mode: "host"
+    environment:
+      ACCEPT_EULA: "Y"
+      PRIVACY_CONSENT: "Y"
+      DISPLAY: ${DISPLAY:-}
+      QT_X11_NO_MITSHM: "1"
+    volumes:
+      - ${HOME}/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw
+      - ${HOME}/docker/isaac-sim/cache/ov:/root/.cache/ov:rw
+      - ${HOME}/docker/isaac-sim/cache/pip:/root/.cache/pip:rw
+      - ${HOME}/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache:rw
+      - ${HOME}/docker/isaac-sim/cache/computecache:/root/.nv/ComputeCache:rw
+      - ${HOME}/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw
+      - ${HOME}/docker/isaac-sim/data:/root/.local/share/ov/data:rw
+      - ${HOME}/docker/isaac-sim/documents:/root/Documents:rw
+      - ../ros2_ws:/isaac-sim/ros2_ws:rw
+    # enable GPUs (recommended) - supported by Docker Compose v2+ / 1.28+
+    gpus: all
+    # optional fallback for older setups (uncomment if needed)
+    # runtime: nvidia
+    restart: "no"
