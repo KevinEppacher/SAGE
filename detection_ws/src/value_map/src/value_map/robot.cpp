@@ -24,7 +24,8 @@ bool Robot::on_configure()
     node->get_parameter("rgb_topic", rgbTopic);
 
     rgbSub = node->create_subscription<sensor_msgs::msg::Image>(
-        rgbTopic, 10,
+        rgbTopic,
+        rclcpp::SensorDataQoS(),
         std::bind(&Robot::rgbCallback, this, std::placeholders::_1)
     );
 
