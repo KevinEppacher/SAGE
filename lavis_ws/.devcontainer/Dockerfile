@@ -54,8 +54,6 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc && \
 # End Middleware installations
 ########################################################
 
-
-
 # Add ubuntu user with same UID/GID as host
 ARG USERNAME=ubuntu
 ARG USER_UID=1000
