@@ -16,7 +16,8 @@ private:
     void timerCallback();
     rclcpp::QoS createQoS(const std::string &prefix);
     cv::Mat resizeImage(const cv::Mat &input);
-    bool hasSignificantChange(const cv::Mat &current);
+    bool hasSignificantChange(const cv::Mat &current, bool isDepth);
+    bool isDepthImage(const std::string &encoding);
 
     // Parameters
     std::string inputTopic;
@@ -25,7 +26,7 @@ private:
     bool resizeEnabled;
     int resizeWidth;
     int resizeHeight;
-    bool changeGateEnabled;      // <--- new
+    bool changeGateEnabled;
     double histogramThreshold;
 
     // ROS entities
@@ -34,7 +35,7 @@ private:
     rclcpp::TimerBase::SharedPtr timer;
     sensor_msgs::msg::Image::SharedPtr latestImage;
 
-    // Previous frame histogram
+    // Previous histogram
     cv::Mat previousHist;
     bool hasPreviousHist = false;
 };
