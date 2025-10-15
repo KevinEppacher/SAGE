@@ -1,15 +1,15 @@
 image_throttle:
   ros__parameters:
-    input_topic: "/rgb"
-    output_topic: "/rgb/throttled"
+    input_topic: "/depth"
+    output_topic: "/depth/throttled"
     timer_frequency: 10.0  # Hz
 
-    resize_enabled: false
+    resize_enabled: true
     resize_width: 300
     resize_height: 200
 
-    change_gate_enabled: true
-    histogram_threshold: 0.25  # lower = more sensitive
+    change_gate_enabled: false
+    histogram_threshold: 0.9  # lower = more sensitive
 
     input_qos:
       reliability: "best_effort"
