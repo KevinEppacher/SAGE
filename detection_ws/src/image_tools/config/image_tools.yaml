@@ -1,0 +1,24 @@
+image_throttle:
+  ros__parameters:
+    input_topic: "/rgb"
+    output_topic: "/rgb/throttled"
+    timer_frequency: 10.0  # Hz
+
+    resize_enabled: false
+    resize_width: 300
+    resize_height: 200
+
+    change_gate_enabled: true
+    histogram_threshold: 0.25  # lower = more sensitive
+
+    input_qos:
+      reliability: "best_effort"
+      durability: "volatile"
+      history: "keep_last"
+      depth: 10
+
+    output_qos:
+      reliability: "reliable"
+      durability: "volatile"
+      history: "keep_last"
+      depth: 5
