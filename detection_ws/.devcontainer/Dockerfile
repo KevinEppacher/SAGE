@@ -104,7 +104,8 @@ RUN sudo apt update && sudo apt install -y \
 RUN sudo apt update && sudo apt install -y \
     ros-${ROS_DISTRO}-navigation2 \
     ros-${ROS_DISTRO}-nav2-bringup \
-    ros-${ROS_DISTRO}-nav2-costmap-2d
+    ros-${ROS_DISTRO}-nav2-costmap-2d \
+    ros-${ROS_DISTRO}-topic-tools
 
 ########################################################
 # End Custom installations
