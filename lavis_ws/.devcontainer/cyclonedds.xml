@@ -1,11 +1,26 @@
-<CycloneDDS>
-  <Domain>
+<?xml version="1.0" encoding="UTF-8"?>
+<CycloneDDS xmlns="https://cdds.io/config"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/0.9.x/etc/cyclonedds.xsd">
+
+  <Domain id="any">
     <General>
+      <!-- Automatically choose the correct active interface (works in host + bridge mode) -->
       <Interfaces>
-        <!-- Bind to docker0 only -->
-        <NetworkInterface name="docker0"/>
+        <NetworkInterface autodetermine="true"/>
       </Interfaces>
+
+      <!-- Enable multicast for participant discovery -->
       <AllowMulticast>true</AllowMulticast>
+
+      <!-- Allow loopback to see local publishers/subscribers (important for single-container tests) -->
+      <EnableMulticastLoopback>true</EnableMulticastLoopback>
     </General>
+
+    <Discovery>
+      <!-- Automatic participant IDs for multi-container environments -->
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>200</MaxAutoParticipantIndex>
+    </Discovery>
   </Domain>
 </CycloneDDS>

@@ -1,27 +1,42 @@
 from launch import LaunchDescription
-from launch_ros.actions import Node
-from launch.actions import ExecuteProcess
-from launch_ros.substitutions import FindPackageShare
+from launch_ros.actions import LifecycleNode, Node
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from ament_index_python.packages import get_package_share_directory
 import os
 
+
 def generate_launch_description():
-    package_name = 'cloud_cluster'
 
-    # Find config and rviz path
-    pkg_share = FindPackageShare(package_name).find(package_name)
-    rviz_config = os.path.join(pkg_share, 'rviz', 'rviz.rviz')
-    param_file = os.path.join(pkg_share, 'config', 'cloud_cluster.yaml')
-
-    cloud_cluster_node = Node(
-        package=package_name,
-        executable='cloud_cluster_node',
-        name="cloud_cluster_node",
-        output='screen',
-        emulate_tty=True,
-        parameters=[param_file],
-        # arguments=['--ros-args', '--log-level', 'debug']
+    sim_time_arg = DeclareLaunchArgument(
+        'use_sim_time', default_value='true',
+        description='Flag to enable use_sim_time'
     )
 
-    return LaunchDescription([
-        cloud_cluster_node,
-    ])
+    # Get the launch configuration for use_sim_time
+    use_sim_time = LaunchConfiguration('use_sim_time')
+
+    cloud_cluster_config = os.path.join(
+        get_package_share_directory("cloud_cluster"),
+        'config',
+        'cloud_cluster.yaml'
+    )
+
+    cloud_cluster_node = Node(
+        package="cloud_cluster",
+        executable='cloud_cluster_node',
+        name="cloud_cluster_node",
+        namespace="detection_graph_nodes",
+        output='screen',
+        emulate_tty=True,
+        # arguments=['--ros-args', '--log-level', 'debug'],
+        parameters=[
+            {'use_sim_time': use_sim_time},
+            cloud_cluster_config
+        ]
+    )
+
+    ld = LaunchDescription()
+    ld.add_action(sim_time_arg) 
+    ld.add_action(cloud_cluster_node)
+    return ld

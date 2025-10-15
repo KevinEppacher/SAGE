@@ -101,6 +101,8 @@ This comes from Chromium sandboxing inside the AppImage. Workarounds (setuid bit
 
 # IsaacSim
 
+docker pull nvcr.io/nvidia/isaac-sim:5.0.0
+
 ```bash
 docker run --name isaac-sim --entrypoint bash -it --runtime=nvidia --gpus all -e "ACCEPT_EULA=Y" --rm --network=host \
     -e "PRIVACY_CONSENT=Y" \
@@ -112,6 +114,6 @@ docker run --name isaac-sim --entrypoint bash -it --runtime=nvidia --gpus all -e
     -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
     -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
     -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-    -v ../../SAGE/isaacsim_4.5.0_ros2_humble/ros2_ws:/isaac-sim/ros2_ws:rw \
+    -v ../../SAGE/isaac_sim:/isaac-sim/ros2_ws:rw \
     nvcr.io/nvidia/isaac-sim:5.0.0
 ```

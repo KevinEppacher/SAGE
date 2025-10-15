@@ -1,18 +1,24 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include "cv_bridge/cv_bridge.h"
-#include <opencv2/opencv.hpp>
+#include "opencv2/opencv.hpp"
 
-class ImageSubscriberNode : public rclcpp::Node
+class RGBImageSubscriber : public rclcpp::Node
 {
 public:
-    ImageSubscriberNode() : Node("image_subscriber_node")
+    RGBImageSubscriber()
+    : Node("rgb_image_subscriber")
     {
-        subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "/rgb", 10,
-            std::bind(&ImageSubscriberNode::image_callback, this, std::placeholders::_1));
+        rclcpp::QoS qos_profile(rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_sensor_data));
+        qos_profile.best_effort();
+        qos_profile.keep_last(10);
 
-        RCLCPP_INFO(this->get_logger(), "Image subscriber node started, listening on /rgb");
+        subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
+            "/rgb",
+            rclcpp::SensorDataQoS(),
+            std::bind(&RGBImageSubscriber::image_callback, this, std::placeholders::_1));
+
+        RCLCPP_INFO(this->get_logger(), "RGB Image Subscriber started with Best Effort QoS.");
     }
 
 private:
@@ -20,15 +26,13 @@ private:
     {
         try
         {
-            // Convert to OpenCV image (BGR8 encoding expected)
-            cv::Mat image = cv_bridge::toCvCopy(msg, "bgr8")->image;
-
-            cv::imshow("RGB Image", image);
+            cv::Mat cv_image = cv_bridge::toCvShare(msg, "bgr8")->image;
+            cv::imshow("RGB Image", cv_image);
             cv::waitKey(1);
         }
         catch (cv_bridge::Exception &e)
         {
-            RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
+            RCLCPP_ERROR(this->get_logger(), "CvBridge error: %s", e.what());
         }
     }
 
@@ -38,7 +42,9 @@ private:
 int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<ImageSubscriberNode>());
+    auto node = std::make_shared<RGBImageSubscriber>();
+    rclcpp::spin(node);
     rclcpp::shutdown();
+    cv::destroyAllWindows();
     return 0;
 }

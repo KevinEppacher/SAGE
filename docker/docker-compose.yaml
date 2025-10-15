@@ -121,38 +121,54 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: all
       NVIDIA_REQUIRE_CUDA: "cuda>=11.3"
       
-  isaac-sim:
-    image: nvcr.io/nvidia/isaac-sim:4.5.0
-    build:
-      context: ../isaacsim_4.5.0_ros2_humble/.devcontainer
-      dockerfile: Dockerfile
-    container_name: isaac-sim
-    entrypoint: ["bash"]
+  isaac_sim:
+    # Make sure pull the latest Isaac Sim image first: 'docker pull nvcr.io/nvidia/isaac-sim:5.0.0'
+    image: nvcr.io/nvidia/isaac-sim:5.0.0
+    container_name: isaac_sim_container
+    runtime: nvidia
+    network_mode: host
+    environment:
+      - ACCEPT_EULA=Y
+      - PRIVACY_CONSENT=Y
+
+      # === CycloneDDS settings ===
+      - ISAAC_ROS_BRIDGE_DISABLE=1
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - ROS_DOMAIN_ID=0
+      - CYCLONEDDS_URI=file:///etc/cyclonedds.xml
+
+      # === CUDA / GPU passthrough ===
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
+
+    volumes:
+      # --- Isaac cache mounts ---
+      - ~/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw
+      - ~/docker/isaac-sim/cache/ov:/root/.cache/ov:rw
+      - ~/docker/isaac-sim/cache/pip:/root/.cache/pip:rw
+      - ~/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache:rw
+      - ~/docker/isaac-sim/cache/computecache:/root/.nv/ComputeCache:rw
+
+      # --- Logs, data, and documents ---
+      - ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw
+      - ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw
+      - ~/docker/isaac-sim/documents:/root/Documents:rw
+
+      # --- ROS 2 workspace ---
+      - ../isaac_sim:/isaac-sim/ros2_ws:rw
+
+      # --- CycloneDDS config from devcontainer ---
+      - ../isaac_sim/.devcontainer/cyclonedds.xml:/etc/cyclonedds.xml:ro
+
+    # Optional: run shell instead of Isaac GUI for debugging
+    entrypoint: [ "bash" ]
     stdin_open: true
     tty: true
-    network_mode: "host"
-    environment:
-      ACCEPT_EULA: "Y"
-      PRIVACY_CONSENT: "Y"
-      DISPLAY: ${DISPLAY:-}
-      QT_X11_NO_MITSHM: "1"
-      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
-      LD_LIBRARY_PATH: $LD_LIBRARY_PATH:/isaac-sim/exts/isaacsim.ros2.bridge/humble/lib
-    volumes:
-      - ${HOME}/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw
-      - ${HOME}/docker/isaac-sim/cache/ov:/root/.cache/ov:rw
-      - ${HOME}/docker/isaac-sim/cache/pip:/root/.cache/pip:rw
-      - ${HOME}/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache:rw
-      - ${HOME}/docker/isaac-sim/cache/computecache:/root/.nv/ComputeCache:rw
-      - ${HOME}/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw
-      - ${HOME}/docker/isaac-sim/data:/root/.local/share/ov/data:rw
-      - ${HOME}/docker/isaac-sim/documents:/root/Documents:rw
-      - ../../SAGE/isaacsim_4.5.0_ros2_humble/ros2_ws:/isaac-sim/ros2_ws:rw
-    # enable GPUs (recommended) - supported by Docker Compose v2+ / 1.28+
-    gpus: all
-    # optional fallback for older setups (uncomment if needed)
-    # runtime: nvidia
-    restart: "no"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
 
   explorer-launcher:
     extends: explorer_container
