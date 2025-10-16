@@ -100,6 +100,7 @@ This comes from Chromium sandboxing inside the AppImage. Workarounds (setuid bit
 
 
 # IsaacSim
+https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_container.html
 
 docker pull nvcr.io/nvidia/isaac-sim:5.0.0
 
