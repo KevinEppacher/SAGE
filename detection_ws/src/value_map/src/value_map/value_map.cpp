@@ -59,8 +59,10 @@ CallbackReturn ValueMap::on_activate(const rclcpp_lifecycle::State &)
 {
     RCLCPP_INFO(this->get_logger(), "%s[Transition]%s Activating ValueMap...", BLUE, RESET);
 
+    auto interval = std::chrono::duration<double>(1.0 / timerFrequency);
+    RCLCPP_INFO(this->get_logger(), "Publishing with a time interval of %.3f seconds", interval.count());
     timer = this->create_wall_timer(
-        std::chrono::milliseconds(static_cast<int>(timerFrequency)),    
+        std::chrono::duration_cast<std::chrono::milliseconds>(interval),    
         std::bind(&ValueMap::timerCallback, this)
     );
 

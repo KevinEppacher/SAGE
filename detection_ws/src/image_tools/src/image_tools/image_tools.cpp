@@ -3,15 +3,13 @@
 ImageTools::ImageTools()
 : Node("image_tools")
 {
-    // --- Declare parameters ---
+    // --- Parameters ---
     this->declare_parameter<std::string>("input_topic", "/rgb");
-    this->declare_parameter<std::string>("output_topic", "/rgb_throttled");
+    this->declare_parameter<std::string>("output_topic", "/rgb/throttled");
     this->declare_parameter<double>("timer_frequency", 10.0);
     this->declare_parameter<bool>("resize_enabled", false);
     this->declare_parameter<int>("resize_width", 640);
     this->declare_parameter<int>("resize_height", 480);
-    this->declare_parameter<bool>("change_gate_enabled", true);
-    this->declare_parameter<double>("histogram_threshold", 0.5);
 
     // QoS parameters
     this->declare_parameter<std::string>("input_qos.reliability", "best_effort");
@@ -23,15 +21,13 @@ ImageTools::ImageTools()
     this->declare_parameter<std::string>("output_qos.history", "keep_last");
     this->declare_parameter<int>("output_qos.depth", 10);
 
-    // --- Get parameters ---
+    // --- Read parameters ---
     this->get_parameter("input_topic", inputTopic);
     this->get_parameter("output_topic", outputTopic);
     this->get_parameter("timer_frequency", timerFrequency);
     this->get_parameter("resize_enabled", resizeEnabled);
     this->get_parameter("resize_width", resizeWidth);
     this->get_parameter("resize_height", resizeHeight);
-    this->get_parameter("change_gate_enabled", changeGateEnabled);
-    this->get_parameter("histogram_threshold", histogramThreshold);
 
     // --- Setup QoS ---
     rclcpp::QoS inputQos = createQoS("input_qos");
@@ -44,16 +40,15 @@ ImageTools::ImageTools()
     publisher = this->create_publisher<sensor_msgs::msg::Image>(outputTopic, outputQos);
 
     // --- Timer ---
-    auto period = std::chrono::duration<double>(1.0 / timerFrequency);
+    auto interval = std::chrono::duration<double>(1.0 / timerFrequency);
     timer = this->create_wall_timer(
-        std::chrono::duration_cast<std::chrono::milliseconds>(period),
+        std::chrono::duration_cast<std::chrono::milliseconds>(interval),
         std::bind(&ImageTools::timerCallback, this));
 
     RCLCPP_INFO(this->get_logger(),
-        "ImageTools node started. Input: %s | Output: %s | Hz: %.2f | Resize: %s (%dx%d) | Gate: %s | Threshold: %.3f",
+        "ImageTools node started. Input: %s | Output: %s | Hz: %.2f | Resize: %s (%dx%d)",
         inputTopic.c_str(), outputTopic.c_str(), timerFrequency,
-        resizeEnabled ? "enabled" : "disabled", resizeWidth, resizeHeight,
-        changeGateEnabled ? "enabled" : "disabled", histogramThreshold);
+        resizeEnabled ? "enabled" : "disabled", resizeWidth, resizeHeight);
 }
 
 rclcpp::QoS ImageTools::createQoS(const std::string &prefix)
@@ -103,62 +98,42 @@ bool ImageTools::isDepthImage(const std::string &encoding)
     return (encoding == "16UC1" || encoding == "32FC1");
 }
 
-bool ImageTools::hasSignificantChange(const cv::Mat &current, bool isDepth)
+void ImageTools::checkTimerRate()
 {
-    if (current.empty())
-        return false;
-
-    cv::Mat gray;
-
-    // Convert depth to 8-bit normalized for histogram
-    if (isDepth) {
-        cv::Mat depthNormalized;
-        current.convertTo(depthNormalized, CV_32F);
-        double minVal, maxVal;
-        cv::minMaxLoc(depthNormalized, &minVal, &maxVal);
-        depthNormalized = (depthNormalized - minVal) / (maxVal - minVal + 1e-6);
-        depthNormalized.convertTo(gray, CV_8U, 255.0);
-    } else {
-        cv::cvtColor(current, gray, cv::COLOR_BGR2GRAY);
+    rclcpp::Time now = this->now();
+    if (firstCallback) {
+        firstCallback = false;
+        lastCallbackTime = now;
+        return;
     }
 
-    // Compute histogram
-    int histSize = 256;
-    float range[] = {0, 256};
-    const float *histRange = {range};
-    cv::Mat hist;
-    cv::calcHist(&gray, 1, 0, cv::Mat(), hist, 1, &histSize, &histRange);
-    cv::normalize(hist, hist, 0, 1, cv::NORM_MINMAX);
+    double elapsed = (now - lastCallbackTime).seconds();
+    double expected = 1.0 / timerFrequency;
+    lastCallbackTime = now;
 
-    if (!hasPreviousHist) {
-        previousHist = hist.clone();
-        hasPreviousHist = true;
-        RCLCPP_DEBUG(this->get_logger(), "First frame -> publish");
-        return true;
+    if (std::abs(elapsed - expected) > expected * 0.2) {
+        RCLCPP_WARN_THROTTLE(
+            this->get_logger(),
+            *this->get_clock(),
+            5000,
+            "Timer drift: actual %.4fs vs expected %.4fs (%.1f%% off)",
+            elapsed, expected, ((elapsed - expected) / expected) * 100.0);
     }
-
-    // Compare histograms (Chi-Square)
-    double diff = cv::compareHist(previousHist, hist, cv::HISTCMP_CHISQR);
-    previousHist = hist.clone();
-
-    RCLCPP_DEBUG(this->get_logger(), "Histogram diff: %.4f (threshold %.3f)", diff, histogramThreshold);
-    return diff > histogramThreshold;
 }
 
 void ImageTools::timerCallback()
 {
+    checkTimerRate();
+
     if (!latestImage)
         return;
 
     try {
         const std::string encoding = latestImage->encoding;
-        bool isDepth = isDepthImage(encoding);
+        isDepthImage(encoding);
 
         cv::Mat cv_image = cv_bridge::toCvShare(latestImage, encoding)->image;
         cv::Mat processed = resizeImage(cv_image);
-
-        if (changeGateEnabled && !hasSignificantChange(processed, isDepth))
-            return;
 
         auto header = latestImage->header;
         auto out = cv_bridge::CvImage(header, encoding, processed).toImageMsg();

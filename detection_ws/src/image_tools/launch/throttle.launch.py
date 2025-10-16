@@ -9,7 +9,7 @@ import os
 def generate_launch_description():
 
     sim_time_arg = DeclareLaunchArgument(
-        'use_sim_time', default_value='true',
+        'use_sim_time', default_value='false',
         description='Flag to enable use_sim_time'
     )
 
@@ -28,10 +28,23 @@ def generate_launch_description():
         'rviz.rviz'
     )
 
-    image_tools = Node(
+    rgb_throttle = Node(
         package="image_tools",
         executable='image_tools_node',
-        name="image_throttle",
+        name="rgb_throttle",
+        output='screen',
+        emulate_tty=True,
+        # arguments=['--ros-args', '--log-level', 'debug'],
+        parameters=[
+            {'use_sim_time': use_sim_time},
+            image_tools_config
+        ]
+    )
+
+    depth_throttle = Node(
+        package="image_tools",
+        executable='image_tools_node',
+        name="depth_throttle",
         output='screen',
         emulate_tty=True,
         # arguments=['--ros-args', '--log-level', 'debug'],
@@ -48,6 +61,7 @@ def generate_launch_description():
 
     ld = LaunchDescription()
     ld.add_action(sim_time_arg)
-    ld.add_action(image_tools)
+    ld.add_action(rgb_throttle)
+    ld.add_action(depth_throttle)
     ld.add_action(rviz_node)
     return ld

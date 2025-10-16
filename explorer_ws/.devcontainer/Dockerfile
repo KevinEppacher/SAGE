@@ -1,6 +1,6 @@
 # ROS distribution to use
 ARG ROS_DISTRO=humble
-ARG RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+# ARG RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
 ########################################################
 # Base Image with External Dependencies
@@ -22,41 +22,41 @@ ENV NVIDIA_REQUIRE_CUDA "cuda>=11.3"
 ENV PATH /usr/local/cuda/bin:${PATH}
 ENV LD_LIBRARY_PATH /usr/local/cuda/lib64:${LD_LIBRARY_PATH}
 
-########################################################
-# Middleware installations
-########################################################
+# ########################################################
+# # Middleware installations
+# ########################################################
 
 # Install both RMW middlewares
 RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
     ros-${ROS_DISTRO}-rmw-zenoh-cpp
 
-# Copy Cyclone DDS XML config (must be present in build context)
-COPY cyclonedds.xml /etc/cyclonedds.xml
+# # Copy Cyclone DDS XML config (must be present in build context)
+# COPY cyclonedds.xml /etc/cyclonedds.xml
 
-# Copy Zenoh config files (must be present in build context)
-COPY MY_ZENOH_ROUTER_CONFIG.json5 /root/MY_ZENOH_ROUTER_CONFIG.json5
-COPY MY_ZENOH_SESSION_CONFIG.json5 /root/MY_ZENOH_SESSION_CONFIG.json5
+# # Copy Zenoh config files (must be present in build context)
+# COPY MY_ZENOH_ROUTER_CONFIG.json5 /root/MY_ZENOH_ROUTER_CONFIG.json5
+# COPY MY_ZENOH_SESSION_CONFIG.json5 /root/MY_ZENOH_SESSION_CONFIG.json5
 
-# --- Default configuration (CycloneDDS for local performance) ---
-ENV RCUTILS_COLORIZED_OUTPUT=1
-ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-# ENV CYCLONEDDS_URI=file:///etc/cyclonedds.xml
-ENV CYCLONEDDS_URI=/etc/cyclonedds.xml
+# # --- Default configuration (CycloneDDS for local performance) ---
+# ENV RCUTILS_COLORIZED_OUTPUT=1
+# ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+# # ENV CYCLONEDDS_URI=file:///etc/cyclonedds.xml
+# ENV CYCLONEDDS_URI=/etc/cyclonedds.xml
 
-# --- Zenoh optional configuration placeholders (used when overridden) ---
-ENV ZENOH_ROUTER_CONFIG_URI=/root/MY_ZENOH_ROUTER_CONFIG.json5
-ENV ZENOH_SESSION_CONFIG=/root/MY_ZENOH_SESSION_CONFIG.json5
+# # --- Zenoh optional configuration placeholders (used when overridden) ---
+# ENV ZENOH_ROUTER_CONFIG_URI=/root/MY_ZENOH_ROUTER_CONFIG.json5
+# ENV ZENOH_SESSION_CONFIG=/root/MY_ZENOH_SESSION_CONFIG.json5
 
-# --- ROS setup for all shells ---
-RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc && \
-    echo 'echo \"Active RMW: $RMW_IMPLEMENTATION\"' >> /root/.bashrc && \
-    echo 'if [ \"$RMW_IMPLEMENTATION\" = \"rmw_cyclonedds_cpp\" ]; then echo \"Using CycloneDDS → $CYCLONEDDS_URI\"; fi' >> /root/.bashrc && \
-    echo 'if [ \"$RMW_IMPLEMENTATION\" = \"rmw_zenoh_cpp\" ]; then echo \"Using Zenoh → $ZENOH_SESSION_CONFIG\"; fi' >> /root/.bashrc
+# # --- ROS setup for all shells ---
+# RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc && \
+#     echo 'echo \"Active RMW: $RMW_IMPLEMENTATION\"' >> /root/.bashrc && \
+#     echo 'if [ \"$RMW_IMPLEMENTATION\" = \"rmw_cyclonedds_cpp\" ]; then echo \"Using CycloneDDS → $CYCLONEDDS_URI\"; fi' >> /root/.bashrc && \
+#     echo 'if [ \"$RMW_IMPLEMENTATION\" = \"rmw_zenoh_cpp\" ]; then echo \"Using Zenoh → $ZENOH_SESSION_CONFIG\"; fi' >> /root/.bashrc
 
-########################################################
-# End Middleware installations
-########################################################
+# ########################################################
+# # End Middleware installations
+# ########################################################
 
 # Install cppzmq (header-only) from source
 RUN git clone --depth=1 https://github.com/zeromq/cppzmq /tmp/cppzmq \
@@ -82,11 +82,6 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
  && apt-get update -y \
  && rosdep install --from-paths src --ignore-src --rosdistro ${ROS_DISTRO} -y \
  && colcon build --symlink-install
-
-# Set up the entrypoint
-COPY entrypoint.sh /
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT [ "/entrypoint.sh" ]
 
 ########################################################
 # Development Overlay Image #
@@ -149,8 +144,15 @@ RUN sudo chsh -s /bin/bash $USERNAME
 RUN sudo usermod --append --groups video $USERNAME
 
 # Set up user bashrc
-RUN echo "source /entrypoint.sh" >> /home/${USERNAME}/.bashrc \
- && echo 'alias groot="/usr/local/bin/groot"' >> /home/${USERNAME}/.bashrc
+RUN echo 'alias groot="/usr/local/bin/groot"' >> /home/${USERNAME}/.bashrc
  
+# Set RMW to FastRTPS by default and point to custom FastDDS config
+RUN echo 'export RMW_IMPLEMENTATION=rmw_fastrtps_cpp' >> /home/${USERNAME}/.bashrc \
+ && echo 'export FASTRTPS_DEFAULT_PROFILES_FILE=/app/.devcontainer/fastrtps/fastdds.xml' >> /home/${USERNAME}/.bashrc
+# Set up the entrypoint
+COPY bash/entrypoint.sh /
+RUN sudo chmod +x /entrypoint.sh
+ENTRYPOINT [ "/entrypoint.sh" ]
+RUN echo "source /entrypoint.sh" >> /home/${USERNAME}/.bashrc
 # Set working directory to overlay workspace
 WORKDIR /app

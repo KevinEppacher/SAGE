@@ -131,11 +131,11 @@ services:
       - ACCEPT_EULA=Y
       - PRIVACY_CONSENT=Y
 
-      # === CycloneDDS settings ===
-      - ISAAC_ROS_BRIDGE_DISABLE=1
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - ROS_DOMAIN_ID=0
-      - CYCLONEDDS_URI=file:///etc/cyclonedds.xml
+      # # === CycloneDDS settings ===
+      # - ISAAC_ROS_BRIDGE_DISABLE=1
+      # - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      # - ROS_DOMAIN_ID=0
+      # - CYCLONEDDS_URI=file:///etc/cyclonedds.xml
 
       # === CUDA / GPU passthrough ===
       - NVIDIA_VISIBLE_DEVICES=all
@@ -157,10 +157,9 @@ services:
       # --- ROS 2 workspace ---
       - ../isaac_sim:/isaac-sim/ros2_ws:rw
 
-      # --- CycloneDDS config from devcontainer ---
-      - ../isaac_sim/.devcontainer/cyclonedds.xml:/etc/cyclonedds.xml:ro
+      # # --- CycloneDDS config from devcontainer ---
+      # - ../isaac_sim/.devcontainer/cyclonedds.xml:/etc/cyclonedds.xml:ro
 
-    # Optional: run shell instead of Isaac GUI for debugging
     entrypoint: [ "bash" ]
     stdin_open: true
     tty: true

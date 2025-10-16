@@ -18,41 +18,44 @@ ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 ENV NVIDIA_REQUIRE_CUDA="cuda>=12.1"
 
-########################################################
-# Middleware installations
-########################################################
+# ########################################################
+# # Middleware installations
+# ########################################################
 
 # Install both RMW middlewares
 RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
     ros-${ROS_DISTRO}-rmw-zenoh-cpp
 
-# Copy Cyclone DDS XML config (must be present in build context)
-COPY cyclonedds.xml /etc/cyclonedds.xml
+RUN echo 'export RMW_IMPLEMENTATION=rmw_fastrtps_cpp' >> /home/${USERNAME}/.bashrc \
+ && echo 'export FASTRTPS_DEFAULT_PROFILES_FILE=/app/.devcontainer/fastrtps/fastdds.xml' >> /home/${USERNAME}/.bashrc
 
-# Copy Zenoh config files (must be present in build context)
-COPY MY_ZENOH_ROUTER_CONFIG.json5 /root/MY_ZENOH_ROUTER_CONFIG.json5
-COPY MY_ZENOH_SESSION_CONFIG.json5 /root/MY_ZENOH_SESSION_CONFIG.json5
+# # Copy Cyclone DDS XML config (must be present in build context)
+# COPY cyclonedds.xml /etc/cyclonedds.xml
 
-# --- Default configuration (CycloneDDS for local performance) ---
-ENV RCUTILS_COLORIZED_OUTPUT=1
-ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-# ENV CYCLONEDDS_URI=file:///etc/cyclonedds.xml
-ENV CYCLONEDDS_URI=/etc/cyclonedds.xml
+# # Copy Zenoh config files (must be present in build context)
+# COPY MY_ZENOH_ROUTER_CONFIG.json5 /root/MY_ZENOH_ROUTER_CONFIG.json5
+# COPY MY_ZENOH_SESSION_CONFIG.json5 /root/MY_ZENOH_SESSION_CONFIG.json5
 
-# --- Zenoh optional configuration placeholders (used when overridden) ---
-ENV ZENOH_ROUTER_CONFIG_URI=/root/MY_ZENOH_ROUTER_CONFIG.json5
-ENV ZENOH_SESSION_CONFIG=/root/MY_ZENOH_SESSION_CONFIG.json5
+# # --- Default configuration (CycloneDDS for local performance) ---
+# ENV RCUTILS_COLORIZED_OUTPUT=1
+# ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+# # ENV CYCLONEDDS_URI=file:///etc/cyclonedds.xml
+# ENV CYCLONEDDS_URI=/etc/cyclonedds.xml
 
-# --- ROS setup for all shells ---
-RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc && \
-    echo 'echo \"Active RMW: $RMW_IMPLEMENTATION\"' >> /root/.bashrc && \
-    echo 'if [ \"$RMW_IMPLEMENTATION\" = \"rmw_cyclonedds_cpp\" ]; then echo \"Using CycloneDDS → $CYCLONEDDS_URI\"; fi' >> /root/.bashrc && \
-    echo 'if [ \"$RMW_IMPLEMENTATION\" = \"rmw_zenoh_cpp\" ]; then echo \"Using Zenoh → $ZENOH_SESSION_CONFIG\"; fi' >> /root/.bashrc
+# # --- Zenoh optional configuration placeholders (used when overridden) ---
+# ENV ZENOH_ROUTER_CONFIG_URI=/root/MY_ZENOH_ROUTER_CONFIG.json5
+# ENV ZENOH_SESSION_CONFIG=/root/MY_ZENOH_SESSION_CONFIG.json5
 
-########################################################
-# End Middleware installations
-########################################################
+# # --- ROS setup for all shells ---
+# RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc && \
+#     echo 'echo \"Active RMW: $RMW_IMPLEMENTATION\"' >> /root/.bashrc && \
+#     echo 'if [ \"$RMW_IMPLEMENTATION\" = \"rmw_cyclonedds_cpp\" ]; then echo \"Using CycloneDDS → $CYCLONEDDS_URI\"; fi' >> /root/.bashrc && \
+#     echo 'if [ \"$RMW_IMPLEMENTATION\" = \"rmw_zenoh_cpp\" ]; then echo \"Using Zenoh → $ZENOH_SESSION_CONFIG\"; fi' >> /root/.bashrc
+
+# ########################################################
+# # End Middleware installations
+# ########################################################
 
 # Add ubuntu user with same UID/GID as host
 ARG USERNAME=ubuntu
@@ -89,7 +92,6 @@ RUN sudo apt update && sudo apt install -y \
     python3-pip \
     ffmpeg
 
-WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 COPY requirements_custom.txt /app/requirements_custom.txt
 
@@ -115,9 +117,13 @@ RUN sudo apt update && sudo apt install -y \
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 RUN echo "source install/setup.bash" >> ~/.bashrc
 
+# Set RMW to FastRTPS by default and point to custom FastDDS config
+RUN echo 'export RMW_IMPLEMENTATION=rmw_fastrtps_cpp' >> /home/${USERNAME}/.bashrc \
+ && echo 'export FASTRTPS_DEFAULT_PROFILES_FILE=/app/.devcontainer/fastrtps/fastdds.xml' >> /home/${USERNAME}/.bashrc
 # Set up the entrypoint
-COPY entrypoint.sh /
+COPY bash/entrypoint.sh /
 RUN sudo chmod +x /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]
-RUN echo "source /entrypoint.sh" >> /home/${USERNAME}/.bashrc 
-
+RUN echo "source /entrypoint.sh" >> /home/${USERNAME}/.bashrc
+# Set working directory to overlay workspace
+WORKDIR /app
