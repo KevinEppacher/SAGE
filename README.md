@@ -115,6 +115,18 @@ docker run --name isaac-sim --entrypoint bash -it --runtime=nvidia --gpus all -e
     -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
     -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
     -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-    -v ../../SAGE/isaac_sim:/isaac-sim/ros2_ws:rw \
+    -v ../isaac_sim:/isaac-sim/ros2_ws:rw \
     nvcr.io/nvidia/isaac-sim:5.0.0
 ```
+
+FastDDS (default):
+export ROS_DISTRO=humble
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/humble/lib
+
+OR
+
+CycloneDDS:
+export ROS_DISTRO=humble
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/humble/lib

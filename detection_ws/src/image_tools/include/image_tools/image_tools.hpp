@@ -14,9 +14,9 @@ public:
 private:
     void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg);
     void timerCallback();
+    void checkTimerRate();
     rclcpp::QoS createQoS(const std::string &prefix);
     cv::Mat resizeImage(const cv::Mat &input);
-    bool hasSignificantChange(const cv::Mat &current, bool isDepth);
     bool isDepthImage(const std::string &encoding);
 
     // Parameters
@@ -26,8 +26,6 @@ private:
     bool resizeEnabled;
     int resizeWidth;
     int resizeHeight;
-    bool changeGateEnabled;
-    double histogramThreshold;
 
     // ROS entities
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscription;
@@ -35,9 +33,9 @@ private:
     rclcpp::TimerBase::SharedPtr timer;
     sensor_msgs::msg::Image::SharedPtr latestImage;
 
-    // Previous histogram
-    cv::Mat previousHist;
-    bool hasPreviousHist = false;
+    // Timer diagnostics
+    rclcpp::Time lastCallbackTime;
+    bool firstCallback = true;
 };
 
 #endif  // IMAGE_TOOLS_HPP

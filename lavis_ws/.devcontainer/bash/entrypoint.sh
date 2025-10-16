@@ -26,10 +26,5 @@ then
   echo "Sourced bash aliases"
 fi
 
-# Apply CycloneDDS configuration for this workspace
-if [ -f /app/.devcontainer/set_cyclonedds_env.sh ]; then
-  source /app/.devcontainer/set_cyclonedds_env.sh
-fi
-
 # Execute the command passed into this entrypoint
 exec "$@"

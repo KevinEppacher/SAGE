@@ -4,9 +4,6 @@
   <BehaviorTree ID="SAGE_SingleObject">
     <RetryUntilSuccessful num_attempts="-1">
       <ReactiveFallback>
-        <Spin360 min_yaw="0"
-                 max_yaw="6.2"
-                 spin_duration="15.0"/>
         <Sequence>
           <IsDetected detection_threshold="0.1"
                       detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
@@ -18,6 +15,9 @@
                          robot_frame="base_link"
                          map_frame="map"/>
         </Sequence>
+        <Spin360 min_yaw="0"
+                 max_yaw="6.2"
+                 spin_duration="15.0"/>
       </ReactiveFallback>
     </RetryUntilSuccessful>
   </BehaviorTree>
