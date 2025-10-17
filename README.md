@@ -130,3 +130,9 @@ CycloneDDS:
 export ROS_DISTRO=humble
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/humble/lib
+
+Sync clocks (important if using containers or IsaacSim):
+```bash
+sudo apt install chrony
+sudo systemctl enable chrony --now
+```

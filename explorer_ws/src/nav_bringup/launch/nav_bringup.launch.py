@@ -48,7 +48,7 @@ def generate_launch_description():
     nav2_config =  os.path.join(
         get_package_share_directory('nav_bringup'),
         'config',
-        'nav2_params.yaml'
+        'carter_nav2_params.yaml'
     )
 
     # SLAM Toolbox
@@ -72,7 +72,7 @@ def generate_launch_description():
 
     # Nav2 (mit Timer-Verzögerung)
     delayed_nav2_stack = TimerAction(
-        period=2.0,
+        period=5.0,
         actions=[nav2_stack_launch]
     )
 
