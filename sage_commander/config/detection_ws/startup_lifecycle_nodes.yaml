@@ -1,0 +1,6 @@
+sequential_lifecycle_launch:
+  ros__parameters:
+    target_nodes:
+      # - /seem_ros/seem_lifecycle_node
+      - /value_map/value_map_node
+    timeout_sec: 60.0
