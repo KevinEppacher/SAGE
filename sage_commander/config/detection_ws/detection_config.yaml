@@ -1,0 +1,83 @@
+sequential_lifecycle_launch:
+  ros__parameters:
+    target_nodes:
+      - /seem_ros/seem_lifecycle_node
+      - /value_map/value_map_node
+    timeout_sec: 60.0
+
+yoloe:
+  yoloe_node:
+    ros__parameters:
+      # --- I/O topics ---
+      rgb_topic: "/rgb"                 # camera image topic (sensor_msgs/Image)
+      prompt_topic: "/user_prompt"      # multimodal_query_msgs/SemanticPrompt (uses text_query only)
+      prompt_delimiter: ","             # split phrases by comma, e.g. "black chair, pink hat"
+
+      # --- Model selection ---
+      backend: "yoloe"                  # kept for flexibility; used to build local model path
+      weights: "yoloe-11l-seg.pt"       # filename or absolute path
+      download_url: ""                  # optional http(s) url; leave empty if weights are local
+
+      # Initial class prompts (can be updated at runtime via /user_prompt)
+      prompts: ["person", "chair", "bottle"]
+
+      # --- Inference ---
+      imgsz: 640                        # inference resolution
+      conf: 0.25                        # confidence threshold
+      iou: 0.50                         # NMS IoU threshold
+
+      # --- Publishers toggles ---
+      publish_overlay: true             # publishes Image on "overlay"
+      publish_detections: true          # publishes Detection2DArray on "detections"
+      publish_score_mask: true          # publishes 32FC1 "score_mask_raw" and mono8 "score_mask_debug"
+      publish_instance_mask: true       # publishes 16UC1 "instance_id_mask"
+
+yoloe:
+  semantic_pointcloud:
+    ros__parameters:
+      # Input topics
+      score_topic: "/yoloe/score_mask_raw"      # Image (32FC1), values in [0,1]
+      id_topic: "/yoloe/instance_id_mask"       # Image (16UC1), instance labels
+      depth_topic: "/depth"                     # Depth image (16UC1 mm or 32FC1 m)
+      camera_info_topic: "/camera_info"         # Camera intrinsics
+
+      # Output topic
+      cloud_topic: "/yoloe/semantic_pointcloud_xyzi"         # PointCloud2 with x,y,z,intensity,instance
+
+      # Processing parameters
+      score_threshold: 0.01     # ignore low scores
+      depth_min: 0.05           # meters
+      depth_max: 10.0           # meters
+      stride: 1                 # subsample pixels (1=no skip, 2=every 2nd, etc.)
+      frame_id: "carter_camera_stereo_right"        # frame for PointCloud2 header
+
+detection_graph_nodes:
+  cloud_cluster_node:
+    ros__parameters:
+      publish_frequency: 10.0  # Hz
+      cluster_tolerance: 0.15 # cm
+      min_cluster_size: 100
+      max_cluster_size: 25000
+      voxel_leaf_size: 0.03  # reduce voxel size (cm), for better performance
+      frame_id: "map"  # refrence frame for node graph
+      target_frame: "map"
+      semantic_pointcloud_topic: "/yoloe/semantic_pointcloud_xyzi"  # topic for point cloud data
+      publish_bounding_boxes: false
+
+value_map:
+  value_map:
+    ros__parameters:
+      vlm_target_namespace: "/blip2_ros" # Namespace for the Value Map Node
+      timer_frequency: 100.0  # Default timer frequency in ms
+      semantic_prompt_topic: "/user_prompt"  # Topic for semantic prompts
+      semantic_map:
+        confidence_sharpness: 2.0   # cs < 2.0 smoothens the map, cs > 2.0 sharpens it
+        decay_factor: 1.0          # decay factor for previous values | at start 1.0, then eg. 0.99
+        max_range: 10.0           # Maximum range for semantic mapping
+        map_topic: "/map"  # Topic for the occupancy grid map
+        camera_info_topic: "/camera_info"  # Topic for the camera info
+        visualize_confidence_map: false  # Flag to visualize the confidence map
+      robot:
+        map_frame: "map" # Parent frame for the robot
+        camera_link_frame: "carter_camera_stereo_right" # Frame of the RGB camera
+      rgb_topic: "/rgb"  # Topic for the RGB images

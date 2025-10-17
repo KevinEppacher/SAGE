@@ -23,6 +23,7 @@ services:
       - apparmor:unconfined
     volumes:
       - ../../SAGE/explorer_ws:/app
+      - ../sage_commander:/app/src/sage_commander
       - /tmp/.X11-unix:/tmp/.X11-unix
       - $XAUTHORITY:/root/.Xauthority
     environment:
@@ -52,6 +53,7 @@ services:
               capabilities: [gpu]
     volumes:
       - ../../SAGE/exploitation_ws:/app
+      - ../sage_commander:/app/src/sage_commander
       - /tmp/.X11-unix:/tmp/.X11-unix
       - $XAUTHORITY:/root/.Xauthority
     environment:
@@ -81,6 +83,7 @@ services:
               capabilities: [gpu]
     volumes:
       - ../../SAGE/detection_ws:/app
+      - ../sage_commander:/app/src/sage_commander
       - /tmp/.X11-unix:/tmp/.X11-unix
       - $XAUTHORITY:/root/.Xauthority
       - ~/.cache/huggingface:/root/.cache/huggingface
@@ -111,6 +114,7 @@ services:
               capabilities: [gpu]
     volumes:
       - ../../SAGE/lavis_ws:/app
+      - ../sage_commander:/app/src/sage_commander
       - /tmp/.X11-unix:/tmp/.X11-unix
       - $XAUTHORITY:/root/.Xauthority
       - ~/.cache/huggingface:/root/.cache/huggingface
