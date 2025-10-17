@@ -1,6 +1,3 @@
-[submodule "IsaacLab"]
-	path = IsaacLab
-	url = https://github.com/KevinEppacher/IsaacLab.git
 [submodule "detection_ws/src/seem_ros"]
 	path = detection_ws/src/seem_ros
 	url = https://github.com/KevinEppacher/seem_ros.git
