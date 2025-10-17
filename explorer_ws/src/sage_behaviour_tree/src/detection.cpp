@@ -25,8 +25,6 @@ BT::PortsList IsDetected::providedPorts()
             "detection_graph_node_topic",
             "/detection_graph_nodes/graph_nodes",
             "GraphNodeArray topic"),
-        BT::InputPort<int>(
-            "max_missed_ticks", 10, "Max ticks to wait for a message"),
         BT::OutputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>(
             "graph_nodes", "Best detected GraphNode")
     };
@@ -36,7 +34,7 @@ BT::NodeStatus IsDetected::tick()
 {
     if (!received_message_) 
     {
-        RCLCPP_WARN(node_ptr_->get_logger(), "No message received yet on the topic %s", 
+        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] No message received yet on the topic %s. Returning RUNNING", name().c_str(),
                     sub_->get_topic_name());
         return BT::NodeStatus::RUNNING;
     }
@@ -57,19 +55,19 @@ BT::NodeStatus IsDetected::tick()
 
     if (!best_node) 
     {
-        RCLCPP_WARN(node_ptr_->get_logger(), "No nodes in the latest message");
+        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] No nodes in the latest message. Returning FAILURE", name().c_str());
         return BT::NodeStatus::FAILURE;
     }
     setOutput("graph_nodes", best_node);
 
-    RCLCPP_INFO(node_ptr_->get_logger(), "Best node ID: %d with score: %.2f. Returning SUCCESS", best_node->id, best_node->score);
+    RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Best node ID: %d with score: %.2f. Returning SUCCESS", name().c_str(), best_node->id, best_node->score);
 
 
     if(max_score >= threshold) {
-        RCLCPP_INFO(node_ptr_->get_logger(), "Detection threshold met: %.2f >= %.2f", max_score, threshold);
+        RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Detection threshold met: %.2f >= %.2f", name().c_str(), max_score, threshold);
     } else {
-        RCLCPP_WARN(node_ptr_->get_logger(), "Detection threshold not met: %.2f < %.2f", max_score, threshold);
-    }   
+        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Detection threshold not met: %.2f < %.2f", name().c_str(), max_score, threshold);
+    }
 
     return (max_score >= threshold) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }

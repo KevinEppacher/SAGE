@@ -92,25 +92,28 @@ BT::NodeStatus Spin360::onStart()
 
 BT::NodeStatus Spin360::onRunning()
 {
+    if (was_halted_) {
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    "[%s] Halted externally — skipping further spins.", name().c_str());
+        was_halted_ = false;      // reset for next run
+        return BT::NodeStatus::FAILURE;
+    }
+
     if (!done_flag_) return BT::NodeStatus::RUNNING;
 
-    // First spin completed, start second one if needed
     if (!phase_two_ && min_yaw_ != 0.0 && max_yaw_ != 0.0)
     {
         phase_two_ = true;
         done_flag_ = false;
-
         RCLCPP_INFO(node_ptr_->get_logger(),
                     "[%s] First spin done — now spinning back %.2f rad", name().c_str(), min_yaw_);
         sendSpinGoal(min_yaw_, spin_duration_);
         return BT::NodeStatus::RUNNING;
     }
 
-    // All done
     if (nav_result_ == rclcpp_action::ResultCode::SUCCEEDED)
     {
-        RCLCPP_INFO(node_ptr_->get_logger(),
-                    "[%s] Spin complete.", name().c_str());
+        RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Spin complete.", name().c_str());
         return BT::NodeStatus::SUCCESS;
     }
 
@@ -122,6 +125,8 @@ BT::NodeStatus Spin360::onRunning()
 
 void Spin360::onHalted()
 {
+    was_halted_ = true;
+
     if (client_ptr_ && goal_handle_future_.valid())
     {
         auto goal_handle = goal_handle_future_.get();
@@ -186,6 +191,7 @@ BT::PortsList GoToGraphNode::providedPorts()
         BT::InputPort<double>("approach_radius", 2.0, "Approach distance in meters"),
         BT::InputPort<std::string>("goal_topic", "/goal_pose", "Goal topic to publish to"),
         BT::InputPort<std::string>("robot_frame", "base_link", "Robot frame for TF lookup"),
+        BT::InputPort<int>("max_changed_targets", 3, "Maximum number of changed targets"),
         BT::InputPort<std::string>("map_frame", "map", "Map frame for TF lookup")
     };
 }
@@ -202,6 +208,9 @@ BT::NodeStatus GoToGraphNode::onStart()
     getInput("goal_topic", goal_topic_);
     getInput("robot_frame", robot_frame_);
     getInput("map_frame", map_frame_);
+    getInput("max_changed_targets", max_changed_targets_);
+
+    changed_target_count_ = 0;  // reset counter for new execution
 
     auto node_res = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_nodes");
     if (!node_res) {
@@ -224,7 +233,6 @@ BT::NodeStatus GoToGraphNode::onStart()
         return BT::NodeStatus::SUCCESS;
     }
 
-    last_publish_time_ = node_ptr_->now();
     publishGoalToTarget(*target_node_);
     return BT::NodeStatus::RUNNING;
 }
@@ -232,6 +240,12 @@ BT::NodeStatus GoToGraphNode::onStart()
 // -------------------- onRunning -------------------- //
 BT::NodeStatus GoToGraphNode::onRunning()
 {
+    if (!target_node_) {
+        RCLCPP_WARN(node_ptr_->get_logger(),
+                    "[%s] No active target node. Returning FAILURE.", name().c_str());
+        return BT::NodeStatus::FAILURE;
+    }
+
     // Check proximity before publishing
     if (isWithinGoal(*target_node_)) {
         RCLCPP_INFO(node_ptr_->get_logger(),
@@ -241,14 +255,21 @@ BT::NodeStatus GoToGraphNode::onRunning()
     }
 
     auto node_res = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_nodes");
-    if (node_res && targetChanged(*node_res.value()))
-        target_node_ = node_res.value();
 
-    // Publish periodically
-    auto now = node_ptr_->now();
-    if ((now - last_publish_time_).seconds() >= 0.1) {
+    if (node_res && targetChanged(*node_res.value()) && changed_target_count_ < max_changed_targets_) {
+        changed_target_count_++;
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    "[%s] Target changed, updating goal (change count: %d).",
+                    name().c_str(), changed_target_count_);
+        target_node_ = node_res.value();
         publishGoalToTarget(*target_node_);
-        last_publish_time_ = now;
+    }
+
+    if(isWithinGoal(*target_node_)) {
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    "[%s] Within %.2fm of target after update — SUCCESS.",
+                    name().c_str(), approach_radius_);
+        return BT::NodeStatus::SUCCESS;
     }
 
     return BT::NodeStatus::RUNNING;
@@ -257,6 +278,8 @@ BT::NodeStatus GoToGraphNode::onRunning()
 // -------------------- onHalted -------------------- //
 void GoToGraphNode::onHalted()
 {
+    changed_target_count_ = 0;
+
     RCLCPP_INFO(node_ptr_->get_logger(),
                 "[%s] Halting — stopping goal publishing.", name().c_str());
 }

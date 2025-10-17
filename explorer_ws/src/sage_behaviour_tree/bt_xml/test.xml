@@ -2,24 +2,34 @@
 <root BTCPP_format="4"
       main_tree_to_execute="SAGE_SingleObject">
   <BehaviorTree ID="SAGE_SingleObject">
-    <RetryUntilSuccessful num_attempts="-1">
-      <ReactiveFallback>
-        <Sequence>
-          <IsDetected detection_threshold="0.1"
-                      detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
-                      max_missed_ticks="{max_missed_ticks}"
-                      graph_nodes="{graph_nodes}"/>
-          <GoToGraphNode graph_nodes="{graph_nodes}"
-                         approach_radius="2.5"
-                         goal_topic="/goal_pose"
-                         robot_frame="base_link"
-                         map_frame="map"/>
-        </Sequence>
-        <Spin360 min_yaw="0"
-                 max_yaw="6.2"
-                 spin_duration="15.0"/>
-      </ReactiveFallback>
-    </RetryUntilSuccessful>
+<RepeatUntilFailure>
+  <ReactiveFallback>
+    <!-- 1. Try to detect -->
+    <Sequence>
+      <IsDetected detection_threshold="0.1"
+                  detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
+                  max_missed_ticks="{max_missed_ticks}"
+                  graph_nodes="{graph_nodes}"/>
+      <GoToGraphNode graph_nodes="{graph_nodes}"
+                     approach_radius="2.5"
+                     goal_topic="/goal_pose"
+                     robot_frame="base_link"
+                     map_frame="map"/>
+    </Sequence>
+
+    <!-- 2. If nothing detected, explore -->
+    <Sequence>
+      <CheckIfExplorationAvailable/>
+      <Spin360 min_yaw="0" max_yaw="6.2" spin_duration="15.0"/>
+      <GoToGraphNode graph_nodes="{exploration_nodes}"
+                     approach_radius="3"
+                     goal_topic="/goal_pose"
+                     robot_frame="base_link"
+                     map_frame="map"/>
+    </Sequence>
+  </ReactiveFallback>
+</RepeatUntilFailure>
+
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->

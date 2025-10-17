@@ -20,15 +20,10 @@ def generate_launch_description():
     tree_path = os.path.join(
         get_package_share_directory("sage_behaviour_tree"),
         'bt_xml',
-        'test.xml'
-        # 'test_single_search.xml'
+        # 'test.xml'
+        'test_single_search.xml'
     )
 
-    sage_bt_config = os.path.join(
-        get_package_share_directory("sage_behaviour_tree"),
-        'config',
-        'sage_bt_config.yaml'
-    )
 
     # Behaviour Tree node
     sage_bt_node = Node(
@@ -42,7 +37,6 @@ def generate_launch_description():
         parameters=[
             {'use_sim_time': use_sim_time},
             {'tree_xml_file': tree_path},
-            sage_bt_config
         ] 
     )
     

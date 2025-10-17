@@ -7,18 +7,20 @@
                      output_key="min_yaw"/>
       <SetBlackboard value="6.28319"
                      output_key="max_yaw"/>
-      <RetryUntilSuccessful num_attempts="-1">
+      <KeepRunningUntilFailure>
         <ReactiveFallback>
           <Sequence>
-            <IsDetected detection_threshold="{detection_threshold}"
-                        detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
-                        max_missed_ticks="{max_missed_ticks}"
+            <IsDetected name="Target object detected?"
+                        detection_threshold="0.7"
+                        detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
                         graph_nodes="{graph_nodes}"/>
-            <GoToGraphNode graph_nodes="{graph_nodes}"
+            <GoToGraphNode name="Go to target object"
+                           graph_nodes="{graph_nodes}"
                            approach_radius="2.5"
                            goal_topic="/goal_pose"
                            robot_frame="base_link"
-                           map_frame="map"/>
+                           map_frame="map"
+                           max_changed_targets="1"/>
           </Sequence>
           <Sequence>
             <SetParameterNode target_node="/value_map/value_map"
@@ -33,31 +35,23 @@
                            output_key="max_yaw"/>
             <SetParameterNode target_node="/value_map/value_map"
                               parameter_name="semantic_map.decay_factor"
-                              value="0.995"/>
+                              value="0.999"/>
             <ReactiveSequence>
-              <ReactiveFallback>
-                <IsDetected detection_threshold="0.0"
-                            detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
-                            max_missed_ticks="8"
-                            graph_nodes="{exploration_nodes}"/>
-                <Sequence>
-                  <SetBlackboard value="0"
-                                 output_key="min_yaw"/>
-                  <SetBlackboard value="6.28319"
-                                 output_key="max_yaw"/>
-                  <AlwaysFailure/>
-                </Sequence>
-              </ReactiveFallback>
-              <GoToGraphNode graph_nodes="{exploration_nodes}"
-                             approach_radius="1"
+              <IsDetected name="Already explored all available GraphNodes?"
+                          detection_threshold="0.0"
+                          detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                          graph_nodes="{exploration_nodes}"/>
+              <GoToGraphNode name="Go to likiest GraphNode"
+                             graph_nodes="{exploration_nodes}"
+                             approach_radius="2"
                              goal_topic="/goal_pose"
                              robot_frame="base_link"
-                             map_frame="map"/>
+                             map_frame="map"
+                             max_changed_targets="1"/>
             </ReactiveSequence>
-            <AlwaysFailure/>
           </Sequence>
         </ReactiveFallback>
-      </RetryUntilSuccessful>
+      </KeepRunningUntilFailure>
     </Sequence>
   </BehaviorTree>
 
@@ -69,14 +63,14 @@
       <input_port name="goal_topic"/>
       <input_port name="robot_frame"/>
       <input_port name="map_frame"/>
+      <input_port name="max_changed_targets"
+                  default="1"/>
     </Action>
     <Condition ID="IsDetected">
       <input_port name="detection_threshold"
                   default="0.8"/>
       <input_port name="detection_graph_node_topic"
                   default="/detection_graph_nodes/graph_nodes"/>
-      <input_port name="max_missed_ticks"
-                  default="8"/>
       <output_port name="graph_nodes"
                    default="latest_nodes"/>
     </Condition>
