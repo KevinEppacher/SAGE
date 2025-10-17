@@ -5,11 +5,56 @@ sequential_lifecycle_launch:
       - /value_map/value_map_node
     timeout_sec: 60.0
 
+rgb_throttle:
+  ros__parameters:
+    input_topic: "/rgb"
+    output_topic: "/rgb/throttled"
+    timer_frequency: 10.0  # Hz
+
+    resize_enabled: false
+    resize_width: 300
+    resize_height: 200
+
+    input_qos:
+      reliability: "best_effort"
+      durability: "volatile"
+      history: "keep_last"
+      depth: 10
+
+    output_qos:
+      reliability: "best_effort"
+      durability: "volatile"
+      history: "keep_last"
+      depth: 5
+
+depth_throttle:
+  ros__parameters:
+    input_topic: "/depth"
+    output_topic: "/depth/throttled"
+    timer_frequency: 10.0  # Hz
+
+    resize_enabled: false
+    resize_width: 300
+    resize_height: 200
+
+    input_qos:
+      reliability: "best_effort"
+      durability: "volatile"
+      history: "keep_last"
+      depth: 10
+
+    output_qos:
+      reliability: "best_effort"
+      durability: "volatile"
+      history: "keep_last"
+      depth: 5
+
+
 yoloe:
   yoloe_node:
     ros__parameters:
       # --- I/O topics ---
-      rgb_topic: "/rgb"                 # camera image topic (sensor_msgs/Image)
+      rgb_topic: "/rgb/throttled"                 # camera image topic (sensor_msgs/Image)
       prompt_topic: "/user_prompt"      # multimodal_query_msgs/SemanticPrompt (uses text_query only)
       prompt_delimiter: ","             # split phrases by comma, e.g. "black chair, pink hat"
 
@@ -38,7 +83,7 @@ yoloe:
       # Input topics
       score_topic: "/yoloe/score_mask_raw"      # Image (32FC1), values in [0,1]
       id_topic: "/yoloe/instance_id_mask"       # Image (16UC1), instance labels
-      depth_topic: "/depth"                     # Depth image (16UC1 mm or 32FC1 m)
+      depth_topic: "/depth/throttled"                     # Depth image (16UC1 mm or 32FC1 m)
       camera_info_topic: "/camera_info"         # Camera intrinsics
 
       # Output topic
@@ -80,4 +125,4 @@ value_map:
       robot:
         map_frame: "map" # Parent frame for the robot
         camera_link_frame: "carter_camera_stereo_right" # Frame of the RGB camera
-      rgb_topic: "/rgb"  # Topic for the RGB images
+      rgb_topic: "/rgb/throttled"  # Topic for the RGB images

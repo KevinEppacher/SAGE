@@ -22,6 +22,32 @@ def generate_launch_description():
         'detection_config.yaml'
     )
 
+    rgb_throttle = Node(
+        package="image_tools",
+        executable='image_tools_node',
+        name="rgb_throttle",
+        output='screen',
+        emulate_tty=True,
+        # arguments=['--ros-args', '--log-level', 'debug'],
+        parameters=[
+            {'use_sim_time': use_sim_time},
+            detection_config
+        ]
+    )
+
+    depth_throttle = Node(
+        package="image_tools",
+        executable='image_tools_node',
+        name="depth_throttle",
+        output='screen',
+        emulate_tty=True,
+        # arguments=['--ros-args', '--log-level', 'debug'],
+        parameters=[
+            {'use_sim_time': use_sim_time},
+            detection_config
+        ]
+    )
+
     # YOLOE lifecycle node
     yoloe_node = LifecycleNode(
         package='yolo_ros',
@@ -87,33 +113,19 @@ def generate_launch_description():
             'autostart': True,
             'bond_timeout': 0.0,
             'node_names': [
-                # '/yoloe/yolo_wrapper',
+                '/yoloe/yolo_wrapper',
                 '/value_map/value_map'
             ]
         }]
     )
 
-    # controller_node = Node(
-    #     package='sage_commander',
-    #     executable='sequential_lifecycle_launch',
-    #     name='sequential_lifecycle_launch',
-    #     output='screen',
-    #     emulate_tty=True,
-    #     parameters=[detection_config]
-    # )
-
-    # start_controller = RegisterEventHandler(
-    #     OnProcessStart(
-    #         target_action=seem_node,
-    #         on_start=[TimerAction(period=0.5, actions=[controller_node])]
-    #     )
-    # )
-
     ld = LaunchDescription()
     ld.add_action(sim_time_arg) 
-    # ld.add_action(yoloe_node)
-    # ld.add_action(semantic_pcl_node)
-    # ld.add_action(cloud_cluster_node)
+    ld.add_action(rgb_throttle)
+    ld.add_action(depth_throttle)
+    ld.add_action(yoloe_node)
+    ld.add_action(semantic_pcl_node)
+    ld.add_action(cloud_cluster_node)
     ld.add_action(value_map_node)
     ld.add_action(lcm)
     return ld
