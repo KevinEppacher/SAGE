@@ -9,9 +9,9 @@ SageBehaviorTreeNode::SageBehaviorTreeNode() : Node("sage_behavior_tree_node")
 {
     declare_parameter<std::string>("location_file", "");
     declare_parameter<std::string>("tree_xml_file", "");
-    declare_parameter<double>("detection.threshold", 0.8);
-    declare_parameter<std::string>("detection.graph_node_topic",
-                                   "/detection_graph_nodes/graph_nodes");
+    // declare_parameter<double>("detection.threshold", 0.8);
+    // declare_parameter<std::string>("detection.graph_node_topic",
+    //                                "/detection_graph_nodes/graph_nodes");
 
     location_file_ = get_parameter("location_file").as_string();
     tree_xml_file_ = get_parameter("tree_xml_file").as_string();
@@ -34,8 +34,8 @@ void SageBehaviorTreeNode::create_behavior_tree()
     factory.registerNodeType<SetParameterNode>("SetParameterNode", shared_from_this());
 
     auto bb = BT::Blackboard::create();
-    bb->set("detection_threshold", get_parameter("detection.threshold").as_double());
-    bb->set("detection_graph_node_topic", get_parameter("detection.graph_node_topic").as_string());
+    // bb->set("detection_threshold", get_parameter("detection.threshold").as_double());
+    // bb->set("detection_graph_node_topic", get_parameter("detection.graph_node_topic").as_string());
     bb->set("location_file", location_file_);
 
     tree_ = factory.createTreeFromFile(tree_xml_file_, bb);

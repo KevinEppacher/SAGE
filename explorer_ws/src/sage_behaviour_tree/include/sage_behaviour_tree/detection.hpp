@@ -19,5 +19,5 @@ private:
     rclcpp::Subscription<graph_node_msgs::msg::GraphNodeArray>::SharedPtr sub_;
     graph_node_msgs::msg::GraphNodeArray::SharedPtr latest_msg_;
     bool received_message_{false};
-    int missed_ticks_{0};
+    int missed_ticks_{8};
 };

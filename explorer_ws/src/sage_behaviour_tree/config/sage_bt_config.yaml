@@ -1,7 +1,0 @@
-sage_behaviour_tree:
-  sage_bt_node:
-    ros__parameters:
-      detection:
-        graph_node_topic: "/detection_graph_nodes/graph_nodes"
-        threshold: 0.6
-      

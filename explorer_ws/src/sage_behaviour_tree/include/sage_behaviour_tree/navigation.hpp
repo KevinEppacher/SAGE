@@ -43,6 +43,7 @@ private:
     double min_yaw_{0.0};
     double max_yaw_{0.0};
     double spin_duration_{15.0};
+    bool was_halted_{false};
 };
 
 
@@ -76,4 +77,6 @@ private:
     std::string goal_topic_;
     std::string robot_frame_, map_frame_;
     double approach_radius_{2.0};
+    int max_changed_targets_{3};
+    int changed_target_count_{0};
 };
