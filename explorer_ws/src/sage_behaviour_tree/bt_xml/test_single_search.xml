@@ -26,13 +26,18 @@
             <SetParameterNode target_node="/value_map/value_map"
                               parameter_name="semantic_map.decay_factor"
                               value="1"/>
+            <SeekoutGraphNodes name="Observe all possible GraphNodes"
+                               graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                               robot_frame="base_link"
+                               map_frame="map"
+                               sight_horizon="10.0"
+                               min_yaw_default="-0.523"
+                               max_yaw_default="0.523"
+                               min_yaw="{min_yaw}"
+                               max_yaw="{max_yaw}"/>
             <Spin360 min_yaw="{min_yaw}"
                      max_yaw="{max_yaw}"
                      spin_duration="15.0"/>
-            <SetBlackboard value="-0.523"
-                           output_key="min_yaw"/>
-            <SetBlackboard value="0.523"
-                           output_key="max_yaw"/>
             <SetParameterNode target_node="/value_map/value_map"
                               parameter_name="semantic_map.decay_factor"
                               value="0.999"/>
@@ -74,6 +79,22 @@
       <output_port name="graph_nodes"
                    default="latest_nodes"/>
     </Condition>
+    <Action ID="SeekoutGraphNodes">
+      <input_port name="graph_node_topic"
+                  default="/fused/exploration_graph_nodes/graph_nodes"/>
+      <input_port name="robot_frame"
+                  default="base_link"/>
+      <input_port name="map_frame"
+                  default="map"/>
+      <input_port name="sight_horizon"
+                  default="10.0"/>
+      <input_port name="min_yaw_default"
+                  default="-0.523"/>
+      <input_port name="max_yaw_default"
+                  default="0.523"/>
+      <output_port name="min_yaw"/>
+      <output_port name="max_yaw"/>
+    </Action>
     <Action ID="SetParameterNode">
       <input_port name="target_node"
                   default="/value_map"/>
