@@ -48,6 +48,36 @@ BT::NodeStatus Spin::onStart()
     return BT::NodeStatus::FAILURE;
   }
 
+    {
+        auto abort_nav_goal = [&](const std::string &action_name)
+        {
+            try
+            {
+            auto generic_client =
+                rclcpp_action::create_client<nav2_msgs::action::NavigateToPose>(
+                    nodePtr_, action_name);
+
+            if (generic_client->wait_for_action_server(100ms))
+            {
+                RCLCPP_INFO(nodePtr_->get_logger(),
+                            "[%s] Aborting existing goal on %s",
+                            name().c_str(), action_name.c_str());
+                generic_client->async_cancel_all_goals();
+            }
+            }
+            catch (const std::exception &e)
+            {
+            RCLCPP_WARN(nodePtr_->get_logger(),
+                        "[%s] Exception while aborting %s: %s",
+                        name().c_str(), action_name.c_str(), e.what());
+            }
+        };
+
+    abort_nav_goal("/navigate_to_pose");
+    abort_nav_goal("/follow_path");
+    abort_nav_goal("/compute_path_to_pose");
+    }
+
   doneFlag_ = false;
   phase_ = 0;
   cumulativeRotation_ = 0.0;

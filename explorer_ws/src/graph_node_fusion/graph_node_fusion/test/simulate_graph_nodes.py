@@ -20,8 +20,8 @@ class SimulateGraphNodes(Node):
 
         # Hardcoded nodes
         self.nodes = [
-            GraphNode(id=1, position=Point(x=1.0, y=2.0, z=0.0), score=0.9, is_visited=False),
-            GraphNode(id=2, position=Point(x=1.0, y=-1.0, z=0.0), score=0.7, is_visited=False),
+            GraphNode(id=1, position=Point(x=0.0, y=1.0, z=0.0), score=0.9, is_visited=False),
+            GraphNode(id=2, position=Point(x=0.0, y=-1.0, z=0.0), score=0.7, is_visited=False),
         ]
 
         self.timer = self.create_timer(1.0, self.timer_callback)

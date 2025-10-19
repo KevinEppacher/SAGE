@@ -80,179 +80,229 @@ BT::NodeStatus SetParameterNode::tick()
 
 // -------------------- SeekoutGraphNodes -------------------- //
 
-SeekoutGraphNodes::SeekoutGraphNodes(const std::string& name,
-                                     const BT::NodeConfiguration& config,
-                                     rclcpp::Node::SharedPtr node_ptr)
-: BT::SyncActionNode(name, config),
-  node_ptr_(std::move(node_ptr)),
-  robot_(std::make_unique<Robot>(node_ptr_))
+SeekoutGraphNodes::SeekoutGraphNodes(const std::string &name,
+                                     const BT::NodeConfiguration &config,
+                                     rclcpp::Node::SharedPtr nodePtr)
+    : BT::StatefulActionNode(name, config),
+      nodePtr_(std::move(nodePtr)),
+      robot_(std::make_unique<Robot>(nodePtr_))
 {
-    marker_pub_ = node_ptr_->create_publisher<visualization_msgs::msg::Marker>(
-        "seekout_debug_marker", 10);
+  markerPub_ =
+      nodePtr_->create_publisher<visualization_msgs::msg::Marker>("seekout_debug_marker", 10);
 }
 
 BT::PortsList SeekoutGraphNodes::providedPorts()
 {
-    return {
-        BT::InputPort<std::string>("graph_node_topic",
-            "/fused/exploration_graph_nodes/graph_nodes", "GraphNodeArray topic"),
-        BT::InputPort<std::string>("map_frame", "map", "Map frame"),
-        BT::InputPort<std::string>("robot_frame", "base_link", "Robot frame"),
-        BT::InputPort<double>("sight_horizon", 10.0, "Horizon distance (m)"),
-        BT::InputPort<double>("min_yaw_default", -M_PI, "Default min yaw (rad)"),
-        BT::InputPort<double>("max_yaw_default",  M_PI, "Default max yaw (rad)"),
-        BT::OutputPort<double>("min_yaw", "Computed min yaw (rad)"),
-        BT::OutputPort<double>("max_yaw", "Computed max yaw (rad)")
-    };
+  return {
+      BT::InputPort<std::string>("graph_node_topic", "/fused/exploration_graph_nodes/graph_nodes"),
+      BT::InputPort<std::string>("map_frame", "map"),
+      BT::InputPort<std::string>("robot_frame", "base_link"),
+      BT::InputPort<double>("sight_horizon", std::to_string(10.0), "Horizon distance (m)"),
+      BT::InputPort<double>("min_yaw_default", std::to_string(-M_PI/2), "Default min yaw (rad)"),
+      BT::InputPort<double>("max_yaw_default", std::to_string(M_PI/2), "Default max yaw (rad)"),
+      BT::OutputPort<double>("min_yaw"),
+      BT::OutputPort<double>("max_yaw")
+  };
 }
 
-void SeekoutGraphNodes::initSubscription(const std::string& topic)
+
+void SeekoutGraphNodes::initSubscription(const std::string &topic)
 {
-    if (sub_) return;
+  if (sub_)
+    return;
 
-    sub_ = node_ptr_->create_subscription<graph_node_msgs::msg::GraphNodeArray>(
-        topic, rclcpp::QoS(10),
-        [this](graph_node_msgs::msg::GraphNodeArray::SharedPtr msg)
-        {
-            latest_msg_ = std::move(msg);
-            received_message_ = true;
-            missed_ticks_ = 0;
-        });
+  sub_ = nodePtr_->create_subscription<graph_node_msgs::msg::GraphNodeArray>(
+      topic, 10,
+      [this](graph_node_msgs::msg::GraphNodeArray::SharedPtr msg)
+      {
+        latestMsg_ = std::move(msg);
+        receivedMsg_ = true;
+      });
 
-    RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Subscribed: %s", name().c_str(), topic.c_str());
+  RCLCPP_INFO(nodePtr_->get_logger(), "[%s] Subscribed to %s", name().c_str(), topic.c_str());
 }
 
-BT::NodeStatus SeekoutGraphNodes::tick()
+BT::NodeStatus SeekoutGraphNodes::onStart()
 {
-    std::string topic, map_frame, robot_frame;
-    double horizon{10.0}, min_def{-M_PI}, max_def{M_PI};
+  // Read parameters
+  getInput("graph_node_topic", topic_);
+  getInput("map_frame", mapFrame_);
+  getInput("robot_frame", robotFrame_);
+  getInput("sight_horizon", horizon_);
+  getInput("min_yaw_default", minDef_);
+  getInput("max_yaw_default", maxDef_);
 
-    getInput("graph_node_topic", topic);
-    getInput("map_frame", map_frame);
-    getInput("robot_frame", robot_frame);
-    getInput("sight_horizon", horizon);
-    getInput("min_yaw_default", min_def);
-    getInput("max_yaw_default", max_def);
+  initSubscription(topic_);
 
-    // Lazy subscription
-    initSubscription(topic);
+  receivedMsg_ = false;
+  latestMsg_.reset();
+  startTime_ = nodePtr_->now();
 
-    // Get robot pose
-    geometry_msgs::msg::Pose robot_pose;
-    if (!robot_->getPose(robot_pose, map_frame, robot_frame))
+  RCLCPP_INFO(nodePtr_->get_logger(), "[%s] Waiting for GraphNodes and robot pose...", name().c_str());
+  return BT::NodeStatus::RUNNING;
+}
+
+BT::NodeStatus SeekoutGraphNodes::onRunning()
+{
+    startTime_ = clock_->now();
+
+    // later
+    rclcpp::Time now = clock_->now();
+    rclcpp::Duration elapsed = now - startTime_;
+    double elapsedSec = elapsed.nanoseconds() * 1e-9;
+    if (elapsedSec > timeoutSec_) 
     {
-        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Pose unavailable → using defaults.", name().c_str());
-        setOutput("min_yaw", min_def);
-        setOutput("max_yaw", max_def);
-        publishMarker(robot_pose, horizon, min_def, max_def);
-        return BT::NodeStatus::SUCCESS;
+        RCLCPP_ERROR(nodePtr_->get_logger(),
+                    "[%s] Timeout (%.1f s) waiting for data (limit %.0f s)",
+                    name().c_str(), elapsedSec, timeoutSec_);
+        return BT::NodeStatus::FAILURE;
     }
 
-    // Timeout / missed messages
-    if (!received_message_ || !latest_msg_)
-    {
-        if (++missed_ticks_ >= MAX_MISSED_TICKS)
-        {
-            RCLCPP_WARN(node_ptr_->get_logger(), "[%s] No new GraphNodeArray for %d ticks → defaults.",
-                        name().c_str(), missed_ticks_);
-            setOutput("min_yaw", min_def);
-            setOutput("max_yaw", max_def);
-            publishMarker(robot_pose, horizon, min_def, max_def);
-        }
-        return BT::NodeStatus::SUCCESS;
-    }
+  geometry_msgs::msg::Pose robotPose;
+  if (!robot_->getPose(robotPose, mapFrame_, robotFrame_))
+  {
+    RCLCPP_DEBUG(nodePtr_->get_logger(), "[%s] Robot pose unavailable yet.", name().c_str());
+    return BT::NodeStatus::RUNNING;
+  }
 
-    // Compute yaw span
-    double min_yaw{min_def}, max_yaw{max_def};
-    if (!computeYawRange(robot_pose, horizon, min_yaw, max_yaw))
-    {
-        setOutput("min_yaw", min_def);
-        setOutput("max_yaw", max_def);
-        publishMarker(robot_pose, horizon, min_def, max_def);
-        return BT::NodeStatus::SUCCESS;
-    }
+  if (!receivedMsg_ || !latestMsg_)
+  {
+    RCLCPP_DEBUG(nodePtr_->get_logger(), "[%s] No GraphNodes yet.", name().c_str());
+    return BT::NodeStatus::RUNNING;
+  }
 
-    // Publish marker visualization
-    publishMarker(robot_pose, horizon, min_yaw, max_yaw);
-
-    setOutput("min_yaw", min_yaw);
-    setOutput("max_yaw", max_yaw);
-
-    RCLCPP_INFO(node_ptr_->get_logger(),
-                "[%s] Visible span: [%.1f°, %.1f°]",
-                name().c_str(), min_yaw * 180.0 / M_PI, max_yaw * 180.0 / M_PI);
-
+  // Compute yaw range
+  double minYaw{minDef_}, maxYaw{maxDef_};
+  if (!computeYawRange(robotPose, horizon_, minYaw, maxYaw))
+  {
+    RCLCPP_WARN(nodePtr_->get_logger(),
+                "[%s] No nodes within horizon → using defaults.", name().c_str());
+    setOutput("min_yaw", minDef_);
+    setOutput("max_yaw", maxDef_);
+    publishMarker(robotPose, horizon_, minDef_, maxDef_);
     return BT::NodeStatus::SUCCESS;
+  }
+
+  publishMarker(robotPose, horizon_, minYaw, maxYaw);
+  setOutput("min_yaw", minYaw);
+  setOutput("max_yaw", maxYaw);
+
+  RCLCPP_INFO(nodePtr_->get_logger(),
+              "[%s] Computed visible yaw span: [%.1f°, %.1f°]",
+              name().c_str(), minYaw * 180.0 / M_PI, maxYaw * 180.0 / M_PI);
+
+  return BT::NodeStatus::SUCCESS;
 }
 
-bool SeekoutGraphNodes::computeYawRange(const geometry_msgs::msg::Pose& robot_pose,
-                                        double sight_horizon,
-                                        double& min_yaw,
-                                        double& max_yaw)
+void SeekoutGraphNodes::onHalted()
 {
-    const double rx = robot_pose.position.x;
-    const double ry = robot_pose.position.y;
-
-    std::vector<double> yaws;
-    for (const auto& n : latest_msg_->nodes)
-    {
-        const double dx = n.position.x - rx;
-        const double dy = n.position.y - ry;
-        const double dist = std::hypot(dx, dy);
-        if (dist <= sight_horizon)
-            yaws.push_back(std::atan2(dy, dx));
-    }
-
-    if (yaws.empty()) return false;
-
-    auto [min_it, max_it] = std::minmax_element(yaws.begin(), yaws.end());
-    min_yaw = *min_it;
-    max_yaw = *max_it;
-    return true;
+  RCLCPP_INFO(nodePtr_->get_logger(), "[%s] Halted.", name().c_str());
 }
 
-void SeekoutGraphNodes::publishMarker(const geometry_msgs::msg::Pose& robot_pose,
-                                      double sight_horizon,
-                                      double min_yaw,
-                                      double max_yaw)
+bool SeekoutGraphNodes::computeYawRange(
+    const geometry_msgs::msg::Pose &robotPose,
+    double sightHorizon,
+    double &minYaw,
+    double &maxYaw)
 {
-    visualization_msgs::msg::Marker marker;
-    marker.header.frame_id = "map";
-    marker.header.stamp = node_ptr_->now();
-    marker.ns = "seekout_debug";
-    marker.id = 0;
-    marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
-    marker.action = visualization_msgs::msg::Marker::ADD;
-    marker.scale.x = 0.03;
-    marker.color.r = 0.0;
-    marker.color.g = 0.9;
-    marker.color.b = 1.0;
-    marker.color.a = 1.0;
+  if (!latestMsg_)
+    return false;
 
-    // Draw horizon circle
-    const int N = 64;
-    for (int i = 0; i <= N; ++i)
-    {
-        double theta = i * 2 * M_PI / N;
-        geometry_msgs::msg::Point p;
-        p.x = robot_pose.position.x + sight_horizon * std::cos(theta);
-        p.y = robot_pose.position.y + sight_horizon * std::sin(theta);
-        p.z = 0.05;
-        marker.points.push_back(p);
-    }
+  const double rx = robotPose.position.x;
+  const double ry = robotPose.position.y;
 
-    // Add direction line
-    double mid_yaw = 0.5 * (min_yaw + max_yaw);
-    geometry_msgs::msg::Point center, end;
-    center.x = robot_pose.position.x;
-    center.y = robot_pose.position.y;
-    center.z = 0.05;
-    end.x = robot_pose.position.x + sight_horizon * std::cos(mid_yaw);
-    end.y = robot_pose.position.y + sight_horizon * std::sin(mid_yaw);
-    end.z = 0.05;
+  // --- Extract robot yaw from quaternion ---
+  tf2::Quaternion q;
+  tf2::fromMsg(robotPose.orientation, q);
+  double roll, pitch, robotYaw;
+  tf2::Matrix3x3(q).getRPY(roll, pitch, robotYaw);
 
-    marker.points.push_back(center);
-    marker.points.push_back(end);
+  std::vector<double> yaws;
+  yaws.reserve(latestMsg_->nodes.size());
 
-    marker_pub_->publish(marker);
+  for (const auto &n : latestMsg_->nodes)
+  {
+    // Transform node position to robot-centered coordinates
+    double dx = n.position.x - rx;
+    double dy = n.position.y - ry;
+    double dist = std::hypot(dx, dy);
+    if (dist > sightHorizon)
+      continue;
+
+    // Global yaw of node in map frame
+    double globalYaw = std::atan2(dy, dx);
+
+    // Convert to local robot frame (robot heading = 0 rad)
+    double relativeYaw = globalYaw - robotYaw;
+
+    // Normalize to [-pi, pi]
+    if (relativeYaw > M_PI)
+      relativeYaw -= 2 * M_PI;
+    else if (relativeYaw < -M_PI)
+      relativeYaw += 2 * M_PI;
+
+    yaws.push_back(relativeYaw);
+  }
+
+  if (yaws.empty())
+    return false;
+
+  // --- Determine visible angular span in robot frame ---
+  auto [minIt, maxIt] = std::minmax_element(yaws.begin(), yaws.end());
+  minYaw = *minIt;
+  maxYaw = *maxIt;
+
+  RCLCPP_DEBUG(nodePtr_->get_logger(),
+               "[%s] Local yaw range (robot frame): min=%.2f°, max=%.2f°",
+               name().c_str(), minYaw * 180.0 / M_PI, maxYaw * 180.0 / M_PI);
+
+  return true;
+}
+
+
+void SeekoutGraphNodes::publishMarker(
+    const geometry_msgs::msg::Pose &robotPose,
+    double sightHorizon,
+    double minYaw,
+    double maxYaw)
+{
+  visualization_msgs::msg::Marker marker;
+  marker.header.frame_id = "map";
+  marker.header.stamp = nodePtr_->now();
+  marker.ns = "seekout_debug";
+  marker.id = 0;
+  marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+  marker.action = visualization_msgs::msg::Marker::ADD;
+  marker.scale.x = 0.03;
+  marker.color.r = 0.0;
+  marker.color.g = 0.9;
+  marker.color.b = 1.0;
+  marker.color.a = 1.0;
+
+  // Draw a circle for the sight horizon
+  const int N = 64;
+  for (int i = 0; i <= N; ++i)
+  {
+    double theta = i * 2 * M_PI / N;
+    geometry_msgs::msg::Point p;
+    p.x = robotPose.position.x + sightHorizon * std::cos(theta);
+    p.y = robotPose.position.y + sightHorizon * std::sin(theta);
+    p.z = 0.05;
+    marker.points.push_back(p);
+  }
+
+  // Draw direction line
+  double midYaw = 0.5 * (minYaw + maxYaw);
+  geometry_msgs::msg::Point center, end;
+  center.x = robotPose.position.x;
+  center.y = robotPose.position.y;
+  center.z = 0.05;
+  end.x = robotPose.position.x + sightHorizon * std::cos(midYaw);
+  end.y = robotPose.position.y + sightHorizon * std::sin(midYaw);
+  end.z = 0.05;
+
+  marker.points.push_back(center);
+  marker.points.push_back(end);
+
+  markerPub_->publish(marker);
 }
