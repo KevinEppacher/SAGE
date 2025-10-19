@@ -32,6 +32,7 @@ void SageBehaviorTreeNode::create_behavior_tree()
     factory.registerNodeType<GoToGraphNode>("GoToGraphNode", shared_from_this());
     factory.registerNodeType<Spin360>("Spin360", shared_from_this());
     factory.registerNodeType<SetParameterNode>("SetParameterNode", shared_from_this());
+    factory.registerNodeType<SeekoutGraphNodes>("SeekoutGraphNodes", shared_from_this());
 
     auto bb = BT::Blackboard::create();
     // bb->set("detection_threshold", get_parameter("detection.threshold").as_double());

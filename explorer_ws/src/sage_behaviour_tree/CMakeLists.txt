@@ -24,6 +24,7 @@ find_package(rclcpp_action REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 ############################################################
 # Include Directories
@@ -43,6 +44,7 @@ add_executable(sage_bt_node
     src/navigation.cpp
     src/core.cpp
     src/utils.cpp
+    src/robot.cpp
 )
 
 # Link ROS 2 dependencies
@@ -56,6 +58,7 @@ ament_target_dependencies(sage_bt_node
     nav2_msgs
     tf2
     tf2_geometry_msgs
+    visualization_msgs
 )
 
 # Use C++17 standard
