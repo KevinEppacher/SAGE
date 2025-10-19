@@ -20,7 +20,7 @@
     <!-- 2. If nothing detected, explore -->
     <Sequence>
       <CheckIfExplorationAvailable/>
-      <Spin360 min_yaw="0" max_yaw="6.2" spin_duration="15.0"/>
+      <Spin min_yaw="0" max_yaw="6.2" spin_duration="15.0"/>
       <GoToGraphNode graph_nodes="{exploration_nodes}"
                      approach_radius="3"
                      goal_topic="/goal_pose"
@@ -51,7 +51,7 @@
       <output_port name="graph_nodes"
                    default="latest_nodes"/>
     </Condition>
-    <Action ID="Spin360">
+    <Action ID="Spin">
       <input_port name="min_yaw"
                   default="-3.14159"/>
       <input_port name="max_yaw"

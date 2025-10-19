@@ -1,27 +1,116 @@
-<root main_tree_to_execute="SAGE_SingleObject">
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4"
+      main_tree_to_execute="SAGE_SingleObject">
   <BehaviorTree ID="SAGE_SingleObject">
-    <ReactiveSequence name="Loop">
-      <!-- 1) First let detection preempt everything -->
-      <Selector name="DetectedOrSearch">
-        <!-- A) Detected branch: go to highest-scoring fusion node and confirm -->
-        <Sequence name="DetectedBranch">
-          <IsDetected threshold="{det_thr}"/>                 <!-- SUCCESS if any detection >= thr -->
-          <SelectBestDetection out_goal="{goal}"/>            <!-- picks max-score detection node -->
-          <NavigateToPose goal="{goal}"/>                     <!-- RUNNING until reached, then SUCCESS -->
-          <TakePicture/>                                      <!-- returns SUCCESS/FAILURE -->
-        </Sequence>
-
-        <!-- B) Search branch: choose best of exploration/exploitation or rotate -->
-        <Sequence name="SearchBranch">
-          <Selector name="PickOrRotate">
-            <Sequence name="PickGoal">
-              <SelectGoalWeighted exp_weight="{exp_weight}" out_goal="{goal}"/>
-              <NavigateToPose goal="{goal}"/>                 <!-- RUNNING then SUCCESS -->
-            </Sequence>
-            <Rotate360/>                                      <!-- if no goal available, do one 360 then FAILURE to retry -->
-          </Selector>
-        </Sequence>
-      </Selector>
-    </ReactiveSequence>
+    <Sequence>
+      <SetBlackboard value="0"
+                     output_key="min_yaw"/>
+      <SetBlackboard value="6.28319"
+                     output_key="max_yaw"/>
+      <KeepRunningUntilFailure>
+        <ReactiveFallback>
+          <Sequence>
+            <IsDetected name="Target object detected?"
+                        detection_threshold="0.7"
+                        detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
+                        graph_nodes="{graph_nodes}"/>
+            <GoToGraphNode name="Go to target object"
+                           graph_nodes="{graph_nodes}"
+                           approach_radius="2.5"
+                           goal_topic="/goal_pose"
+                           robot_frame="base_link"
+                           map_frame="map"
+                           max_changed_targets="1"/>
+          </Sequence>
+          <Sequence>
+            <SetParameterNode target_node="/value_map/value_map"
+                              parameter_name="semantic_map.decay_factor"
+                              value="1"/>
+            <SeekoutGraphNodes name="Observe all possible GraphNodes"
+                               graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                               robot_frame="base_link"
+                               map_frame="map"
+                               sight_horizon="10.0"
+                               min_yaw_default="-0.523"
+                               max_yaw_default="0.523"
+                               min_yaw="{min_yaw}"
+                               max_yaw="{max_yaw}"/>
+            <Spin min_yaw="{min_yaw}"
+                     max_yaw="{max_yaw}"
+                     spin_duration="15.0"/>
+            <SetParameterNode target_node="/value_map/value_map"
+                              parameter_name="semantic_map.decay_factor"
+                              value="0.999"/>
+            <ReactiveSequence>
+              <IsDetected name="Already explored all available GraphNodes?"
+                          detection_threshold="0.0"
+                          detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                          graph_nodes="{exploration_nodes}"/>
+              <GoToGraphNode name="Go to likiest GraphNode"
+                             graph_nodes="{exploration_nodes}"
+                             approach_radius="2"
+                             goal_topic="/goal_pose"
+                             robot_frame="base_link"
+                             map_frame="map"
+                             max_changed_targets="1"/>
+            </ReactiveSequence>
+          </Sequence>
+        </ReactiveFallback>
+      </KeepRunningUntilFailure>
+    </Sequence>
   </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="GoToGraphNode">
+      <input_port name="graph_nodes"/>
+      <input_port name="approach_radius"/>
+      <input_port name="goal_topic"/>
+      <input_port name="robot_frame"/>
+      <input_port name="map_frame"/>
+      <input_port name="max_changed_targets"
+                  default="1"/>
+    </Action>
+    <Condition ID="IsDetected">
+      <input_port name="detection_threshold"
+                  default="0.8"/>
+      <input_port name="detection_graph_node_topic"
+                  default="/detection_graph_nodes/graph_nodes"/>
+      <output_port name="graph_nodes"
+                   default="latest_nodes"/>
+    </Condition>
+    <Action ID="SeekoutGraphNodes">
+      <input_port name="graph_node_topic"
+                  default="/fused/exploration_graph_nodes/graph_nodes"/>
+      <input_port name="robot_frame"
+                  default="base_link"/>
+      <input_port name="map_frame"
+                  default="map"/>
+      <input_port name="sight_horizon"
+                  default="10.0"/>
+      <input_port name="min_yaw_default"
+                  default="-0.523"/>
+      <input_port name="max_yaw_default"
+                  default="0.523"/>
+      <output_port name="min_yaw"/>
+      <output_port name="max_yaw"/>
+    </Action>
+    <Action ID="SetParameterNode">
+      <input_port name="target_node"
+                  default="/value_map"/>
+      <input_port name="parameter_name"
+                  default="decay_factor"/>
+      <input_port name="value"
+                  default="1.0"/>
+    </Action>
+    <Action ID="Spin">
+      <input_port name="min_yaw"
+                  default="-3.14159"/>
+      <input_port name="max_yaw"
+                  default="3.14159"/>
+      <input_port name="spin_duration"
+                  default="10.0"/>
+    </Action>
+  </TreeNodesModel>
+
 </root>

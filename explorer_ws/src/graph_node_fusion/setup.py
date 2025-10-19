@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'graph_node_fusion = graph_node_fusion.graph_node_fusion_node:main',
+            'simulate_graph_nodes = graph_node_fusion.test.simulate_graph_nodes:main',
         ],
     },
 )
