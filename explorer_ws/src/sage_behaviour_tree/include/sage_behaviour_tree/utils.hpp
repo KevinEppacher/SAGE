@@ -34,36 +34,48 @@ private:
 
 // -------------------- SeekoutGraphNodes -------------------- //
 
-class SeekoutGraphNodes : public BT::SyncActionNode
+class SeekoutGraphNodes : public BT::StatefulActionNode
 {
 public:
-    SeekoutGraphNodes(const std::string& name,
-                      const BT::NodeConfiguration& config,
-                      rclcpp::Node::SharedPtr node_ptr);
+  SeekoutGraphNodes(const std::string &name,
+                    const BT::NodeConfiguration &config,
+                    rclcpp::Node::SharedPtr nodePtr);
 
-    static BT::PortsList providedPorts();
-    BT::NodeStatus tick() override;
+  static BT::PortsList providedPorts();
+
+  BT::NodeStatus onStart() override;
+  BT::NodeStatus onRunning() override;
+  void onHalted() override;
 
 private:
-    void initSubscription(const std::string& topic);
-    bool computeYawRange(const geometry_msgs::msg::Pose& robot_pose,
-                         double sight_horizon,
-                         double& min_yaw,
-                         double& max_yaw);
-    void publishMarker(const geometry_msgs::msg::Pose& robot_pose,
-                       double sight_horizon,
-                       double min_yaw,
-                       double max_yaw);
+  void initSubscription(const std::string &topic);
+  bool computeYawRange(const geometry_msgs::msg::Pose &robotPose,
+                       double sightHorizon,
+                       double &minYaw,
+                       double &maxYaw);
+  void publishMarker(const geometry_msgs::msg::Pose &robotPose,
+                     double sightHorizon,
+                     double minYaw,
+                     double maxYaw);
 
-    rclcpp::Node::SharedPtr node_ptr_;
-    std::unique_ptr<Robot> robot_;
+  rclcpp::Node::SharedPtr nodePtr_;
+  std::unique_ptr<Robot> robot_;
 
-    rclcpp::Subscription<graph_node_msgs::msg::GraphNodeArray>::SharedPtr sub_;
-    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
-    graph_node_msgs::msg::GraphNodeArray::SharedPtr latest_msg_;
+  rclcpp::Subscription<graph_node_msgs::msg::GraphNodeArray>::SharedPtr sub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr markerPub_;
+  graph_node_msgs::msg::GraphNodeArray::SharedPtr latestMsg_;
+  rclcpp::Clock::SharedPtr clock_{std::make_shared<rclcpp::Clock>(RCL_ROS_TIME)};
 
-    bool received_message_{false};
-    int missed_ticks_{0};
+  bool receivedMsg_{false};
+  rclcpp::Time startTime_;
+  double timeoutSec_{30.0};
 
-    static constexpr int MAX_MISSED_TICKS = 10;
+  // cached inputs
+  std::string topic_;
+  std::string mapFrame_;
+  std::string robotFrame_;
+  double horizon_{10.0};
+  double minDef_{-M_PI};
+  double maxDef_{M_PI};
+
 };
