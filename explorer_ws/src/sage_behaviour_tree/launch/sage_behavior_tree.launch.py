@@ -48,5 +48,5 @@ def generate_launch_description():
     ld = LaunchDescription()
     ld.add_action(sim_time_arg)
     ld.add_action(sage_bt_node)
-    # ld.add_action(groot_gui)
+    ld.add_action(groot_gui)
     return ld

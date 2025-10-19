@@ -20,7 +20,7 @@ public:
 
   Spin(const std::string &name,
        const BT::NodeConfiguration &config,
-       rclcpp::Node::SharedPtr node_ptr);
+       rclcpp::Node::SharedPtr nodePtr);
 
   static BT::PortsList providedPorts();
 
@@ -31,19 +31,21 @@ public:
 private:
   void sendSpinGoal(double yaw);
   void resultCallback(const GoalHandleSpin::WrappedResult &result);
+  double shortestReturn(double angle);
 
-  rclcpp::Node::SharedPtr node_ptr_;
-  rclcpp_action::Client<NavSpin>::SharedPtr client_ptr_;
-  std::shared_future<typename GoalHandleSpin::SharedPtr> goal_handle_future_;
+  rclcpp::Node::SharedPtr nodePtr_;
+  rclcpp_action::Client<NavSpin>::SharedPtr clientPtr_;
+  std::shared_future<typename GoalHandleSpin::SharedPtr> goalHandleFuture_;
 
-  rclcpp_action::ResultCode nav_result_{};
-  bool done_flag_{false};
+  rclcpp_action::ResultCode navResult_{};
+  bool doneFlag_{false};
   int phase_{0};
-  double min_yaw_{0.0};
-  double max_yaw_{0.0};
-  double spin_duration_{15.0};
-  double cumulative_rotation_{0.0};
+  double turnLeftAngle_{0.0};
+  double turnRightAngle_{0.0};
+  double spinDuration_{15.0};
+  double cumulativeRotation_{0.0};
 };
+
 
 // ============================ GoToGraphNode ============================ //
 
