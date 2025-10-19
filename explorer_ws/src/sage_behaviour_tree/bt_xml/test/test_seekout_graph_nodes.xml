@@ -12,9 +12,9 @@
                          max_yaw_default="0.523"
                          min_yaw="{min_yaw}"
                          max_yaw="{max_yaw}"/>
-      <Spin min_yaw="{min_yaw}"
-               max_yaw="{max_yaw}"
-               spin_duration="15.0"/>
+      <Spin turnLeftAngle="{max_yaw}"
+            turnRightAngle="{min_yaw}"
+            spinDuration="15.0"/>
     </Sequence>
   </BehaviorTree>
 
@@ -37,11 +37,11 @@
       <output_port name="max_yaw"/>
     </Action>
     <Action ID="Spin">
-      <input_port name="min_yaw"
-                  default="-3.14159"/>
-      <input_port name="max_yaw"
+      <input_port name="turnLeftAngle"
                   default="3.14159"/>
-      <input_port name="spin_duration"
+      <input_port name="turnRightAngle"
+                  default="-3.14159"/>
+      <input_port name="spinDuration"
                   default="10.0"/>
     </Action>
   </TreeNodesModel>
