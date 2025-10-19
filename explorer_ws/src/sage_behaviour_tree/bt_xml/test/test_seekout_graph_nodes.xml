@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4"
+      main_tree_to_execute="SAGE_SingleObject">
+  <BehaviorTree ID="SAGE_SingleObject">
+    <Sequence>
+      <SeekoutGraphNodes name="Observe all possible GraphNodes"
+                         graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                         robot_frame="base_link"
+                         map_frame="map"
+                         sight_horizon="10.0"
+                         min_yaw_default="3.8"
+                         max_yaw_default="0.523"
+                         min_yaw="{min_yaw}"
+                         max_yaw="{max_yaw}"/>
+      <Spin min_yaw="{min_yaw}"
+               max_yaw="{max_yaw}"
+               spin_duration="15.0"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="SeekoutGraphNodes">
+      <input_port name="graph_node_topic"
+                  default="/fused/exploration_graph_nodes/graph_nodes"/>
+      <input_port name="robot_frame"
+                  default="base_link"/>
+      <input_port name="map_frame"
+                  default="map"/>
+      <input_port name="sight_horizon"
+                  default="10.0"/>
+      <input_port name="min_yaw_default"
+                  default="-0.523"/>
+      <input_port name="max_yaw_default"
+                  default="0.523"/>
+      <output_port name="min_yaw"/>
+      <output_port name="max_yaw"/>
+    </Action>
+    <Action ID="Spin">
+      <input_port name="min_yaw"
+                  default="-3.14159"/>
+      <input_port name="max_yaw"
+                  default="3.14159"/>
+      <input_port name="spin_duration"
+                  default="10.0"/>
+    </Action>
+  </TreeNodesModel>
+
+</root>

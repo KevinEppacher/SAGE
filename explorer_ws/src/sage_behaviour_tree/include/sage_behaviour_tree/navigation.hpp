@@ -12,40 +12,38 @@
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 
-class Spin360 : public BT::StatefulActionNode
+class Spin : public BT::StatefulActionNode
 {
 public:
-    using Spin = nav2_msgs::action::Spin;
-    using GoalHandleSpin = rclcpp_action::ClientGoalHandle<Spin>;
+  using NavSpin = nav2_msgs::action::Spin;
+  using GoalHandleSpin = rclcpp_action::ClientGoalHandle<NavSpin>;
 
-    Spin360(const std::string& name,
-            const BT::NodeConfiguration& config,
-            rclcpp::Node::SharedPtr node_ptr);
+  Spin(const std::string &name,
+       const BT::NodeConfiguration &config,
+       rclcpp::Node::SharedPtr node_ptr);
 
-    static BT::PortsList providedPorts();
+  static BT::PortsList providedPorts();
 
-    BT::NodeStatus onStart() override;
-    BT::NodeStatus onRunning() override;
-    void onHalted() override;
+  BT::NodeStatus onStart() override;
+  BT::NodeStatus onRunning() override;
+  void onHalted() override;
 
 private:
-    void sendSpinGoal(double yaw, double duration);
-    void resultCallback(const GoalHandleSpin::WrappedResult& result);
+  void sendSpinGoal(double yaw);
+  void resultCallback(const GoalHandleSpin::WrappedResult &result);
 
-    rclcpp::Node::SharedPtr node_ptr_;
-    rclcpp_action::Client<Spin>::SharedPtr client_ptr_;
-    std::shared_future<typename GoalHandleSpin::SharedPtr> goal_handle_future_;
+  rclcpp::Node::SharedPtr node_ptr_;
+  rclcpp_action::Client<NavSpin>::SharedPtr client_ptr_;
+  std::shared_future<typename GoalHandleSpin::SharedPtr> goal_handle_future_;
 
-    bool done_flag_{false};
-    bool phase_two_{false}; // true = spinning back (second phase)
-    rclcpp_action::ResultCode nav_result_{};
-
-    double min_yaw_{0.0};
-    double max_yaw_{0.0};
-    double spin_duration_{15.0};
-    bool was_halted_{false};
+  rclcpp_action::ResultCode nav_result_{};
+  bool done_flag_{false};
+  int phase_{0};
+  double min_yaw_{0.0};
+  double max_yaw_{0.0};
+  double spin_duration_{15.0};
+  double cumulative_rotation_{0.0};
 };
-
 
 // ============================ GoToGraphNode ============================ //
 

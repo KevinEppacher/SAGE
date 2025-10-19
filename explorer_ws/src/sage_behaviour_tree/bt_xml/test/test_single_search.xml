@@ -35,7 +35,7 @@
                                max_yaw_default="0.523"
                                min_yaw="{min_yaw}"
                                max_yaw="{max_yaw}"/>
-            <Spin360 min_yaw="{min_yaw}"
+            <Spin min_yaw="{min_yaw}"
                      max_yaw="{max_yaw}"
                      spin_duration="15.0"/>
             <SetParameterNode target_node="/value_map/value_map"
@@ -103,7 +103,7 @@
       <input_port name="value"
                   default="1.0"/>
     </Action>
-    <Action ID="Spin360">
+    <Action ID="Spin">
       <input_port name="min_yaw"
                   default="-3.14159"/>
       <input_port name="max_yaw"

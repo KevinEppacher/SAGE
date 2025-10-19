@@ -5,13 +5,9 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from graph_node_msgs.msg import GraphNodeArray, GraphNode
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
-from tf2_ros import Buffer, TransformListener, LookupException
-from geometry_msgs.msg import TransformStamped
+from tf2_ros import Buffer, TransformListener
 import math
-import random
 from rclpy.duration import Duration
-import matplotlib.pyplot as plt
-import numpy as np
 
 BOLD = "\033[1m"
 GREEN = "\033[92m"
@@ -204,18 +200,3 @@ class GraphNodeFusion(Node):
             idx += 1
 
         self.pub_markers.publish(marker_array)
-
-def main(args=None):
-    rclpy.init(args=args)
-    node = GraphNodeFusion()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        node.get_logger().info('GraphNodeFusion interrupted by user.')
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
-
-
-if __name__ == '__main__':
-    main()
