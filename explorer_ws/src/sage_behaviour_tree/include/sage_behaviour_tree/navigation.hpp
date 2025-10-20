@@ -11,50 +11,16 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/msg/transform_stamped.hpp>
+#include "sage_behaviour_tree/robot.hpp"
+
+// =============================== Spin =================================== //
 
 class Spin : public BT::StatefulActionNode
 {
 public:
-  using NavSpin = nav2_msgs::action::Spin;
-  using GoalHandleSpin = rclcpp_action::ClientGoalHandle<NavSpin>;
-
-  Spin(const std::string &name,
-       const BT::NodeConfiguration &config,
-       rclcpp::Node::SharedPtr nodePtr);
-
-  static BT::PortsList providedPorts();
-
-  BT::NodeStatus onStart() override;
-  BT::NodeStatus onRunning() override;
-  void onHalted() override;
-
-private:
-  void sendSpinGoal(double yaw);
-  void resultCallback(const GoalHandleSpin::WrappedResult &result);
-  double shortestReturn(double angle);
-
-  rclcpp::Node::SharedPtr nodePtr_;
-  rclcpp_action::Client<NavSpin>::SharedPtr clientPtr_;
-  std::shared_future<typename GoalHandleSpin::SharedPtr> goalHandleFuture_;
-
-  rclcpp_action::ResultCode navResult_{};
-  bool doneFlag_{false};
-  int phase_{0};
-  double turnLeftAngle_{0.0};
-  double turnRightAngle_{0.0};
-  double spinDuration_{15.0};
-  double cumulativeRotation_{0.0};
-};
-
-
-// ============================ GoToGraphNode ============================ //
-
-class GoToGraphNode : public BT::StatefulActionNode
-{
-public:
-    GoToGraphNode(const std::string& name,
-                  const BT::NodeConfiguration& config,
-                  rclcpp::Node::SharedPtr node_ptr);
+    Spin(const std::string& name,
+         const BT::NodeConfiguration& config,
+         rclcpp::Node::SharedPtr node);
 
     static BT::PortsList providedPorts();
 
@@ -63,20 +29,44 @@ public:
     void onHalted() override;
 
 private:
-    void publishGoalToTarget(const graph_node_msgs::msg::GraphNode& node);
-    bool targetChanged(const graph_node_msgs::msg::GraphNode& new_target) const;
+    double shortestReturn(double angle);
+
+    rclcpp::Node::SharedPtr node;
+    std::shared_ptr<Robot> robot;
+
+    bool done = false;
+    int phase = 0;
+    double turnLeftAngle = 0.0;
+    double turnRightAngle = 0.0;
+    double spinDuration = 15.0;
+    double cumulativeRotation = 0.0;
+    rclcpp_action::ResultCode navResult{};
+};
+
+// ============================ GoToGraphNode ============================ //
+
+class GoToGraphNode : public BT::StatefulActionNode
+{
+public:
+    GoToGraphNode(const std::string& name,
+                  const BT::NodeConfiguration& config,
+                  rclcpp::Node::SharedPtr node);
+
+    static BT::PortsList providedPorts();
+
+    BT::NodeStatus onStart() override;
+    BT::NodeStatus onRunning() override;
+    void onHalted() override;
+
+private:
     bool isWithinGoal(const graph_node_msgs::msg::GraphNode& node);
 
-    rclcpp::Node::SharedPtr node_ptr_;
-    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr goal_pub_;
-    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
-    std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
-
-    std::shared_ptr<graph_node_msgs::msg::GraphNode> target_node_;
-    rclcpp::Time last_publish_time_;
-    std::string goal_topic_;
-    std::string robot_frame_, map_frame_;
-    double approach_radius_{2.0};
-    int max_changed_targets_{3};
-    int changed_target_count_{0};
+    rclcpp::Node::SharedPtr node;
+    std::shared_ptr<Robot> robot;
+    std::shared_ptr<graph_node_msgs::msg::GraphNode> target;
+    std::string mapFrame = "map";
+    std::string robotFrame = "base_link";
+    std::string goalTopic = "/goal_pose";
+    double approachRadius = 2.0;
+    bool goalPublished = false;
 };
