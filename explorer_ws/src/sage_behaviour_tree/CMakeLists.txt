@@ -25,6 +25,9 @@ find_package(nav2_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(OpenCV REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 ############################################################
 # Include Directories
@@ -45,6 +48,7 @@ add_executable(sage_bt_node
     src/core.cpp
     src/utils.cpp
     src/robot.cpp
+    src/decorator.cpp
 )
 
 # Link ROS 2 dependencies
@@ -59,6 +63,9 @@ ament_target_dependencies(sage_bt_node
     tf2
     tf2_geometry_msgs
     visualization_msgs
+    cv_bridge
+    OpenCV
+    sensor_msgs
 )
 
 # Use C++17 standard

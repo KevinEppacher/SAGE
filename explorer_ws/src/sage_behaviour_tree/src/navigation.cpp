@@ -250,14 +250,44 @@ BT::NodeStatus Spin::onRunning()
 
 void Spin::onHalted()
 {
-  if (clientPtr_ && goalHandleFuture_.valid())
+  if (!clientPtr_)
+    return;
+
+  // Try to get a valid goal handle if ready
+  if (goalHandleFuture_.valid() &&
+      goalHandleFuture_.wait_for(0s) == std::future_status::ready)
   {
     auto handle = goalHandleFuture_.get();
     if (handle)
     {
+      try
+      {
+        RCLCPP_INFO(nodePtr_->get_logger(),
+                    "[%s] Cancelling spin goal...", name().c_str());
+        clientPtr_->async_cancel_goal(handle);
+      }
+      catch (const rclcpp_action::exceptions::UnknownGoalHandleError &)
+      {
+        RCLCPP_WARN(nodePtr_->get_logger(),
+                    "[%s] Spin goal handle unknown to client — skipping cancel.",
+                    name().c_str());
+      }
+    }
+  }
+  else
+  {
+    // If not yet acknowledged, just cancel all goals safely
+    try
+    {
       RCLCPP_INFO(nodePtr_->get_logger(),
-                  "[%s] Cancelling spin...", name().c_str());
-      clientPtr_->async_cancel_goal(handle);
+                  "[%s] Cancelling all spin goals (no valid handle yet).", name().c_str());
+      clientPtr_->async_cancel_all_goals();
+    }
+    catch (const std::exception &e)
+    {
+      RCLCPP_WARN(nodePtr_->get_logger(),
+                  "[%s] Exception during cancel_all_goals(): %s",
+                  name().c_str(), e.what());
     }
   }
 }
@@ -390,6 +420,37 @@ void GoToGraphNode::onHalted()
 
     RCLCPP_INFO(node_ptr_->get_logger(),
                 "[%s] Halting — stopping goal publishing.", name().c_str());
+
+
+    {
+        auto abort_nav_goal = [&](const std::string &action_name)
+        {
+            try
+            {
+            auto generic_client =
+                rclcpp_action::create_client<nav2_msgs::action::NavigateToPose>(
+                    node_ptr_, action_name);
+
+            if (generic_client->wait_for_action_server(100ms))
+            {
+                RCLCPP_INFO(node_ptr_->get_logger(),
+                            "[%s] Aborting existing goal on %s",
+                            name().c_str(), action_name.c_str());
+                generic_client->async_cancel_all_goals();
+            }
+            }
+            catch (const std::exception &e)
+            {
+            RCLCPP_WARN(node_ptr_->get_logger(),
+                        "[%s] Exception while aborting %s: %s",
+                        name().c_str(), action_name.c_str(), e.what());
+            }
+        };
+
+    abort_nav_goal("/navigate_to_pose");
+    abort_nav_goal("/follow_path");
+    abort_nav_goal("/compute_path_to_pose");
+    }
 }
 
 // -------------------- isWithinGoal -------------------- //

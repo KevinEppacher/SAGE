@@ -21,8 +21,8 @@ def generate_launch_description():
         get_package_share_directory("sage_behaviour_tree"),
         'bt_xml',
         'test',
-        # 'test_seekout_graph_nodes.xml'
-        'test_single_search.xml'
+        'test_detection_navigation.xml'
+        # 'test_single_search.xml'
     )
 
 
@@ -48,5 +48,5 @@ def generate_launch_description():
     ld = LaunchDescription()
     ld.add_action(sim_time_arg)
     ld.add_action(sage_bt_node)
-    # ld.add_action(groot_gui)
+    ld.add_action(groot_gui)
     return ld
