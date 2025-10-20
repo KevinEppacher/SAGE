@@ -2,6 +2,7 @@
 #include "sage_behaviour_tree/navigation.hpp"
 #include "sage_behaviour_tree/detection.hpp"
 #include "sage_behaviour_tree/utils.hpp"
+#include "sage_behaviour_tree/decorator.hpp"
 
 using namespace std::chrono_literals;
 
@@ -33,6 +34,8 @@ void SageBehaviorTreeNode::create_behavior_tree()
     factory.registerNodeType<Spin>("Spin", shared_from_this());
     factory.registerNodeType<SetParameterNode>("SetParameterNode", shared_from_this());
     factory.registerNodeType<SeekoutGraphNodes>("SeekoutGraphNodes", shared_from_this());
+    factory.registerNodeType<SaveImageAction>("SaveImageAction", shared_from_this());
+    factory.registerNodeType<KeepRunningUntilObjectFound>("KeepRunningUntilObjectFound");
 
     auto bb = BT::Blackboard::create();
     // bb->set("detection_threshold", get_parameter("detection.threshold").as_double());
@@ -53,4 +56,5 @@ void SageBehaviorTreeNode::update_behavior_tree()
     RCLCPP_INFO(get_logger(), "Finished with %s",
                 (status == BT::NodeStatus::SUCCESS) ? "SUCCESS" : "FAILURE");
     timer_->cancel();
+    rclcpp::shutdown();
 }

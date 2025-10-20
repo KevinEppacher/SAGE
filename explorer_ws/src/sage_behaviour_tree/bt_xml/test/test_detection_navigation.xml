@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4"
+      main_tree_to_execute="SAGE_SingleObject">
+  <BehaviorTree ID="SAGE_SingleObject">
+    <KeepRunningUntilObjectFound>
+      <ReactiveFallback>
+        <Sequence>
+          <IsDetected name="Target object detected?"
+                      detection_threshold="0.1"
+                      detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
+                      graph_nodes="{graph_nodes}"/>
+          <SaveImageAction imageTopic="/yoloe/overlay"
+                           savePath="/app/image.png"/>
+        </Sequence>
+        <Spin turnLeftAngle="3.14159"
+              turnRightAngle="-3.14159"
+              spinDuration="10.0"/>
+      </ReactiveFallback>
+    </KeepRunningUntilObjectFound>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Condition ID="IsDetected">
+      <input_port name="detection_threshold"
+                  default="0.8"/>
+      <input_port name="detection_graph_node_topic"
+                  default="/detection_graph_nodes/graph_nodes"/>
+      <output_port name="graph_nodes"
+                   default="latest_nodes"/>
+    </Condition>
+    <Decorator ID="KeepRunningUntilObjectFound"/>
+    <Action ID="SaveImageAction">
+      <input_port name="imageTopic"
+                  default="/yoloe/overlay"/>
+      <input_port name="savePath"
+                  default="/tmp/overlay.jpg"/>
+    </Action>
+    <Action ID="Spin">
+      <input_port name="turnLeftAngle"
+                  default="3.14159"/>
+      <input_port name="turnRightAngle"
+                  default="-3.14159"/>
+      <input_port name="spinDuration"
+                  default="10.0"/>
+    </Action>
+  </TreeNodesModel>
+
+</root>
