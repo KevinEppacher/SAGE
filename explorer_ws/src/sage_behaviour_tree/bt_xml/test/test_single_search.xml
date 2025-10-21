@@ -20,7 +20,8 @@
                            approach_radius="3"
                            goal_topic="/goal_pose"
                            robot_frame="base_link"
-                           map_frame="map"/>
+                           map_frame="map"
+                           timeout="45.0"/>
             <RealignToObject detected_graph_node="{detected_graph_node}"
                              spinDuration="5.0"/>
             <SaveImageAction imageTopic="/yoloe/overlay"
@@ -61,7 +62,8 @@
                              approach_radius="2"
                              goal_topic="/goal_pose"
                              robot_frame="base_link"
-                             map_frame="map"/>
+                             map_frame="map"
+                             timeout="45.0"/>
             </ReactiveSequence>
           </Sequence>
         </ReactiveFallback>
@@ -77,6 +79,8 @@
       <input_port name="goal_topic"/>
       <input_port name="robot_frame"/>
       <input_port name="map_frame"/>
+      <input_port name="timeout"
+                  default="60.0"/>
     </Action>
     <Condition ID="IsDetected">
       <input_port name="detection_threshold"

@@ -197,7 +197,6 @@ void Spin::onHalted()
 
 // -------------------- GoToGraphNode -------------------- //
 
-
 GoToGraphNode::GoToGraphNode(const std::string& name,
                              const BT::NodeConfiguration& config,
                              rclcpp::Node::SharedPtr nodePtr)
@@ -215,7 +214,8 @@ BT::PortsList GoToGraphNode::providedPorts()
         BT::InputPort<double>("approach_radius", 2.0, "Approach distance in meters"),
         BT::InputPort<std::string>("goal_topic", "/goal_pose", "Goal topic name"),
         BT::InputPort<std::string>("robot_frame", "base_link", "Robot TF frame"),
-        BT::InputPort<std::string>("map_frame", "map", "Map TF frame")
+        BT::InputPort<std::string>("map_frame", "map", "Map TF frame"),
+        BT::InputPort<double>("timeout", 60.0, "Timeout in seconds")   // <-- new port
     };
 }
 
@@ -225,6 +225,7 @@ BT::NodeStatus GoToGraphNode::onStart()
     getInput("goal_topic", goalTopic);
     getInput("map_frame", mapFrame);
     getInput("robot_frame", robotFrame);
+    getInput("timeout", timeoutSec);
 
     auto nodeRes = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_nodes");
     if (!nodeRes)
@@ -243,9 +244,10 @@ BT::NodeStatus GoToGraphNode::onStart()
     robot->cancelNavigationGoals();
     robot->publishGoalToTarget(*target, goalTopic, mapFrame);
     goalPublished = true;
+    startTime = node->now();     // record start time
 
-    RCLCPP_INFO(node->get_logger(), "[%s] Published goal (%.2f, %.2f).",
-                name().c_str(), target->position.x, target->position.y);
+    RCLCPP_INFO(node->get_logger(), "[%s] Published goal (%.2f, %.2f), timeout %.1f s.",
+                name().c_str(), target->position.x, target->position.y, timeoutSec);
 
     return BT::NodeStatus::RUNNING;
 }
@@ -255,6 +257,17 @@ BT::NodeStatus GoToGraphNode::onRunning()
     if (!goalPublished || !target)
         return BT::NodeStatus::FAILURE;
 
+    // --- Timeout check ---
+    const double elapsed = (node->now() - startTime).seconds();
+    if (elapsed > timeoutSec)
+    {
+        RCLCPP_WARN(node->get_logger(), "[%s] Timeout after %.1f s (limit %.1f s).",
+                    name().c_str(), elapsed, timeoutSec);
+        robot->cancelNavigationGoals();
+        return BT::NodeStatus::FAILURE;
+    }
+
+    // --- Goal reached check ---
     if (isWithinGoal(*target))
     {
         RCLCPP_INFO(node->get_logger(), "[%s] Target reached within %.2f m.", name().c_str(), approachRadius);
@@ -282,6 +295,7 @@ bool GoToGraphNode::isWithinGoal(const graph_node_msgs::msg::GraphNode& goal)
     double dist = std::hypot(dx, dy);
     return dist <= approachRadius;
 }
+
 
 // -------------------- RealignToObject -------------------- //
 
