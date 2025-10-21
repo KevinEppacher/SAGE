@@ -1,7 +1,6 @@
 #include "sage_behaviour_tree/navigation.hpp"
 #include <chrono>
 #include <cmath>
-using namespace std::chrono_literals;
 
 // -------------------- Spin -------------------- //
 
@@ -243,8 +242,8 @@ BT::NodeStatus GoToGraphNode::onStart()
 
     robot->cancelNavigationGoals();
     robot->publishGoalToTarget(*target, goalTopic, mapFrame);
-    goalPublished = true;
-    startTime = node->now();     // record start time
+    startTime = node->now();
+    lastPublishTime = startTime;
 
     RCLCPP_INFO(node->get_logger(), "[%s] Published goal (%.2f, %.2f), timeout %.1f s.",
                 name().c_str(), target->position.x, target->position.y, timeoutSec);
@@ -254,12 +253,13 @@ BT::NodeStatus GoToGraphNode::onStart()
 
 BT::NodeStatus GoToGraphNode::onRunning()
 {
-    if (!goalPublished || !target)
+    if (!target)
         return BT::NodeStatus::FAILURE;
 
     // --- Timeout check ---
     const double elapsed = (node->now() - startTime).seconds();
-    if (elapsed > timeoutSec)
+    RCLCPP_INFO(node->get_logger(), "[%s] Elapsed time: %.1f s until Timeout %.1f s", name().c_str(), elapsed, timeoutSec);
+    if (elapsed > timeoutSec && timeoutSec > 0.0)
     {
         RCLCPP_WARN(node->get_logger(), "[%s] Timeout after %.1f s (limit %.1f s).",
                     name().c_str(), elapsed, timeoutSec);
@@ -273,6 +273,16 @@ BT::NodeStatus GoToGraphNode::onRunning()
         RCLCPP_INFO(node->get_logger(), "[%s] Target reached within %.2f m.", name().c_str(), approachRadius);
         robot->cancelNavigationGoals();
         return BT::NodeStatus::SUCCESS;
+    }
+
+    // --- Periodic re-publish (every 1 s) ---
+    const double republishInterval = 1.0;
+    const double sinceLastPub = (node->now() - lastPublishTime).seconds();
+
+    if (sinceLastPub >= republishInterval)
+    {
+        robot->publishGoalToTarget(*target, goalTopic, mapFrame);
+        lastPublishTime = node->now();
     }
 
     return BT::NodeStatus::RUNNING;

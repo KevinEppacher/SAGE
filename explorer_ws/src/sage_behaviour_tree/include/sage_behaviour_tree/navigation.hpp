@@ -75,8 +75,7 @@ private:
 
     double approachRadius = 2.0;
     double timeoutSec = 60.0;                     // default timeout
-    bool goalPublished = false;
-
+    rclcpp::Time lastPublishTime;
     rclcpp::Time startTime;                      // record start timestamp
 };
 // ============================ RealignToObject ============================ //

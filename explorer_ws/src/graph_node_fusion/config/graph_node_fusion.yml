@@ -5,6 +5,6 @@ fused:
       exploration_topic: /exploration_graph_nodes/graph_nodes
       detection_topic: /detection_graph_nodes/graph_nodes
       plan_rate: 0.1
-      approach_radius: 1.0
+      approach_radius: 2.2
       max_visited: 200
       exploration_weight: 1.0

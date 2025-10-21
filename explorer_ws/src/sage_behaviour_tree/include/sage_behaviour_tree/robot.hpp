@@ -10,6 +10,8 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <graph_node_msgs/msg/graph_node.hpp>
 
+using namespace std::chrono_literals;
+
 class Robot
 {
 public:
@@ -29,6 +31,7 @@ public:
     void publishGoalToTarget(const graph_node_msgs::msg::GraphNode& node,
                              const std::string& goalTopic = "/goal_pose",
                              const std::string& frame = "map");
+    bool isHalted();
 
 private:
     rclcpp::Node::SharedPtr node;
@@ -42,4 +45,6 @@ private:
     std::shared_future<typename GoalHandleSpin::SharedPtr> goalHandleFuture;
     rclcpp_action::ResultCode spinResult{rclcpp_action::ResultCode::UNKNOWN};
     bool spinDone{false};
+    bool halted{false};
+    rclcpp::Time haltedTime{};
 };

@@ -60,6 +60,7 @@ bool Robot::spin(double yaw, double durationSec)
     };
 
     goalHandleFuture = spinClient->async_send_goal(goal, options);
+    this->halted = false;
     return true;
 }
 
@@ -100,6 +101,8 @@ void Robot::cancelSpin()
         RCLCPP_WARN(node->get_logger(),
                     "Exception during cancelSpin(): %s", e.what());
     }
+    this->halted = true;
+    this->haltedTime = node->now();
 }
 
 void Robot::cancelNavigationGoals()
@@ -126,6 +129,8 @@ void Robot::cancelNavigationGoals()
     abortGoal("/navigate_to_pose");
     abortGoal("/follow_path");
     abortGoal("/compute_path_to_pose");
+    this->halted = true;
+    this->haltedTime = node->now();
 }
 
 void Robot::publishGoalToTarget(const graph_node_msgs::msg::GraphNode& nodeMsg,
@@ -143,4 +148,12 @@ void Robot::publishGoalToTarget(const graph_node_msgs::msg::GraphNode& nodeMsg,
     msg.pose.orientation = tf2::toMsg(tf2::Quaternion(0, 0, 0, 1));
 
     pub->publish(msg);
+    this->halted = false;
+}
+
+bool Robot::isHalted()
+{
+    // True only for 1 second after a halt
+    return this->halted &&
+           (node->now() - this->haltedTime) < rclcpp::Duration::from_seconds(1.0);
 }
