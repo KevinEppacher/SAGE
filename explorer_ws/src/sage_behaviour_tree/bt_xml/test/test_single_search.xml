@@ -21,7 +21,7 @@
                            goal_topic="/goal_pose"
                            robot_frame="base_link"
                            map_frame="map"
-                           timeout="45.0"/>
+                           timeout="10"/>
             <RealignToObject detected_graph_node="{detected_graph_node}"
                              spinDuration="5.0"/>
             <SaveImageAction imageTopic="/yoloe/overlay"
@@ -37,14 +37,14 @@
                                graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
                                robot_frame="base_link"
                                map_frame="map"
-                               sight_horizon="10.0"
+                               sight_horizon="10"
                                min_yaw_default="-0.523"
                                max_yaw_default="0.523"
                                min_yaw="{min_yaw}"
                                max_yaw="{max_yaw}"/>
             <Spin turnLeftAngle="{max_yaw}"
                   turnRightAngle="{min_yaw}"
-                  spinDuration="15.0"/>
+                  spinDuration="5"/>
             <SetParameterNode target_node="/value_map/value_map"
                               parameter_name="semantic_map.decay_factor"
                               value="0.999"/>
@@ -63,7 +63,7 @@
                              goal_topic="/goal_pose"
                              robot_frame="base_link"
                              map_frame="map"
-                             timeout="45.0"/>
+                             timeout="10"/>
             </ReactiveSequence>
           </Sequence>
         </ReactiveFallback>
