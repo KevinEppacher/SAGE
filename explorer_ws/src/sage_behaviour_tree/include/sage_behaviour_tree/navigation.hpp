@@ -68,13 +68,17 @@ private:
     rclcpp::Node::SharedPtr node;
     std::shared_ptr<Robot> robot;
     std::shared_ptr<graph_node_msgs::msg::GraphNode> target;
+
     std::string mapFrame = "map";
     std::string robotFrame = "base_link";
     std::string goalTopic = "/goal_pose";
-    double approachRadius = 2.0;
-    bool goalPublished = false;
-};
 
+    double approachRadius = 2.0;
+    double timeoutSec = 60.0;                     // default timeout
+    bool goalPublished = false;
+
+    rclcpp::Time startTime;                      // record start timestamp
+};
 // ============================ RealignToObject ============================ //
 
 class RealignToObject : public BT::StatefulActionNode
