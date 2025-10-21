@@ -53,16 +53,11 @@ private:
                        double sightHorizon,
                        double &minYaw,
                        double &maxYaw);
-  void publishMarker(const geometry_msgs::msg::Pose &robotPose,
-                     double sightHorizon,
-                     double minYaw,
-                     double maxYaw);
 
   rclcpp::Node::SharedPtr nodePtr_;
   std::unique_ptr<Robot> robot_;
 
   rclcpp::Subscription<graph_node_msgs::msg::GraphNodeArray>::SharedPtr sub_;
-  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr markerPub_;
   graph_node_msgs::msg::GraphNodeArray::SharedPtr latestMsg_;
   rclcpp::Clock::SharedPtr clock_{std::make_shared<rclcpp::Clock>(RCL_ROS_TIME)};
 

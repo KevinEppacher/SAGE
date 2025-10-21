@@ -2,53 +2,71 @@
 <root BTCPP_format="4"
       main_tree_to_execute="SAGE_SingleObject">
   <BehaviorTree ID="SAGE_SingleObject">
-    <KeepRunningUntilObjectFound>
-      <ReactiveFallback>
-        <Sequence>
-          <IsDetected name="Target object detected?"
-                      detection_threshold="0.85"
-                      detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
-                      graph_nodes="{graph_nodes}"/>
-          <SaveImageAction imageTopic="/yoloe/overlay"
-                           savePath="/app/image.png"/>
-        </Sequence>
-        <Sequence>
-          <SetParameterNode target_node="/value_map/value_map"
-                            parameter_name="semantic_map.decay_factor"
-                            value="1"/>
-          <SeekoutGraphNodes name="Observe all possible GraphNodes"
-                             graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
-                             robot_frame="base_link"
-                             map_frame="map"
-                             sight_horizon="10.0"
-                             min_yaw_default="-0.523"
-                             max_yaw_default="0.523"
-                             min_yaw="{min_yaw}"
-                             max_yaw="{max_yaw}"/>
-          <Spin turnLeftAngle="{max_yaw}"
-                turnRightAngle="{min_yaw}"
-                spinDuration="15.0"/>
-          <Delay delay_msec="200">
+    <Sequence>
+      <SetBlackboard value="false"
+                     output_key="object_found"/>
+      <SetBlackboard value="true"
+                     output_key="any_exploration_nodes"/>
+      <KeepRunningUntilObjectFound object_found="{object_found}"
+                                   any_exploration_nodes="{any_exploration_nodes}">
+        <ReactiveFallback>
+          <Sequence name="Detection sequence">
+            <IsDetected name="Target object detected?"
+                        detection_threshold="0.85"
+                        detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
+                        graph_nodes="{detected_graph_node}"/>
+            <GoToGraphNode name="Go to likiest GraphNode"
+                           graph_nodes="{likiest_explorer_node}"
+                           approach_radius="3"
+                           goal_topic="/goal_pose"
+                           robot_frame="base_link"
+                           map_frame="map"/>
+            <RealignToObject detected_graph_node="{detected_graph_node}"
+                             spinDuration="5.0"/>
+            <SaveImageAction imageTopic="/yoloe/overlay"
+                             savePath="/app/image.png"/>
+            <SetBlackboard value="true"
+                           output_key="object_found"/>
+          </Sequence>
+          <Sequence name="Exploration sequence">
+            <SetParameterNode target_node="/value_map/value_map"
+                              parameter_name="semantic_map.decay_factor"
+                              value="1"/>
+            <SeekoutGraphNodes name="Observe all possible GraphNodes"
+                               graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                               robot_frame="base_link"
+                               map_frame="map"
+                               sight_horizon="10.0"
+                               min_yaw_default="-0.523"
+                               max_yaw_default="0.523"
+                               min_yaw="{min_yaw}"
+                               max_yaw="{max_yaw}"/>
+            <Spin turnLeftAngle="{max_yaw}"
+                  turnRightAngle="{min_yaw}"
+                  spinDuration="15.0"/>
             <SetParameterNode target_node="/value_map/value_map"
                               parameter_name="semantic_map.decay_factor"
                               value="0.999"/>
-          </Delay>
-          <ReactiveSequence>
-            <IsDetected name="Already explored all available GraphNodes?"
-                        detection_threshold="0.0"
-                        detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
-                        graph_nodes="{exploration_nodes}"/>
-            <GoToGraphNode name="Go to likiest GraphNode"
-                           graph_nodes="{exploration_nodes}"
-                           approach_radius="2"
-                           goal_topic="/goal_pose"
-                           robot_frame="base_link"
-                           map_frame="map"
-                           max_changed_targets="1"/>
-          </ReactiveSequence>
-        </Sequence>
-      </ReactiveFallback>
-    </KeepRunningUntilObjectFound>
+            <ReactiveSequence>
+              <Fallback>
+                <IsDetected name="Already explored all available GraphNodes?"
+                            detection_threshold="0.0"
+                            detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                            graph_nodes="{likiest_explorer_node}"/>
+                <SetBlackboard value="false"
+                               output_key="any_exploration_nodes"/>
+              </Fallback>
+              <GoToGraphNode name="Go to likiest GraphNode"
+                             graph_nodes="{likiest_explorer_node}"
+                             approach_radius="2"
+                             goal_topic="/goal_pose"
+                             robot_frame="base_link"
+                             map_frame="map"/>
+            </ReactiveSequence>
+          </Sequence>
+        </ReactiveFallback>
+      </KeepRunningUntilObjectFound>
+    </Sequence>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
@@ -59,8 +77,6 @@
       <input_port name="goal_topic"/>
       <input_port name="robot_frame"/>
       <input_port name="map_frame"/>
-      <input_port name="max_changed_targets"
-                  default="1"/>
     </Action>
     <Condition ID="IsDetected">
       <input_port name="detection_threshold"
@@ -70,7 +86,17 @@
       <output_port name="graph_nodes"
                    default="latest_nodes"/>
     </Condition>
-    <Decorator ID="KeepRunningUntilObjectFound"/>
+    <Decorator ID="KeepRunningUntilObjectFound">
+      <input_port name="object_found"
+                  default="false"/>
+      <input_port name="any_exploration_nodes"
+                  default="true"/>
+    </Decorator>
+    <Action ID="RealignToObject">
+      <input_port name="detected_graph_node"/>
+      <input_port name="spinDuration"
+                  default="5.0"/>
+    </Action>
     <Action ID="SaveImageAction">
       <input_port name="imageTopic"
                   default="/yoloe/overlay"/>

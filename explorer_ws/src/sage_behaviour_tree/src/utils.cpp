@@ -87,8 +87,7 @@ SeekoutGraphNodes::SeekoutGraphNodes(const std::string &name,
       nodePtr_(std::move(nodePtr)),
       robot_(std::make_unique<Robot>(nodePtr_))
 {
-  markerPub_ =
-      nodePtr_->create_publisher<visualization_msgs::msg::Marker>("seekout_debug_marker", 10);
+
 }
 
 BT::PortsList SeekoutGraphNodes::providedPorts()
@@ -179,11 +178,9 @@ BT::NodeStatus SeekoutGraphNodes::onRunning()
                 "[%s] No nodes within horizon → using defaults.", name().c_str());
     setOutput("min_yaw", minDef_);
     setOutput("max_yaw", maxDef_);
-    publishMarker(robotPose, horizon_, minDef_, maxDef_);
     return BT::NodeStatus::SUCCESS;
   }
 
-  publishMarker(robotPose, horizon_, minYaw, maxYaw);
   setOutput("min_yaw", minYaw);
   setOutput("max_yaw", maxYaw);
 
@@ -257,52 +254,4 @@ bool SeekoutGraphNodes::computeYawRange(
                name().c_str(), minYaw * 180.0 / M_PI, maxYaw * 180.0 / M_PI);
 
   return true;
-}
-
-
-void SeekoutGraphNodes::publishMarker(
-    const geometry_msgs::msg::Pose &robotPose,
-    double sightHorizon,
-    double minYaw,
-    double maxYaw)
-{
-  visualization_msgs::msg::Marker marker;
-  marker.header.frame_id = "map";
-  marker.header.stamp = nodePtr_->now();
-  marker.ns = "seekout_debug";
-  marker.id = 0;
-  marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
-  marker.action = visualization_msgs::msg::Marker::ADD;
-  marker.scale.x = 0.03;
-  marker.color.r = 0.0;
-  marker.color.g = 0.9;
-  marker.color.b = 1.0;
-  marker.color.a = 1.0;
-
-  // Draw a circle for the sight horizon
-  const int N = 64;
-  for (int i = 0; i <= N; ++i)
-  {
-    double theta = i * 2 * M_PI / N;
-    geometry_msgs::msg::Point p;
-    p.x = robotPose.position.x + sightHorizon * std::cos(theta);
-    p.y = robotPose.position.y + sightHorizon * std::sin(theta);
-    p.z = 0.05;
-    marker.points.push_back(p);
-  }
-
-  // Draw direction line
-  double midYaw = 0.5 * (minYaw + maxYaw);
-  geometry_msgs::msg::Point center, end;
-  center.x = robotPose.position.x;
-  center.y = robotPose.position.y;
-  center.z = 0.05;
-  end.x = robotPose.position.x + sightHorizon * std::cos(midYaw);
-  end.y = robotPose.position.y + sightHorizon * std::sin(midYaw);
-  end.z = 0.05;
-
-  marker.points.push_back(center);
-  marker.points.push_back(end);
-
-  markerPub_->publish(marker);
 }

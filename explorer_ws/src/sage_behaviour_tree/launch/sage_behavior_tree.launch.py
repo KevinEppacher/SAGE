@@ -21,7 +21,7 @@ def generate_launch_description():
         get_package_share_directory("sage_behaviour_tree"),
         'bt_xml',
         'test',
-        # 'test_detection_navigation.xml'
+        # 'test_goto_graph_node.xml'
         'test_single_search.xml'
     )
 

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4"
+      main_tree_to_execute="SAGE_SingleObject">
+  <BehaviorTree ID="SAGE_SingleObject">
+    <Sequence>
+      <IsDetected name="Already explored all available GraphNodes?"
+                  detection_threshold="0.0"
+                  detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                  graph_nodes="{exploration_nodes}"/>
+      <GoToGraphNode name="Go to likiest GraphNode"
+                     graph_nodes="{exploration_nodes}"
+                     approach_radius="2"
+                     goal_topic="/goal_pose"
+                     robot_frame="base_link"
+                     map_frame="map"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="GoToGraphNode">
+      <input_port name="graph_nodes"/>
+      <input_port name="approach_radius"/>
+      <input_port name="goal_topic"/>
+      <input_port name="robot_frame"/>
+      <input_port name="map_frame"/>
+    </Action>
+    <Condition ID="IsDetected">
+      <input_port name="detection_threshold"
+                  default="0.8"/>
+      <input_port name="detection_graph_node_topic"
+                  default="/detection_graph_nodes/graph_nodes"/>
+      <output_port name="graph_nodes"
+                   default="latest_nodes"/>
+    </Condition>
+  </TreeNodesModel>
+
+</root>
