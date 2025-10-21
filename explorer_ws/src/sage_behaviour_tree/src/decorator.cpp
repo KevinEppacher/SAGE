@@ -9,31 +9,55 @@ KeepRunningUntilObjectFound::KeepRunningUntilObjectFound(
 
 BT::PortsList KeepRunningUntilObjectFound::providedPorts()
 {
-  return {};
+  return {
+      BT::InputPort<bool>("object_found", false, "True if target object was detected"),
+      BT::InputPort<bool>("any_exploration_nodes", true, "True if frontiers or exploration nodes remain")};
 }
 
 BT::NodeStatus KeepRunningUntilObjectFound::tick()
 {
+  // Perform one-time default initialization
+  if (!initialized)
+  {
+    // Initialize defaults if not on blackboard
+    if (!getInput("object_found", objectFound))
+    {
+      objectFound = false;
+      setOutput("object_found", objectFound);
+    }
+
+    if (!getInput("any_exploration_nodes", anyExplorationNodes))
+    {
+      anyExplorationNodes = true;
+      setOutput("any_exploration_nodes", anyExplorationNodes);
+    }
+
+    initialized = true;
+  }
+
+  // Read the current blackboard values
+  getInput("object_found", objectFound);
+  getInput("any_exploration_nodes", anyExplorationNodes);
+
+  // Decision logic
   if (objectFound)
   {
-    // Stop immediately once object found
     return BT::NodeStatus::SUCCESS;
   }
 
-  const BT::NodeStatus childStatus = child_node_->executeTick();
-
-  switch (childStatus)
+  if (!anyExplorationNodes)
   {
-    case BT::NodeStatus::SUCCESS:
-      objectFound = true;
-      return BT::NodeStatus::SUCCESS;
-
-    case BT::NodeStatus::FAILURE:
-      // Failure of the fallback means exploration failed
-      return BT::NodeStatus::FAILURE;
-
-    case BT::NodeStatus::RUNNING:
-    default:
-      return BT::NodeStatus::RUNNING;
+    return BT::NodeStatus::FAILURE;
   }
+
+  // Otherwise, keep child running
+  const BT::NodeStatus child_status = child_node_->executeTick();
+
+  // Keep looping until mission state changes
+  if (child_status == BT::NodeStatus::SUCCESS || child_status == BT::NodeStatus::FAILURE)
+  {
+    return BT::NodeStatus::RUNNING;
+  }
+
+  return child_status;
 }

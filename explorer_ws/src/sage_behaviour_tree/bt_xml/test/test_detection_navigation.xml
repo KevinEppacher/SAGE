@@ -5,10 +5,13 @@
     <KeepRunningUntilObjectFound>
       <ReactiveFallback>
         <Sequence>
-          <IsDetected name="Target object detected?"
-                      detection_threshold="0.1"
-                      detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
-                      graph_nodes="{graph_nodes}"/>
+<IsDetected name="Target object detected?"
+            detection_threshold="0.1"
+            detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
+            graph_nodes="{graph_node}"/>
+
+<RealignToObject detected_graph_node="{graph_node}"
+                 spinDuration="5.0"/>
           <SaveImageAction imageTopic="/yoloe/overlay"
                            savePath="/app/image.png"/>
         </Sequence>
@@ -30,6 +33,10 @@
                    default="latest_nodes"/>
     </Condition>
     <Decorator ID="KeepRunningUntilObjectFound"/>
+<Action ID="RealignToObject">
+  <input_port name="detected_graph_node"/>
+  <input_port name="spinDuration" default="5.0"/>
+</Action>
     <Action ID="SaveImageAction">
       <input_port name="imageTopic"
                   default="/yoloe/overlay"/>

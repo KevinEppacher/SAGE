@@ -257,7 +257,8 @@ BT::NodeStatus GoToGraphNode::onRunning()
 
     if (isWithinGoal(*target))
     {
-        RCLCPP_INFO(node->get_logger(), "[%s] Target reached.", name().c_str());
+        RCLCPP_INFO(node->get_logger(), "[%s] Target reached within %.2f m.", name().c_str(), approachRadius);
+        robot->cancelNavigationGoals();
         return BT::NodeStatus::SUCCESS;
     }
 
@@ -280,4 +281,108 @@ bool GoToGraphNode::isWithinGoal(const graph_node_msgs::msg::GraphNode& goal)
     double dy = goal.position.y - robotPose.position.y;
     double dist = std::hypot(dx, dy);
     return dist <= approachRadius;
+}
+
+// -------------------- RealignToObject -------------------- //
+
+RealignToObject::RealignToObject(const std::string& name,
+                                 const BT::NodeConfiguration& config,
+                                 rclcpp::Node::SharedPtr nodePtr)
+    : BT::StatefulActionNode(name, config),
+      node(std::move(nodePtr)),
+      robot(std::make_shared<Robot>(node))
+{
+}
+
+BT::PortsList RealignToObject::providedPorts()
+{
+    return {
+        BT::InputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>(
+            "detected_graph_node", "Best detected graph node"),
+        BT::InputPort<double>("spinDuration", 5.0, "Duration allowed for spin")
+    };
+}
+
+BT::NodeStatus RealignToObject::onStart()
+{
+    auto res = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("detected_graph_node");
+    getInput("spinDuration", spinDuration);
+
+    if (!res)
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    "[%s] No detected_graph_node input provided.", name().c_str());
+        return BT::NodeStatus::FAILURE;
+    }
+
+    const auto& target = res.value();
+    if (!target)
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    "[%s] Received null target node.", name().c_str());
+        return BT::NodeStatus::FAILURE;
+    }
+
+    geometry_msgs::msg::Pose robotPose;
+    if (!robot->getPose(robotPose))
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    "[%s] Cannot get robot pose.", name().c_str());
+        return BT::NodeStatus::FAILURE;
+    }
+
+    targetYaw = computeYawToTarget(robotPose, *target);
+    RCLCPP_INFO(node->get_logger(),
+                "[%s] Realigning by %.3f rad to node ID %d (score %.2f).",
+                name().c_str(), targetYaw, target->id, target->score);
+
+    robot->cancelNavigationGoals();
+    robot->spin(targetYaw, spinDuration);
+
+    started = true;
+    return BT::NodeStatus::RUNNING;
+}
+
+BT::NodeStatus RealignToObject::onRunning()
+{
+    if (!started)
+        return BT::NodeStatus::FAILURE;
+
+    if (!robot->isSpinDone())
+        return BT::NodeStatus::RUNNING;
+
+    if (robot->getSpinResult() == rclcpp_action::ResultCode::SUCCEEDED)
+    {
+        RCLCPP_INFO(node->get_logger(),
+                    "[%s] Realign spin completed successfully.", name().c_str());
+        return BT::NodeStatus::SUCCESS;
+    }
+
+    RCLCPP_WARN(node->get_logger(),
+                "[%s] Realign spin failed or canceled.", name().c_str());
+    return BT::NodeStatus::FAILURE;
+}
+
+void RealignToObject::onHalted()
+{
+    if (started)
+        robot->cancelSpin();
+    started = false;
+    RCLCPP_INFO(node->get_logger(), "[%s] Halted.", name().c_str());
+}
+
+double RealignToObject::computeYawToTarget(const geometry_msgs::msg::Pose& robotPose,
+                                           const graph_node_msgs::msg::GraphNode& target)
+{
+    double robotYaw = tf2::getYaw(robotPose.orientation);
+    double dx = target.position.x - robotPose.position.x;
+    double dy = target.position.y - robotPose.position.y;
+    double targetYaw = std::atan2(dy, dx);
+    double yawDiff = targetYaw - robotYaw;
+
+    // Normalize to [-π, π]
+    while (yawDiff > M_PI) yawDiff -= 2 * M_PI;
+    while (yawDiff < -M_PI) yawDiff += 2 * M_PI;
+
+    return yawDiff;
 }
