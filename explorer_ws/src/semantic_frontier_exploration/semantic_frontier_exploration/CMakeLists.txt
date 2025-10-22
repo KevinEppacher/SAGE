@@ -116,6 +116,37 @@ target_compile_definitions(map_inflation_node PUBLIC ${PCL_DEFINITIONS})
 # Use C++17 standard
 target_compile_features(map_inflation_node PUBLIC cxx_std_17)
 
+
+#####################################################################
+
+# Main clustering node
+add_executable(map_explorer_node
+  src/map_explorer_node.cpp
+)
+
+# Link ROS 2 dependencies
+ament_target_dependencies(map_explorer_node
+  rclcpp
+  rclcpp_lifecycle
+  sensor_msgs
+  visualization_msgs
+  std_msgs
+  tf2_ros
+  tf2_geometry_msgs
+  nav_msgs
+  std_srvs
+)
+
+# Link OpenCV
+target_link_libraries(map_explorer_node ${OpenCV_LIBS})
+include_directories(${OpenCV_INCLUDE_DIRS})
+
+# Define PCL macros (if any)
+target_compile_definitions(map_explorer_node PUBLIC ${PCL_DEFINITIONS})
+
+# Use C++17 standard
+target_compile_features(map_explorer_node PUBLIC cxx_std_17)
+
 #####################################################################
 #                           Installation                            #
 #####################################################################
@@ -124,6 +155,7 @@ target_compile_features(map_inflation_node PUBLIC cxx_std_17)
 install(TARGETS
   semantic_frontier_exploration_node
   map_inflation_node
+  map_explorer_node
   DESTINATION lib/${PROJECT_NAME}
 )
 #####################################################################
