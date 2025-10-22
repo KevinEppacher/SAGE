@@ -647,13 +647,13 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /exploration_map
+        Value: /inflated_map
       Update Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /exploration_map_updates
+        Value: /inflated_map_updates
       Use Timestamp: false
       Value: true
   Enabled: true
@@ -702,16 +702,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 10.81261920928955
+      Distance: 16.054832458496094
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 2.2332708835601807
-        Y: 1.5735222101211548
-        Z: -0.2587866485118866
+        X: 6.611344337463379
+        Y: 1.2495417594909668
+        Z: -0.2544078230857849
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
@@ -720,7 +720,7 @@ Visualization Manager:
       Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 3.1268832683563232
+      Yaw: 3.136883497238159
     Saved: ~
 Window Geometry:
   Displays:
