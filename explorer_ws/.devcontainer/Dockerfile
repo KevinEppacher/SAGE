@@ -124,14 +124,22 @@ RUN sudo apt update && sudo apt install -y --no-install-recommends \
 # Install ROS packages
 RUN sudo apt update && sudo apt install -y \
     ros-${ROS_DISTRO}-pcl-ros \
-    ros-${ROS_DISTRO}-navigation2 \
-    ros-${ROS_DISTRO}-nav2-bringup \
-    ros-${ROS_DISTRO}-nav2-costmap-2d \
     ros-${ROS_DISTRO}-pointcloud-to-laserscan \
     ros-${ROS_DISTRO}-rviz2 \
     ros-${ROS_DISTRO}-tf2-tools \
     ros-${ROS_DISTRO}-rqt-tf-tree \
-    ros-${ROS_DISTRO}-nav2-mppi-controller
+    ros-${ROS_DISTRO}-test-msgs \
+    ros-${ROS_DISTRO}-gazebo-ros-pkgs \
+    ros-${ROS_DISTRO}-slam-toolbox \
+    ros-${ROS_DISTRO}-behaviortree-cpp-v3
+    # ros-${ROS_DISTRO}-navigation2 \
+    # ros-${ROS_DISTRO}-nav2-bringup \
+    # ros-${ROS_DISTRO}-nav2-costmap-2d \
+    # ros-${ROS_DISTRO}-nav2-mppi-controller \
+
+
+RUN sudo apt update && sudo apt install -y \
+    libnanoflann-dev
 
 ########################################################
 # End Custom installations

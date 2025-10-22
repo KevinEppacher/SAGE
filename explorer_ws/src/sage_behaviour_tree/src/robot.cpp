@@ -47,6 +47,7 @@ bool Robot::spin(double yaw, double durationSec)
 
     NavSpin::Goal goal;
     goal.target_yaw = yaw;
+    goal.disable_collision_checks = true;
     goal.time_allowance = rclcpp::Duration::from_seconds(durationSec);
 
     spinDone = false;
