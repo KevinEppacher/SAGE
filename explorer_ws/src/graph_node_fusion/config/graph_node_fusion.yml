@@ -8,3 +8,6 @@ fused:
       approach_radius: 2.2
       max_visited: 200
       exploration_weight: 1.0
+      sigma: 1.5
+      gaussian_influence: 0.5
+      sight_horizon: 5.0

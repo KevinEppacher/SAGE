@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4"
+      main_tree_to_execute="SAGE_SingleObject">
+  <BehaviorTree ID="SAGE_SingleObject">
+    <Spin turnLeftAngle="3.14159"
+          turnRightAngle="-3.14159"
+          spinDuration="10"/>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="Spin">
+      <input_port name="turnLeftAngle"
+                  default="3.14159"/>
+      <input_port name="turnRightAngle"
+                  default="-3.14159"/>
+      <input_port name="spinDuration"
+                  default="10.0"/>
+    </Action>
+  </TreeNodesModel>
+
+</root>
