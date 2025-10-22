@@ -21,8 +21,8 @@ def generate_launch_description():
         get_package_share_directory("sage_behaviour_tree"),
         'bt_xml',
         'test',
-        'test_spin.xml'
-        # 'test_single_search.xml'
+        # 'test_spin.xml'
+        'test_single_search.xml'
     )
 
 

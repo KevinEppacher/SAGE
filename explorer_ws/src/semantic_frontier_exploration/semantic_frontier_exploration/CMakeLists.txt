@@ -29,6 +29,7 @@ find_package(tf2_ros REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 
 # find_package(nav2_costmap_2d REQUIRED)
 # find_package(rclcpp_components REQUIRED)
@@ -102,6 +103,7 @@ ament_target_dependencies(map_inflation_node
   tf2_ros
   tf2_geometry_msgs
   nav_msgs
+  std_srvs
 )
 
 # Link OpenCV
