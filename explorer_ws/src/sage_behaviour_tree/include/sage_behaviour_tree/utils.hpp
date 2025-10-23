@@ -13,8 +13,11 @@
 #include <chrono>
 #include <graph_node_msgs/msg/graph_node_array.hpp>
 #include <visualization_msgs/msg/marker.hpp>
+#include <std_srvs/srv/empty.hpp>
 // Custom Class
 #include "sage_behaviour_tree/robot.hpp"
+
+// -------------------- SetParameterNode -------------------- //
 
 class SetParameterNode : public BT::SyncActionNode
 {
@@ -73,4 +76,27 @@ private:
   double minDef_{-M_PI};
   double maxDef_{M_PI};
 
+};
+
+// -------------------- CallEmptyService -------------------- //
+
+class CallEmptyService : public BT::StatefulActionNode
+{
+public:
+    CallEmptyService(const std::string& name,
+                     const BT::NodeConfiguration& config,
+                     rclcpp::Node::SharedPtr node);
+
+    static BT::PortsList providedPorts();
+
+    BT::NodeStatus onStart() override;
+    BT::NodeStatus onRunning() override;
+    void onHalted() override;
+
+private:
+    rclcpp::Node::SharedPtr node;
+    std::string serviceName;
+    rclcpp::Client<std_srvs::srv::Empty>::SharedPtr client;
+    std::shared_future<std_srvs::srv::Empty::Response::SharedPtr> future;
+    rclcpp::Time startTime;
 };

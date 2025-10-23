@@ -22,8 +22,8 @@ void SageBehaviorTreeNode::execute()
 {
     create_behavior_tree();
     timer_ = create_wall_timer(500ms, std::bind(&SageBehaviorTreeNode::update_behavior_tree, this));
-    rclcpp::spin(shared_from_this());
-    rclcpp::shutdown();
+    // rclcpp::spin(shared_from_this());
+    // rclcpp::shutdown();
 }
 
 void SageBehaviorTreeNode::create_behavior_tree()
@@ -37,6 +37,7 @@ void SageBehaviorTreeNode::create_behavior_tree()
     factory.registerNodeType<SaveImageAction>("SaveImageAction", shared_from_this());
     factory.registerNodeType<KeepRunningUntilObjectFound>("KeepRunningUntilObjectFound");
     factory.registerNodeType<RealignToObject>("RealignToObject", shared_from_this());
+    factory.registerNodeType<CallEmptyService>("CallEmptyService", shared_from_this());
 
     auto bb = BT::Blackboard::create();
     // bb->set("detection_threshold", get_parameter("detection.threshold").as_double());
