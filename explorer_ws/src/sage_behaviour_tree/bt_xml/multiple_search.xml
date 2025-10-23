@@ -1,6 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4"
-      main_tree_to_execute="SAGE_SingleObject">
+      main_tree_to_execute="SAGE_MultiObject">
+  <BehaviorTree ID="SAGE_MultiObject">
+    <Sequence name="MultiObject Exploration">
+      <SubTree ID="SAGE_SingleObject"
+               object="bed"/>
+      <SubTree ID="SAGE_SingleObject"
+               object="chair"/>
+      <SubTree ID="SAGE_SingleObject"
+               object="table"/>
+      <SubTree ID="SAGE_SingleObject"
+               object="sofa"/>
+      <SubTree ID="SAGE_SingleObject"
+               object="lamp"/>
+    </Sequence>
+  </BehaviorTree>
+
   <BehaviorTree ID="SAGE_SingleObject">
     <Sequence>
       <SetBlackboard value="false"
@@ -114,6 +129,9 @@
       <input_port name="spinDuration"
                   default="5.0"/>
     </Action>
+    <SubTree ID="SAGE_SingleObject">
+      <input_port name="object"/>
+    </SubTree>
     <Action ID="SaveImageAction">
       <input_port name="imageTopic"
                   default="/yoloe/overlay"/>
