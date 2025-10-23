@@ -9,6 +9,8 @@
                      output_key="any_exploration_nodes"/>
       <CallEmptyService service_name="/exploration_map/clear"/>
       <CallEmptyService service_name="/value_map/clear"/>
+      <PublishSemanticPrompt text_query="bed"
+                             topic="/user_prompt"/>
       <KeepRunningUntilObjectFound object_found="{object_found}"
                                    any_exploration_nodes="{any_exploration_nodes}">
         <ReactiveFallback>
@@ -19,7 +21,7 @@
                         graph_nodes="{detected_graph_node}"/>
             <GoToGraphNode name="Go to likiest GraphNode"
                            graph_nodes="{likiest_explorer_node}"
-                           approach_radius="3"
+                           approach_radius="2"
                            goal_topic="/goal_pose"
                            robot_frame="base_link"
                            map_frame="map"
@@ -102,6 +104,11 @@
       <input_port name="any_exploration_nodes"
                   default="true"/>
     </Decorator>
+    <Action ID="PublishSemanticPrompt">
+      <input_port name="text_query"/>
+      <input_port name="topic"
+                  default="/user_prompt"/>
+    </Action>
     <Action ID="RealignToObject">
       <input_port name="detected_graph_node"/>
       <input_port name="spinDuration"

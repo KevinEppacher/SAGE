@@ -21,7 +21,6 @@
 //   max_range_m:           15.0
 //   stride:                1
 //   pose_dist_thresh:      0.3
-//   pose_yaw_thresh:       0.17
 //   max_poses:             50
 //
 
@@ -53,8 +52,7 @@ public:
         declare_parameter<bool>("debug_mode", false);
         declare_parameter<double>("max_range_m", 15.0);
         declare_parameter<int>("stride", 1);
-        declare_parameter<double>("pose_dist_thresh", 0.3);
-        declare_parameter<double>("pose_yaw_thresh", 0.17);
+        declare_parameter<double>("pose_dist_thresh", 0.5);
         declare_parameter<int>("max_poses", 50);
 
         mapTopic = get_parameter("map_topic").as_string();
@@ -65,7 +63,6 @@ public:
         maxRangeM = get_parameter("max_range_m").as_double();
         stride = std::max(1, static_cast<int>(get_parameter("stride").as_int()));
         poseDistThresh = get_parameter("pose_dist_thresh").as_double();
-        poseYawThresh = get_parameter("pose_yaw_thresh").as_double();
         maxPoses = get_parameter("max_poses").as_int();
 
         tfBuffer = std::make_unique<tf2_ros::Buffer>(get_clock());
@@ -98,8 +95,7 @@ private:
     struct PoseRec { double x, y, yaw; };
     std::deque<PoseRec> poseBuffer;
     size_t maxPoses{50};
-    double poseDistThresh{0.3};
-    double poseYawThresh{0.17};
+    double poseDistThresh{0.5};
 
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr mapSub;
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr mapPub;
@@ -200,8 +196,7 @@ private:
         double yaw = tf2::getYaw(tfMapBase.transform.rotation);
 
         if (poseBuffer.empty() ||
-            std::hypot(x - poseBuffer.back().x, y - poseBuffer.back().y) > poseDistThresh ||
-            std::fabs(yaw - poseBuffer.back().yaw) > poseYawThresh)
+            std::hypot(x - poseBuffer.back().x, y - poseBuffer.back().y) > poseDistThresh)
         {
             poseBuffer.push_back({x, y, yaw});
             if (poseBuffer.size() > maxPoses) poseBuffer.pop_front();

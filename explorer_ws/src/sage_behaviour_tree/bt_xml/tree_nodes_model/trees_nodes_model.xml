@@ -3,20 +3,65 @@
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
+    <Action ID="CallEmptyService">
+      <input_port name="service_name"
+                  default="/clear_exploration_map"/>
+    </Action>
     <Action ID="GoToGraphNode">
       <input_port name="graph_nodes"/>
       <input_port name="approach_radius"/>
+      <input_port name="goal_topic"/>
+      <input_port name="robot_frame"/>
+      <input_port name="map_frame"/>
+      <input_port name="timeout"
+                  default="60.0"/>
     </Action>
     <Condition ID="IsDetected">
       <input_port name="detection_threshold"
                   default="0.8"/>
       <input_port name="detection_graph_node_topic"
                   default="/detection_graph_nodes/graph_nodes"/>
-      <input_port name="max_missed_ticks"
-                  default="8"/>
       <output_port name="graph_nodes"
                    default="latest_nodes"/>
     </Condition>
+    <Decorator ID="KeepRunningUntilObjectFound">
+      <input_port name="object_found"
+                  default="false"/>
+      <input_port name="any_exploration_nodes"
+                  default="true"/>
+    </Decorator>
+    <Action ID="PublishSemanticPrompt">
+      <input_port name="text_query"/>
+      <input_port name="topic"
+                  default="/user_prompt"/>
+    </Action>
+    <Action ID="RealignToObject">
+      <input_port name="detected_graph_node"/>
+      <input_port name="spinDuration"
+                  default="5.0"/>
+    </Action>
+    <Action ID="SaveImageAction">
+      <input_port name="imageTopic"
+                  default="/yoloe/overlay"/>
+      <input_port name="savePath"
+                  default="/tmp/overlay.jpg"/>
+    </Action>
+    <Action ID="SeekoutGraphNodes">
+      <input_port name="graph_node_topic"
+                  default="/fused/exploration_graph_nodes/graph_nodes"/>
+      <input_port name="robot_frame"
+                  default="base_link"/>
+      <input_port name="map_frame"
+                  default="map"/>
+      <input_port name="sight_horizon"
+                  default="10.0"/>
+      <input_port name="min_yaw_default"
+                  default="-0.523"/>
+      <input_port name="max_yaw_default"
+                  default="0.523"/>
+      <output_port name="min_yaw"/>
+      <output_port name="max_yaw"/>
+    </Action>
     <Action ID="SetParameterNode">
       <input_port name="target_node"
                   default="/value_map"/>
@@ -26,10 +71,12 @@
                   default="1.0"/>
     </Action>
     <Action ID="Spin">
-      <input_port name="spin_angle"
-                  default="6.28319"/>
-      <input_port name="spin_duration"
-                  default="15.0"/>
+      <input_port name="turnLeftAngle"
+                  default="3.14159"/>
+      <input_port name="turnRightAngle"
+                  default="-3.14159"/>
+      <input_port name="spinDuration"
+                  default="10.0"/>
     </Action>
   </TreeNodesModel>
 

@@ -78,6 +78,5 @@ exploration_graph_nodes:
       stride: 1                                    # Subsampling factor for map cells
 
       # --- Pose buffer behavior ---
-      pose_dist_thresh: 0.3                        # Minimum translation (m) before storing new pose
-      pose_yaw_thresh: 0.17                        # Minimum rotation (rad ~10°) before storing new pose
-      max_poses: 50                                # Maximum stored poses in buffer
+      pose_dist_thresh: 0.5                        # Minimum translation (m) before storing new pose
+      max_poses: 100                                # Maximum stored poses in buffer

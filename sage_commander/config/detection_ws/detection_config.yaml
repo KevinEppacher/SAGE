@@ -123,7 +123,7 @@ value_map:
         camera_info_topic: "/camera_info"  # Topic for the camera info
         visualize_confidence_map: false  # Flag to visualize the confidence map
         clear_service_name: "/value_map/clear"
-        update_gain: 0.01   # Gain for updating the value map with its current observation
+        update_gain: 0.05   # Gain for updating the value map with its current observation
         use_camera_info_fov: true  # Flag to use FOV from camera info
         fov: 5.0  # FOV in degrees if not using camera info
       robot:

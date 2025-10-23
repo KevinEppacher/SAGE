@@ -53,17 +53,19 @@ Visualization Manager:
     - Class: rviz_common/Group
       Displays:
         - Class: rviz_default_plugins/MarkerArray
-          Enabled: false
+          Enabled: true
           Name: MarkerArray
           Namespaces:
-            {}
+            graph_nodes: true
+            graph_nodes_best: true
+            graph_nodes_text: true
           Topic:
             Depth: 5
             Durability Policy: Volatile
             History Policy: Keep Last
             Reliability Policy: Reliable
             Value: /exploration_graph_nodes/graph_nodes/marker
-          Value: false
+          Value: true
         - Alpha: 0.699999988079071
           Class: rviz_default_plugins/Map
           Color Scheme: map
@@ -649,7 +651,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Best Effort
-        Value: /rgb
+        Value: /yoloe/overlay
       Value: true
   Enabled: true
   Global Options:
@@ -697,16 +699,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 11.958704948425293
+      Distance: 11.725746154785156
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 2.134127378463745
-        Y: -1.4151391983032227
-        Z: -0.25893959403038025
+        X: 1.4020991325378418
+        Y: 0.03556223586201668
+        Z: -0.2596853971481323
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
