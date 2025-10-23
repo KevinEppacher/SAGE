@@ -29,6 +29,7 @@ find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(multimodal_query_msgs REQUIRED)
 
 ############################################################
 # Include Directories
@@ -50,6 +51,7 @@ add_executable(sage_bt_node
     src/utils.cpp
     src/robot.cpp
     src/decorator.cpp
+    src/semantic_prompt.cpp
 )
 
 # Link ROS 2 dependencies
@@ -68,6 +70,7 @@ ament_target_dependencies(sage_bt_node
     OpenCV
     sensor_msgs
     std_srvs
+    multimodal_query_msgs
 )
 
 # Use C++17 standard

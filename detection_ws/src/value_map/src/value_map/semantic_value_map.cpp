@@ -217,49 +217,75 @@ void SemanticValueMap::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::Sh
 
 void SemanticValueMap::resizeMapPreservingValues(const nav_msgs::msg::OccupancyGrid::SharedPtr msg)
 {
-  const int newHeight = msg->info.height;
-  const int newWidth = msg->info.width;
+  const int   newHeight = msg->info.height;
+  const int   newWidth  = msg->info.width;
+  const float newRes    = msg->info.resolution;
 
-  if (!mapInitialized || valueMap.empty() || confidenceMap.empty()) 
+  if (!mapInitialized || valueMap.empty() || confidenceMap.empty())
   {
-    // First-time initialization
     valueMap = cv::Mat::zeros(newHeight, newWidth, CV_32FC1);
     confidenceMap = cv::Mat::zeros(newHeight, newWidth, CV_32FC1);
     map = msg;
     mapInitialized = true;
-
     RCLCPP_INFO(node->get_logger(), "Initialized value/confidence maps.");
     return;
   }
 
-  if (valueMap.rows == newHeight && valueMap.cols == newWidth) 
-  {
-    // No resizing necessary
+  const auto &oldInfo = map->info;
+  const auto &oldO = oldInfo.origin.position;
+  const auto &newO = msg->info.origin.position;
+
+  // If resolution changed, clear to avoid resampling artifacts
+  if (std::fabs(oldInfo.resolution - newRes) > 1e-9) {
+    RCLCPP_WARN(node->get_logger(), "Map resolution changed (%.6f -> %.6f). Clearing maps.",
+                oldInfo.resolution, newRes);
+    valueMap = cv::Mat::zeros(newHeight, newWidth, CV_32FC1);
+    confidenceMap = cv::Mat::zeros(newHeight, newWidth, CV_32FC1);
     map = msg;
     return;
   }
 
-  RCLCPP_INFO(node->get_logger(), "Resizing value map from (%d, %d) to (%d, %d)",
-              valueMap.rows, valueMap.cols, newHeight, newWidth);
+  // Pixel shift due to origin change: positive means move content to +x/+y in new grid.
+  const float res = newRes;
+  const int dx = static_cast<int>(std::round((oldO.x - newO.x) / res));
+  const int dy = static_cast<int>(std::round((oldO.y - newO.y) / res));
 
-  // Create new maps with updated size
-  cv::Mat newValueMap = cv::Mat::zeros(newHeight, newWidth, CV_32FC1);
+  const bool size_changed   = (valueMap.rows != newHeight) || (valueMap.cols != newWidth);
+  const bool origin_changed = (dx != 0) || (dy != 0);
+
+  if (!size_changed && !origin_changed) {
+    map = msg;  // nothing to do
+    return;
+  }
+
+  cv::Mat newValueMap      = cv::Mat::zeros(newHeight, newWidth, CV_32FC1);
   cv::Mat newConfidenceMap = cv::Mat::zeros(newHeight, newWidth, CV_32FC1);
 
-  // Determine common overlapping region
-  int minRows = std::min(valueMap.rows, newHeight);
-  int minCols = std::min(valueMap.cols, newWidth);
+  // Compute overlapped rectangles with shift applied
+  const int src_x0 = std::max(0, -dx);
+  const int src_y0 = std::max(0, -dy);
+  const int dst_x0 = std::max(0,  dx);
+  const int dst_y0 = std::max(0,  dy);
 
-  // Copy overlapping region into the new maps
-  valueMap(cv::Rect(0, 0, minCols, minRows))
-      .copyTo(newValueMap(cv::Rect(0, 0, minCols, minRows)));
-  confidenceMap(cv::Rect(0, 0, minCols, minRows))
-      .copyTo(newConfidenceMap(cv::Rect(0, 0, minCols, minRows)));
+  int copy_w = std::min(valueMap.cols - src_x0, newWidth  - dst_x0);
+  int copy_h = std::min(valueMap.rows - src_y0, newHeight - dst_y0);
 
-  // Replace old maps
-  valueMap = newValueMap;
-  confidenceMap = newConfidenceMap;
+  if (copy_w > 0 && copy_h > 0) {
+    cv::Rect srcR(src_x0, src_y0, copy_w, copy_h);
+    cv::Rect dstR(dst_x0, dst_y0, copy_w, copy_h);
+    valueMap(srcR).copyTo(newValueMap(dstR));
+    confidenceMap(srcR).copyTo(newConfidenceMap(dstR));
+  } else {
+    RCLCPP_WARN(node->get_logger(), "No overlap after origin/size change (dx=%d, dy=%d). Maps cleared.", dx, dy);
+  }
+
+  valueMap = std::move(newValueMap);
+  confidenceMap = std::move(newConfidenceMap);
   map = msg;
+
+  RCLCPP_INFO(node->get_logger(),
+              "Map updated: (%dx%d)->(%dx%d), origin shift: dx=%d, dy=%d px",
+              oldInfo.width, oldInfo.height, newWidth, newHeight, dx, dy);
 }
 
 double SemanticValueMap::getHorizontalFOV(const sensor_msgs::msg::CameraInfo::SharedPtr cameraInfo)
