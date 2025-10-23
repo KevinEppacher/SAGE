@@ -43,8 +43,8 @@ public:
   MaskedPersistentMapper() : Node("masked_persistent_mapper")
   {
     // --- Parameters ---
-    declare_parameter<std::string>("map_topic", "/inflated_map");
-    declare_parameter<std::string>("exploration_topic", "/exploration_persistent_map");
+    declare_parameter<std::string>("map_topic", "/map");
+    declare_parameter<std::string>("exploration_topic", "/exploration_map");
     declare_parameter<std::string>("base_link_frame", "base_link");
     declare_parameter<double>("update_rate_hz", 2.0);
     declare_parameter<double>("max_range_m", 15.0);
