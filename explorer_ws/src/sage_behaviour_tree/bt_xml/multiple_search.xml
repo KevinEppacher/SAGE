@@ -4,15 +4,20 @@
   <BehaviorTree ID="SAGE_MultiObject">
     <Sequence name="MultiObject Exploration">
       <SubTree ID="SAGE_SingleObject"
-               object="bed"/>
+               object="bed"
+               _autoremap="true"/>
       <SubTree ID="SAGE_SingleObject"
-               object="chair"/>
+               object="chair"
+               _autoremap="true"/>
       <SubTree ID="SAGE_SingleObject"
-               object="table"/>
+               object="table"
+               _autoremap="true"/>
       <SubTree ID="SAGE_SingleObject"
-               object="sofa"/>
+               object="sofa"
+               _autoremap="true"/>
       <SubTree ID="SAGE_SingleObject"
-               object="lamp"/>
+               object="lamp"
+               _autoremap="true"/>
     </Sequence>
   </BehaviorTree>
 
@@ -24,8 +29,8 @@
                      output_key="any_exploration_nodes"/>
       <CallEmptyService service_name="/exploration_map/clear"/>
       <CallEmptyService service_name="/value_map/clear"/>
-      <PublishSemanticPrompt text_query="bed"
-                             topic="/user_prompt"/>
+<PublishSemanticPrompt text_query="{object}"
+                       topic="/user_prompt"/>
       <KeepRunningUntilObjectFound object_found="{object_found}"
                                    any_exploration_nodes="{any_exploration_nodes}">
         <ReactiveFallback>
