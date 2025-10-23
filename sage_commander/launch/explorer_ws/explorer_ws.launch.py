@@ -2,7 +2,7 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import  ExecuteProcess
 from ament_index_python.packages import get_package_share_directory
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 import os
@@ -49,6 +49,24 @@ def generate_launch_description():
         ],            
     )
 
+    map_explorer_node = Node(
+        package='semantic_frontier_exploration',
+        executable='map_explorer_node',
+        name="map_explorer_node",
+        namespace='exploration_graph_nodes',
+        output='screen',
+        emulate_tty=True,
+        parameters=[
+            explorer_config,
+            {'use_sim_time': use_sim_time}
+        ],            
+    )
+
+    delayed_map_explorer_node = TimerAction(
+        period=5.0,
+        actions=[map_explorer_node]
+    )
+
     semantic_frontiers_node = Node(
         package='semantic_frontier_exploration',
         executable='semantic_frontier_exploration_node',
@@ -92,7 +110,8 @@ def generate_launch_description():
 
     ld = LaunchDescription()
     ld.add_action(sim_time_arg)
-    # ld.add_action(inflated_map_node)
+    ld.add_action(inflated_map_node)
+    ld.add_action(delayed_map_explorer_node)
     ld.add_action(pcl_to_scan_node)
     ld.add_action(semantic_frontiers_node)
     ld.add_action(rviz_node)

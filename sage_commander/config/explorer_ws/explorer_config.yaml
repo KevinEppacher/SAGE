@@ -45,17 +45,27 @@ exploration_graph_nodes:
   semantic_frontier_exploration_node:
     ros__parameters:
       publish_frequency: 10.0
-      occupancy_topic: "/inflated_map"
+      occupancy_topic: "/exploration_map"
       value_map_topic: "/value_map/value_map_raw"
-      min_cluster_size: 3
+      min_cluster_size: 5
       max_cluster_size: 150
 
   map_inflation_node:
     ros__parameters:
       map_topic: "/map"
       inflated_map_topic: "/inflated_map"
-      inflation_radius: 0.5
+      inflation_radius: 0.1
       inflation_iterations: 2
       kernel_type: "ellipse"
       input_qos: "reliable"
       output_qos: "reliable"
+
+  map_explorer_node:
+    ros__parameters:
+      map_topic: "/inflated_map"
+      exploration_topic: "/exploration_map"
+      base_link_frame: "base_link"
+      clear_service_name: "/clear_exploration_map"
+      update_rate_hz: 2.0
+      max_range_m: 15.0
+      stride: 1
