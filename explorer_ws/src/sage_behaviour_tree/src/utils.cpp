@@ -255,3 +255,80 @@ bool SeekoutGraphNodes::computeYawRange(
 
   return true;
 }
+
+// -------------------- CallEmptyService -------------------- //
+
+
+
+CallEmptyService::CallEmptyService(const std::string& name,
+                                   const BT::NodeConfiguration& config,
+                                   rclcpp::Node::SharedPtr nodePtr)
+    : BT::StatefulActionNode(name, config),
+      node(std::move(nodePtr))
+{
+}
+
+BT::PortsList CallEmptyService::providedPorts()
+{
+    return { BT::InputPort<std::string>("service_name", "/clear_exploration_map",
+             "Service name for std_srvs/Empty call") };
+}
+
+BT::NodeStatus CallEmptyService::onStart()
+{
+    if (!getInput("service_name", serviceName))
+    {
+        RCLCPP_ERROR(node->get_logger(), "[%s] Missing 'service_name' port.", name().c_str());
+        return BT::NodeStatus::FAILURE;
+    }
+
+    client = node->create_client<std_srvs::srv::Empty>(serviceName);
+    if (!client->wait_for_service(2s))
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    "[%s] Service '%s' not available.",
+                    name().c_str(), serviceName.c_str());
+        return BT::NodeStatus::FAILURE;
+    }
+
+    RCLCPP_INFO(node->get_logger(),
+                "[%s] Calling '%s'...", name().c_str(), serviceName.c_str());
+
+    auto request = std::make_shared<std_srvs::srv::Empty::Request>();
+
+    // New syntax — avoid deprecated implicit conversion
+    auto futureRequest = client->async_send_request(request);
+    future = futureRequest.future.share();
+
+    startTime = node->now();
+    return BT::NodeStatus::RUNNING;
+}
+
+BT::NodeStatus CallEmptyService::onRunning()
+{
+    // Timeout safeguard (5 s)
+    if ((node->now() - startTime).seconds() > 5.0)
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    "[%s] Timeout while calling '%s'.",
+                    name().c_str(), serviceName.c_str());
+        return BT::NodeStatus::FAILURE;
+    }
+
+    if (future.wait_for(0s) == std::future_status::ready)
+    {
+        RCLCPP_INFO(node->get_logger(),
+                    "[%s] Successfully called '%s'.",
+                    name().c_str(), serviceName.c_str());
+        return BT::NodeStatus::SUCCESS;
+    }
+
+    return BT::NodeStatus::RUNNING;
+}
+
+void CallEmptyService::onHalted()
+{
+    RCLCPP_INFO(node->get_logger(),
+                "[%s] Halted while waiting for '%s'.",
+                name().c_str(), serviceName.c_str());
+}

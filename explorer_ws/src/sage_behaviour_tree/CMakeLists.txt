@@ -28,6 +28,7 @@ find_package(visualization_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 
 ############################################################
 # Include Directories
@@ -66,6 +67,7 @@ ament_target_dependencies(sage_bt_node
     cv_bridge
     OpenCV
     sensor_msgs
+    std_srvs
 )
 
 # Use C++17 standard

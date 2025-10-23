@@ -7,6 +7,7 @@
                      output_key="object_found"/>
       <SetBlackboard value="true"
                      output_key="any_exploration_nodes"/>
+      <CallEmptyService service_name="/clear_exploration_map"/>
       <KeepRunningUntilObjectFound object_found="{object_found}"
                                    any_exploration_nodes="{any_exploration_nodes}">
         <ReactiveFallback>
@@ -73,6 +74,10 @@
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
+    <Action ID="CallEmptyService">
+      <input_port name="service_name"
+                  default="/clear_exploration_map"/>
+    </Action>
     <Action ID="GoToGraphNode">
       <input_port name="graph_nodes"/>
       <input_port name="approach_radius"/>
