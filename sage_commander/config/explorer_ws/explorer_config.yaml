@@ -65,7 +65,7 @@ exploration_graph_nodes:
       map_topic: "/inflated_map"
       exploration_topic: "/exploration_map"
       base_link_frame: "base_link"
-      clear_service_name: "/clear_exploration_map"
+      clear_service_name: "/exploration_map/clear"
       update_rate_hz: 2.0
       max_range_m: 15.0
       stride: 1

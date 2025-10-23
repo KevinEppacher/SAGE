@@ -162,4 +162,5 @@ void ValueMap::semanticPromptCallback(const multimodal_query_msgs::msg::Semantic
 {
     RCLCPP_INFO(this->get_logger(), "Received Semantic Prompt: %s", msg->text_query.c_str());
     textPrompt = msg->text_query;
+    semanticMap->clearValueMap();
 }

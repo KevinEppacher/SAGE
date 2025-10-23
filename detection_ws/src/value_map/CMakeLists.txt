@@ -33,6 +33,7 @@ find_package(nav_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(multimodal_query_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 # find_package(visualization_msgs REQUIRED)
 # find_package(std_msgs REQUIRED)
 # find_package(frontier_msgs REQUIRED)
@@ -83,6 +84,7 @@ ament_target_dependencies(value_map_node
   tf2
   tf2_geometry_msgs
   multimodal_query_msgs
+  std_srvs
   # visualization_msgs
   # std_msgs
   # frontier_msgs

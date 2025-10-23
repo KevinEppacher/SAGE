@@ -5,6 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /PointCloud22/Topic1
+        - /Image1/Topic1
       Splitter Ratio: 0.5019867420196533
     Tree Height: 230
   - Class: rviz_common/Selection
@@ -146,7 +147,7 @@ Visualization Manager:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
-        Reliability Policy: Reliable
+        Reliability Policy: Best Effort
         Value: /rgb
       Value: true
     - Class: rviz_default_plugins/TF
@@ -299,7 +300,7 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: 3.134995222091675
+      Angle: 4.669997692108154
       Class: rviz_default_plugins/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
@@ -312,8 +313,8 @@ Visualization Manager:
       Scale: 88.27964782714844
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz_default_plugins)
-      X: 0.16483937203884125
-      Y: -0.027376210317015648
+      X: 2.231935501098633
+      Y: 2.7307381629943848
     Saved: ~
 Window Geometry:
   Displays:
