@@ -62,10 +62,10 @@ def generate_launch_description():
         ],            
     )
 
-    delayed_map_explorer_node = TimerAction(
-        period=5.0,
-        actions=[map_explorer_node]
-    )
+    # delayed_map_explorer_node = TimerAction(
+    #     period=5.0,
+    #     actions=[map_explorer_node]
+    # )
 
     semantic_frontiers_node = Node(
         package='semantic_frontier_exploration',
@@ -111,7 +111,7 @@ def generate_launch_description():
     ld = LaunchDescription()
     ld.add_action(sim_time_arg)
     ld.add_action(inflated_map_node)
-    ld.add_action(delayed_map_explorer_node)
+    # ld.add_action(map_explorer_node)
     ld.add_action(pcl_to_scan_node)
     ld.add_action(semantic_frontiers_node)
     ld.add_action(rviz_node)
