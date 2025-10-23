@@ -258,8 +258,6 @@ bool SeekoutGraphNodes::computeYawRange(
 
 // -------------------- CallEmptyService -------------------- //
 
-
-
 CallEmptyService::CallEmptyService(const std::string& name,
                                    const BT::NodeConfiguration& config,
                                    rclcpp::Node::SharedPtr nodePtr)

@@ -5,12 +5,16 @@ value_map:
       timer_frequency: 100.0  # Default timer frequency in ms
       semantic_prompt_topic: "/user_prompt"  # Topic for semantic prompts
       semantic_map:
-        confidence_sharpness: 2.0   # cs < 2.0 smoothens the map, cs > 2.0 sharpens it
+        confidence_sharpness: 4.0   # cs < 2.0 smoothens the map, cs > 2.0 sharpens it
         decay_factor: 1.0          # decay factor for previous values | at start 1.0, then eg. 0.99
         max_range: 10.0           # Maximum range for semantic mapping
         map_topic: "/map"  # Topic for the occupancy grid map
         camera_info_topic: "/camera_info"  # Topic for the camera info
-        visualize_confidence_map: false  # Flag to visualize the confidence map
+        visualize_confidence_map: true  # Flag to visualize the confidence map
+        clear_service_name: "/value_map/clear"
+        update_gain: 0.01   # Gain for updating the value map with its current observation
+        use_camera_info_fov: true  # Flag to use FOV from camera info
+        fov: 5.0  # FOV in degrees if not using camera info
       robot:
         map_frame: "map" # Parent frame for the robot
         camera_link_frame: "carter_camera_stereo_right" # Frame of the RGB camera

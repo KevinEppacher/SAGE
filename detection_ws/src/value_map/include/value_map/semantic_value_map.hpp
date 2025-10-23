@@ -21,6 +21,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 #include <multimodal_query_msgs/msg/semantic_prompt.hpp>
+#include <std_srvs/srv/empty.hpp>
 #include <vector>
 
 class SemanticValueMap {
@@ -31,6 +32,7 @@ class SemanticValueMap {
     void updateSemanticMap(const SemanticScore& semScore, const geometry_msgs::msg::PoseStamped& pose);
     void mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
     void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
+    void clearValueMap();
 
     //************ Lifecycle Callbacks ************//
     bool on_configure();
@@ -51,6 +53,12 @@ class SemanticValueMap {
     //************ Publishers ************//
     rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>::SharedPtr valueMapInfernoPub;
     rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>::SharedPtr valueMapRawPub;
+
+    //************ Services ************//
+    rclcpp::Service<std_srvs::srv::Empty>::SharedPtr clearValueMapService;
+    void handleClearValueMap(
+        const std::shared_ptr<std_srvs::srv::Empty::Request> request,
+        std::shared_ptr<std_srvs::srv::Empty::Response> response);
 
     //************ Miscellaneous Functions ************//
     void resizeMapPreservingValues(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
@@ -92,7 +100,9 @@ class SemanticValueMap {
     bool visualizeConfidenceMap = false;  // Flag to visualize the confidence map
     bool confidenceWindowOpen = false;
     float updateGain = 0.3f;  // Default update gain
-
+    std::string clearValueMapServiceName = "/clear_value_map";
+    bool useCameraInfoFov = true;  // Flag to use camera info FOV
+    double fovDeg = 30.0;  // Default FOV in degrees if not
 };
 
 #endif // SEMANTIC_VALUE_MAP_HPP

@@ -15,10 +15,15 @@ SemanticValueMap::~SemanticValueMap()
 
 }
 
-bool SemanticValueMap::on_configure() 
+bool SemanticValueMap::on_configure()
 {
     RCLCPP_INFO(node->get_logger(), "SemanticValueMap: Configuring...");
 
+    node->declare_parameter<std::string>("semantic_map.clear_service_name", "/clear_value_map");
+
+    node->get_parameter("semantic_map.clear_service_name", clearValueMapServiceName);
+
+    // --- Existing parameter declarations below ---
     node->declare_parameter<float>("semantic_map.confidence_sharpness", 2.0);
     node->declare_parameter<double>("semantic_map.decay_factor", 0.99);
     node->declare_parameter<float>("semantic_map.max_range", 10.0f);
@@ -26,7 +31,10 @@ bool SemanticValueMap::on_configure()
     node->declare_parameter<std::string>("semantic_map.camera_info_topic", "/camera_info");
     node->declare_parameter<bool>("semantic_map.visualize_confidence_map", false);
     node->declare_parameter<float>("semantic_map.update_gain", 0.3f);
+    node->declare_parameter<bool>("semantic_map.use_camera_info_fov", true);
+    node->declare_parameter<double>("semantic_map.fov", 30.0);
 
+    // --- Load parameters (existing code) ---
     node->get_parameter("semantic_map.confidence_sharpness", confidenceSharpness);
     node->get_parameter("semantic_map.decay_factor", decayFactor);
     node->get_parameter("semantic_map.max_range", maxRange);
@@ -34,19 +42,26 @@ bool SemanticValueMap::on_configure()
     node->get_parameter("semantic_map.camera_info_topic", cameraInfoTopic);
     node->get_parameter("semantic_map.visualize_confidence_map", visualizeConfidenceMap);
     node->get_parameter("semantic_map.update_gain", updateGain);
+    node->get_parameter("semantic_map.use_camera_info_fov", useCameraInfoFov);
+    node->get_parameter("semantic_map.fov", fovDeg);
 
-    paramCallbackHandle = node->add_on_set_parameters_callback(
-    std::bind(&SemanticValueMap::onParameterChange, this, std::placeholders::_1)
-    );
+    // --- Service creation ---
+    clearValueMapService = node->create_service<std_srvs::srv::Empty>(
+        clearValueMapServiceName,
+        std::bind(&SemanticValueMap::handleClearValueMap, this,
+                  std::placeholders::_1, std::placeholders::_2));
 
+    RCLCPP_INFO(node->get_logger(), "Created clear value map service: %s",
+                clearValueMapServiceName.c_str());
+
+    // --- Existing subscriptions and publishers (unchanged) ---
     mapSub = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
-    mapTopic, 10, std::bind(&SemanticValueMap::mapCallback, this, std::placeholders::_1));
+        mapTopic, 10, std::bind(&SemanticValueMap::mapCallback, this, std::placeholders::_1));
 
     cameraInfoSub = node->create_subscription<sensor_msgs::msg::CameraInfo>(
-    cameraInfoTopic, 10, std::bind(&SemanticValueMap::cameraInfoCallback, this, std::placeholders::_1));
+        cameraInfoTopic, 10, std::bind(&SemanticValueMap::cameraInfoCallback, this, std::placeholders::_1));
 
     valueMapInfernoPub = node->create_publisher<sensor_msgs::msg::PointCloud2>("value_map", rclcpp::QoS(10));
-
     valueMapRawPub = node->create_publisher<sensor_msgs::msg::PointCloud2>("value_map_raw", rclcpp::QoS(10));
 
     return true;
@@ -81,6 +96,12 @@ rcl_interfaces::msg::SetParametersResult SemanticValueMap::onParameterChange(con
         } else if (param.get_name() == "semantic_map.update_gain") {
             updateGain = param.as_double();
             RCLCPP_INFO(node->get_logger(), "Updated update_gain to %.2f", updateGain);
+        } else if (param.get_name() == "semantic_map.use_camera_info_fov") {
+            useCameraInfoFov = param.as_bool();
+            RCLCPP_INFO(node->get_logger(), "Updated use_camera_info_fov to %s", useCameraInfoFov ? "true" : "false");
+        } else if (param.get_name() == "semantic_map.fov") {
+            fovDeg = param.as_double();
+            RCLCPP_INFO(node->get_logger(), "Updated fov to %.2f", fovDeg);
         }
     }
 
@@ -135,7 +156,8 @@ void SemanticValueMap::updateSemanticMap(const SemanticScore& semScore, const ge
     return;
     }
 
-    double fovDeg = getHorizontalFOV(camInfo);
+    if(useCameraInfoFov)
+        fovDeg = getHorizontalFOV(camInfo);
 
     // --- Step 1: Decay previous values ---
     valueMap *= decayFactor;
@@ -499,4 +521,29 @@ float SemanticValueMap::normalizeAngle(float angle) const
   while (angle > M_PI) angle -= 2.0f * M_PI;
   while (angle < -M_PI) angle += 2.0f * M_PI;
   return angle;
+}
+
+void SemanticValueMap::handleClearValueMap(
+    const std::shared_ptr<std_srvs::srv::Empty::Request>,
+    std::shared_ptr<std_srvs::srv::Empty::Response>)
+{
+    clearValueMap();
+}
+
+void SemanticValueMap::clearValueMap()
+{
+    if (!mapInitialized || valueMap.empty() || confidenceMap.empty()) {
+        RCLCPP_WARN(node->get_logger(), "Cannot clear value map: not initialized yet.");
+        return;
+    }
+
+    valueMap.setTo(0.0f);
+    confidenceMap.setTo(0.0f);
+    maxSemanticScore = 0.0f;
+
+    RCLCPP_INFO(node->get_logger(), "SemanticValueMap: Cleared all semantic and confidence values.");
+
+    // Optionally republish cleared maps as empty PointClouds
+    publishValueMapRaw();
+    publishValueMapInferno();
 }

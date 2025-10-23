@@ -7,14 +7,15 @@
                      output_key="object_found"/>
       <SetBlackboard value="true"
                      output_key="any_exploration_nodes"/>
-      <CallEmptyService service_name="/clear_exploration_map"/>
+      <CallEmptyService service_name="/exploration_map/clear"/>
+      <CallEmptyService service_name="/value_map/clear"/>
       <KeepRunningUntilObjectFound object_found="{object_found}"
                                    any_exploration_nodes="{any_exploration_nodes}">
         <ReactiveFallback>
           <Sequence name="Detection sequence">
             <IsDetected name="Target object detected?"
                         detection_threshold="0.85"
-                        detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
+                        detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
                         graph_nodes="{detected_graph_node}"/>
             <GoToGraphNode name="Go to likiest GraphNode"
                            graph_nodes="{likiest_explorer_node}"
@@ -35,7 +36,7 @@
                               parameter_name="semantic_map.decay_factor"
                               value="1"/>
             <SeekoutGraphNodes name="Observe all possible GraphNodes"
-                               graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                               graph_node_topic="/exploration_graph_nodes/graph_nodes"
                                robot_frame="base_link"
                                map_frame="map"
                                sight_horizon="10"
@@ -53,14 +54,14 @@
               <Fallback>
                 <IsDetected name="Already explored all available GraphNodes?"
                             detection_threshold="0.0"
-                            detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                            detection_graph_node_topic="/exploration_graph_nodes/graph_nodes"
                             graph_nodes="{likiest_explorer_node}"/>
                 <SetBlackboard value="false"
                                output_key="any_exploration_nodes"/>
               </Fallback>
               <GoToGraphNode name="Go to likiest GraphNode"
                              graph_nodes="{likiest_explorer_node}"
-                             approach_radius="2"
+                             approach_radius="0.5"
                              goal_topic="/goal_pose"
                              robot_frame="base_link"
                              map_frame="map"
