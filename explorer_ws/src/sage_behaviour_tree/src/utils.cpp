@@ -264,27 +264,34 @@ CallEmptyService::CallEmptyService(const std::string& name,
     : BT::StatefulActionNode(name, config),
       node(std::move(nodePtr))
 {
+    clock = node->get_clock();
 }
 
 BT::PortsList CallEmptyService::providedPorts()
 {
-    return { BT::InputPort<std::string>("service_name", "/clear_exploration_map",
-             "Service name for std_srvs/Empty call") };
+    return {
+        BT::InputPort<std::string>(
+            "service_name",
+            "/clear_exploration_map",
+            "Service name for std_srvs/Empty call")
+    };
 }
 
 BT::NodeStatus CallEmptyService::onStart()
 {
     if (!getInput("service_name", serviceName))
     {
-        RCLCPP_ERROR(node->get_logger(), "[%s] Missing 'service_name' port.", name().c_str());
+        RCLCPP_ERROR(node->get_logger(),
+                     "[%s] Missing 'service_name' port.", name().c_str());
         return BT::NodeStatus::FAILURE;
     }
 
     client = node->create_client<std_srvs::srv::Empty>(serviceName);
-    if (!client->wait_for_service(2s))
+
+    if (!client->wait_for_service(5s))
     {
         RCLCPP_WARN(node->get_logger(),
-                    "[%s] Service '%s' not available.",
+                    "[%s] Service '%s' not available after 5s.",
                     name().c_str(), serviceName.c_str());
         return BT::NodeStatus::FAILURE;
     }
@@ -293,23 +300,27 @@ BT::NodeStatus CallEmptyService::onStart()
                 "[%s] Calling '%s'...", name().c_str(), serviceName.c_str());
 
     auto request = std::make_shared<std_srvs::srv::Empty::Request>();
-
-    // New syntax — avoid deprecated implicit conversion
     auto futureRequest = client->async_send_request(request);
     future = futureRequest.future.share();
 
-    startTime = node->now();
+    // reset time-tracking state
+    accumulatedSeconds = 0.0;
+    lastTick = clock->now();
+
     return BT::NodeStatus::RUNNING;
 }
 
 BT::NodeStatus CallEmptyService::onRunning()
 {
-    // Timeout safeguard (5 s)
-    if ((node->now() - startTime).seconds() > 5.0)
+    rclcpp::Time now = clock->now();
+    accumulatedSeconds += (now - lastTick).seconds();
+    lastTick = now;
+
+    if (accumulatedSeconds > 5.0)
     {
         RCLCPP_WARN(node->get_logger(),
-                    "[%s] Timeout while calling '%s'.",
-                    name().c_str(), serviceName.c_str());
+                    "[%s] Timeout while calling '%s' (%.1f s).",
+                    name().c_str(), serviceName.c_str(), accumulatedSeconds);
         return BT::NodeStatus::FAILURE;
     }
 
