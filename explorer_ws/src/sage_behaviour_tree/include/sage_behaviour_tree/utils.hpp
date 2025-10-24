@@ -95,8 +95,13 @@ public:
 
 private:
     rclcpp::Node::SharedPtr node;
-    std::string serviceName;
     rclcpp::Client<std_srvs::srv::Empty>::SharedPtr client;
+    std::string serviceName;
+
     std::shared_future<std_srvs::srv::Empty::Response::SharedPtr> future;
-    rclcpp::Time startTime;
+
+    // Clock tracking to avoid mixed clock subtraction errors
+    rclcpp::Clock::SharedPtr clock;
+    rclcpp::Time lastTick;
+    double accumulatedSeconds{0.0};
 };
