@@ -59,8 +59,8 @@ class SemanticValueMap {
     void handleClearValueMap(
         const std::shared_ptr<std_srvs::srv::Empty::Request> request,
         std::shared_ptr<std_srvs::srv::Empty::Response> response);
-
-    //************ Miscellaneous Functions ************//
+        
+        //************ Miscellaneous Functions ************//
     void resizeMapPreservingValues(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
     double getHorizontalFOV(const sensor_msgs::msg::CameraInfo::SharedPtr camInfo);
     void publishValueMapRaw();
@@ -71,10 +71,10 @@ class SemanticValueMap {
       const nav_msgs::msg::OccupancyGrid& grid,
       float fovDeg,
       float maxRange);
-    
+      
     cv::Mat computeConfidenceMap(
-      const geometry_msgs::msg::Pose& pose,
-      const nav_msgs::msg::OccupancyGrid& grid,
+        const geometry_msgs::msg::Pose& pose,
+        const nav_msgs::msg::OccupancyGrid& grid,
       float cameraFovDeg,
       const cv::Mat& fovMask);
 
@@ -83,9 +83,8 @@ class SemanticValueMap {
 
     //************ Member Variables ************//
     rclcpp_lifecycle::LifecycleNode* node;  // pointer to lifecycle node
-
+    rclcpp::Node::OnSetParametersCallbackHandle::SharedPtr parameterCallbackHandle;
     nav_msgs::msg::OccupancyGrid::SharedPtr map;
-
     sensor_msgs::msg::CameraInfo::SharedPtr camInfo;
 
     cv::Mat valueMap;

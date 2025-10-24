@@ -51,6 +51,10 @@ bool SemanticValueMap::on_configure()
         std::bind(&SemanticValueMap::handleClearValueMap, this,
                   std::placeholders::_1, std::placeholders::_2));
 
+    parameterCallbackHandle = node->add_on_set_parameters_callback(
+        std::bind(&SemanticValueMap::onParameterChange, this, std::placeholders::_1));
+
+
     RCLCPP_INFO(node->get_logger(), "Created clear value map service: %s",
                 clearValueMapServiceName.c_str());
 
