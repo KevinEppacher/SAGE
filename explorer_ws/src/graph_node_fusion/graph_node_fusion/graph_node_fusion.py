@@ -156,9 +156,9 @@ class Markers:
         text_marker.pose.position.x = (rx + nx) / 2.0
         text_marker.pose.position.y = (ry + ny) / 2.0
         text_marker.pose.position.z = 0.2
-        text_marker.scale.z = 0.15
+        text_marker.scale.z = 0.1
         text_marker.color = ColorRGBA(r=0.0, g=0.0, b=0.0, a=1.0)
-        text_marker.text = f"{distance:.2f} m"
+        text_marker.text = f"{distance:.2f}"
         text_marker.lifetime.sec = 1
 
         return [m, text_marker]
@@ -227,8 +227,8 @@ class GraphNodeFusion(Node):
         self.create_subscription(GraphNodeArray, self.exploitation_topic, self.cb_exploitation, qos)
         self.create_subscription(GraphNodeArray, self.detection_topic, self.cb_detection, qos)
 
-        self.pub_exploration = self.create_publisher(GraphNodeArray, "exploration_graph_nodes/graph_nodes_fused", qos)
-        self.pub_detection = self.create_publisher(GraphNodeArray, "detection_graph_nodes/graph_nodes_fused", qos)
+        self.pub_exploration = self.create_publisher(GraphNodeArray, "exploration_graph_nodes/graph_nodes", qos)
+        self.pub_detection = self.create_publisher(GraphNodeArray, "detection_graph_nodes/graph_nodes", qos)
 
         # --- Modules ---
         self.robot = Robot(self)
