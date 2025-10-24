@@ -48,7 +48,7 @@ exploration_graph_nodes:
       occupancy_topic: "/exploration_map"
       value_map_topic: "/value_map/value_map_raw"
       min_cluster_size: 5
-      max_cluster_size: 150
+      max_cluster_size: 500
 
   map_inflation_node:
     ros__parameters:

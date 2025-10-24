@@ -1,8 +1,0 @@
-semantic_frontier_exploration:
-  semantic_frontier_exploration_node:
-    ros__parameters:
-      publish_frequency: 10.0  # Hz
-      min_cluster_size: 5
-      max_cluster_size: 150
-      occupancy_topic: "/inflated_map"
-      value_map_topic: "/value_map/value_map_raw"

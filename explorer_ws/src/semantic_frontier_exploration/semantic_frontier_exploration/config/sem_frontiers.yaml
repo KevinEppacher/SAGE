@@ -1,0 +1,8 @@
+exploration_graph_nodes:
+  semantic_frontier_exploration_node:
+    ros__parameters:
+      publish_frequency: 10.0
+      occupancy_topic: "/exploration_map"
+      value_map_topic: "/value_map/value_map_raw"
+      min_cluster_size: 5
+      max_cluster_size: 500

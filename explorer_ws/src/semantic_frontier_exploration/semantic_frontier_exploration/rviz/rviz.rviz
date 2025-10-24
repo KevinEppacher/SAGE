@@ -23,7 +23,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: PointCloud2
+    SyncSource: ""
 Visualization Manager:
   Class: ""
   Displays:
@@ -70,7 +70,7 @@ Visualization Manager:
       Class: rviz_default_plugins/Map
       Color Scheme: map
       Draw Behind: false
-      Enabled: false
+      Enabled: true
       Name: Map
       Topic:
         Depth: 5
@@ -78,27 +78,27 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /semantic_frontier_exploration/frontier_grid
+        Value: /exploration_graph_nodes/frontier_grid
       Update Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /semantic_frontier_exploration/frontier_grid_updates
+        Value: /exploration_graph_nodes/frontier_grid_updates
       Use Timestamp: false
-      Value: false
+      Value: true
     - Class: rviz_default_plugins/Marker
       Enabled: true
       Name: Marker
       Namespaces:
-        {}
+        frontier: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /semantic_frontier_exploration/frontiers
+        Value: /exploration_graph_nodes/frontier_markers
       Value: true
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
@@ -112,7 +112,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /semantic_frontier_exploration/graph_nodes/marker
+        Value: /exploration_graph_nodes/graph_nodes/marker
       Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
@@ -153,111 +153,31 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
-        back_fisheye_camera:
-          Value: true
-        back_fisheye_camera_optical:
-          Value: true
-        back_stereo_camera:
-          Value: true
-        back_stereo_camera_imu:
-          Value: true
-        back_stereo_camera_left:
-          Value: true
-        back_stereo_camera_left_optical:
-          Value: true
-        back_stereo_camera_mount:
-          Value: true
-        back_stereo_camera_right:
-          Value: true
-        back_stereo_camera_right_optical:
+        XT_32_10hz:
           Value: true
         base_link:
           Value: true
-        base_scan:
+        carter_camera_stereo_left:
           Value: true
-        camera:
+        carter_camera_stereo_right:
           Value: true
-        camera_link:
+        chassis_link:
           Value: true
-        caster_swivel_left:
+        com_offset:
           Value: true
-        caster_swivel_right:
+        imu:
           Value: true
-        caster_wheel_left:
-          Value: true
-        caster_wheel_right:
-          Value: true
-        chassis_imu:
-          Value: true
-        front_3d_lidar:
-          Value: true
-        front_fisheye_camera:
-          Value: true
-        front_fisheye_camera_optical:
-          Value: true
-        front_stereo_camera:
-          Value: true
-        front_stereo_camera_imu:
-          Value: true
-        front_stereo_camera_left:
-          Value: true
-        front_stereo_camera_left_optical:
-          Value: true
-        front_stereo_camera_mount:
-          Value: true
-        front_stereo_camera_right:
-          Value: true
-        front_stereo_camera_right_optical:
-          Value: true
-        left_fisheye_camera:
-          Value: true
-        left_fisheye_camera_optical:
-          Value: true
-        left_stereo_camera:
-          Value: true
-        left_stereo_camera_imu:
-          Value: true
-        left_stereo_camera_left:
-          Value: true
-        left_stereo_camera_left_optical:
-          Value: true
-        left_stereo_camera_mount:
-          Value: true
-        left_stereo_camera_right:
-          Value: true
-        left_stereo_camera_right_optical:
+        left_wheel_link:
           Value: true
         map:
           Value: true
-        nova_carter:
-          Value: true
-        nova_carter_caster_frame_base:
-          Value: true
         odom:
           Value: true
-        rear_2d_lidar:
+        rear_pivot_link:
           Value: true
-        right_fisheye_camera:
+        rear_wheel_link:
           Value: true
-        right_fisheye_camera_optical:
-          Value: true
-        right_stereo_camera:
-          Value: true
-        right_stereo_camera_imu:
-          Value: true
-        right_stereo_camera_left:
-          Value: true
-        right_stereo_camera_left_optical:
-          Value: true
-        right_stereo_camera_mount:
-          Value: true
-        right_stereo_camera_right:
-          Value: true
-        right_stereo_camera_right_optical:
-          Value: true
-        wheel_left:
-          Value: true
-        wheel_right:
+        right_wheel_link:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -268,105 +188,24 @@ Visualization Manager:
         map:
           odom:
             base_link:
-              back_fisheye_camera:
-                {}
-              back_fisheye_camera_optical:
-                {}
-              back_stereo_camera:
-                {}
-              back_stereo_camera_imu:
-                {}
-              back_stereo_camera_left:
-                {}
-              back_stereo_camera_left_optical:
-                {}
-              back_stereo_camera_mount:
-                {}
-              back_stereo_camera_right:
-                {}
-              back_stereo_camera_right_optical:
-                {}
-              base_scan:
-                {}
-              camera:
-                {}
-              camera_link:
-                {}
-              chassis_imu:
-                {}
-              front_3d_lidar:
-                {}
-              front_fisheye_camera:
-                {}
-              front_fisheye_camera_optical:
-                {}
-              front_stereo_camera:
-                {}
-              front_stereo_camera_imu:
-                {}
-              front_stereo_camera_left:
-                {}
-              front_stereo_camera_left_optical:
-                {}
-              front_stereo_camera_mount:
-                {}
-              front_stereo_camera_right:
-                {}
-              front_stereo_camera_right_optical:
-                {}
-              left_fisheye_camera:
-                {}
-              left_fisheye_camera_optical:
-                {}
-              left_stereo_camera:
-                {}
-              left_stereo_camera_imu:
-                {}
-              left_stereo_camera_left:
-                {}
-              left_stereo_camera_left_optical:
-                {}
-              left_stereo_camera_mount:
-                {}
-              left_stereo_camera_right:
-                {}
-              left_stereo_camera_right_optical:
-                {}
-              nova_carter:
-                caster_swivel_left:
+              chassis_link:
+                XT_32_10hz:
                   {}
-                caster_swivel_right:
+                carter_camera_stereo_left:
                   {}
-                caster_wheel_left:
+                carter_camera_stereo_right:
                   {}
-                caster_wheel_right:
+                com_offset:
                   {}
-                nova_carter_caster_frame_base:
+                imu:
                   {}
-                wheel_left:
+                left_wheel_link:
                   {}
-                wheel_right:
+                rear_pivot_link:
+                  rear_wheel_link:
+                    {}
+                right_wheel_link:
                   {}
-              rear_2d_lidar:
-                {}
-              right_fisheye_camera:
-                {}
-              right_fisheye_camera_optical:
-                {}
-              right_stereo_camera:
-                {}
-              right_stereo_camera_imu:
-                {}
-              right_stereo_camera_left:
-                {}
-              right_stereo_camera_left_optical:
-                {}
-              right_stereo_camera_mount:
-                {}
-              right_stereo_camera_right:
-                {}
-              right_stereo_camera_right_optical:
-                {}
       Update Interval: 0
       Value: true
   Enabled: true
@@ -414,7 +253,7 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: 0
+      Angle: -1.56999933719635
       Class: rviz_default_plugins/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
@@ -424,11 +263,11 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 88.7070541381836
+      Scale: 68.69474792480469
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz_default_plugins)
-      X: 3.016796112060547
-      Y: -0.849890947341919
+      X: 1.8798863887786865
+      Y: -0.6852436661720276
     Saved: ~
 Window Geometry:
   Displays:
