@@ -37,7 +37,7 @@ BT::PortsList IsDetected::providedPorts()
 }
 
 BT::NodeStatus IsDetected::tick()
-{
+{    
     if (!received_message_) 
     {
         RCLCPP_WARN(node_ptr_->get_logger(), "[%s] No message received yet on the topic %s. Returning RUNNING", name().c_str(),
@@ -142,28 +142,24 @@ void SaveImageAction::onHalted()
 
 void SaveImageAction::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg)
 {
+  if (done) return;  // prevent multiple saves
+
   try
   {
     cv::Mat img = cv_bridge::toCvCopy(msg, "bgr8")->image;
     if (cv::imwrite(savePath, img))
     {
-      RCLCPP_INFO(node->get_logger(),
-                  "[%s] Image saved to %s",
-                  name().c_str(), savePath.c_str());
+      RCLCPP_INFO(node->get_logger(), "[%s] Image saved to %s", name().c_str(), savePath.c_str());
       done = true;
+      sub.reset();  // unsubscribe immediately
     }
     else
     {
-      RCLCPP_ERROR(node->get_logger(),
-                   "[%s] Failed to save image to %s",
-                   name().c_str(), savePath.c_str());
+      RCLCPP_ERROR(node->get_logger(), "[%s] Failed to save image to %s", name().c_str(), savePath.c_str());
     }
   }
   catch (const cv_bridge::Exception &e)
   {
-    RCLCPP_ERROR(node->get_logger(),
-                 "[%s] cv_bridge exception: %s",
-                 name().c_str(), e.what());
+    RCLCPP_ERROR(node->get_logger(), "[%s] cv_bridge exception: %s", name().c_str(), e.what());
   }
 }
-
