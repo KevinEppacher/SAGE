@@ -11,3 +11,6 @@ fused:
       sigma: 1.5
       gaussian_influence: 0.5
       sight_horizon: 5.0
+      fused_topics:
+        detection_graph_nodes: "detection_graph_nodes/graph_nodes"
+        exploration_graph_nodes: "exploration_graph_nodes/graph_nodes"

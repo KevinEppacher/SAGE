@@ -204,6 +204,8 @@ class GraphNodeFusion(Node):
         self.declare_parameter("exploration_topic", "/exploration_graph_nodes/graph_nodes")
         self.declare_parameter("exploitation_topic", "/exploitation_graph_nodes/graph_nodes")
         self.declare_parameter("detection_topic", "/detection_graph_nodes/graph_nodes")
+        self.declare_parameter("fused_topics.detection_graph_nodes", "/fused/detection_graph_nodes/graph_nodes")
+        self.declare_parameter("fused_topics.exploration_graph_nodes", "/fused/exploration_graph_nodes/graph_nodes")
         self.declare_parameter("timer_period", 0.1)
 
         gp = self.get_parameter
@@ -215,6 +217,8 @@ class GraphNodeFusion(Node):
         self.exploitation_topic = gp("exploitation_topic").value
         self.detection_topic = gp("detection_topic").value
         self.timer_period = gp("timer_period").value
+        self.pub_fused_detection_topic = gp("fused_topics.detection_graph_nodes").value
+        self.pub_fused_exploration_topic = gp("fused_topics.exploration_graph_nodes").value
 
         qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -227,8 +231,8 @@ class GraphNodeFusion(Node):
         self.create_subscription(GraphNodeArray, self.exploitation_topic, self.cb_exploitation, qos)
         self.create_subscription(GraphNodeArray, self.detection_topic, self.cb_detection, qos)
 
-        self.pub_exploration = self.create_publisher(GraphNodeArray, "exploration_graph_nodes/graph_nodes", qos)
-        self.pub_detection = self.create_publisher(GraphNodeArray, "detection_graph_nodes/graph_nodes", qos)
+        self.pub_exploration = self.create_publisher(GraphNodeArray, self.pub_fused_exploration_topic, qos)
+        self.pub_detection = self.create_publisher(GraphNodeArray, self.pub_fused_detection_topic, qos)
 
         # --- Modules ---
         self.robot = Robot(self)
@@ -243,12 +247,13 @@ class GraphNodeFusion(Node):
 
         self.create_timer(self.timer_period, self._loop)
         self.last_loop_time = self.get_clock().now()
-        self.get_logger().info("GraphNodeFusion modular version initialized.")
 
     # ---------- Callbacks ----------
     def cb_exploration(self, msg): self.exploration_nodes = list(msg.nodes)
     def cb_exploitation(self, msg): self.exploitation_nodes = list(msg.nodes)
-    def cb_detection(self, msg): self.detection_nodes = list(msg.nodes)
+    def cb_detection(self, msg):
+        print("Detection nodes received:", len(msg.nodes))
+        self.detection_nodes = list(msg.nodes)
 
     # ---------- Main loop ----------
     def _loop(self):
@@ -292,14 +297,24 @@ class GraphNodeFusion(Node):
         return False
 
     def _publish_arrays(self, exploration_nodes, detection_nodes):
+        # --- Exploration nodes ---
         msg_ex = GraphNodeArray()
+        msg_ex.header.frame_id = "map"
+        msg_ex.header.stamp = self.get_clock().now().to_msg()
         msg_ex.nodes = exploration_nodes
         self.pub_exploration.publish(msg_ex)
 
+        # --- Detection nodes ---
         msg_det = GraphNodeArray()
+        msg_det.header.frame_id = "map"
+        msg_det.header.stamp = self.get_clock().now().to_msg()
         msg_det.nodes = detection_nodes
         self.pub_detection.publish(msg_det)
 
+        # Debug info
+        self.get_logger().info(
+            f"Published {len(exploration_nodes)} exploration nodes and {len(detection_nodes)} detection nodes."
+        )
 
 def main(args=None):
     rclpy.init(args=args)

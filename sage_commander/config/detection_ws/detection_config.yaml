@@ -49,9 +49,8 @@ depth_throttle:
       history: "keep_last"
       depth: 5
 
-
 yoloe:
-  yoloe_node:
+  yolo_wrapper:
     ros__parameters:
       # --- I/O topics ---
       rgb_topic: "/rgb/throttled"                 # camera image topic (sensor_msgs/Image)
