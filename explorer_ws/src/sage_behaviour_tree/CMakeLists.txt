@@ -30,6 +30,7 @@ find_package(OpenCV REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(multimodal_query_msgs REQUIRED)
+find_package(evaluator_msgs REQUIRED)
 
 ############################################################
 # Include Directories
@@ -71,6 +72,7 @@ ament_target_dependencies(sage_bt_node
     sensor_msgs
     std_srvs
     multimodal_query_msgs
+    evaluator_msgs
 )
 
 # Use C++17 standard

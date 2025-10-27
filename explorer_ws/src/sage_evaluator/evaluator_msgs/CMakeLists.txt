@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(multimodal_query_msgs)
+project(evaluator_msgs)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -31,16 +31,19 @@ install(
 # Neccesary for the message generation
 find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(multimodal_query_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 # Generate the messages
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/SemanticPrompt.msg"
-  "msg/SemanticPromptArray.msg"
-  DEPENDENCIES geometry_msgs 
-  DEPENDENCIES std_msgs
-  DEPENDENCIES sensor_msgs
+    "msg/EvaluationSummary.msg"
+    "msg/EvaluationEvent.msg"
+    "msg/EvaluationEpisode.msg"
+    DEPENDENCIES std_msgs
+    DEPENDENCIES sensor_msgs
+    DEPENDENCIES multimodal_query_msgs
+    DEPENDENCIES geometry_msgs
 )
 
 ament_package()

@@ -38,6 +38,7 @@ void SageBehaviorTreeNode::create_behavior_tree()
     factory.registerNodeType<RealignToObject>("RealignToObject", shared_from_this());
     factory.registerNodeType<CallEmptyService>("CallEmptyService", shared_from_this());
     factory.registerNodeType<PublishSemanticPrompt>("PublishSemanticPrompt", shared_from_this());
+    factory.registerNodeType<ForEachEvaluationPrompt>("ForEachEvaluationPrompt", shared_from_this());
 
     auto bb = BT::Blackboard::create();
     // bb->set("detection_threshold", get_parameter("detection.threshold").as_double());

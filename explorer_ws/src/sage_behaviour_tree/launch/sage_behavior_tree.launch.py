@@ -22,7 +22,7 @@ def generate_launch_description():
         'bt_xml',
         # 'test',
         # 'test_spin.xml'
-        'multiple_search.xml'
+        'multiple_search_evaluator.xml'
     )
 
 

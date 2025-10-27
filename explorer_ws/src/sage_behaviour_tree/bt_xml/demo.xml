@@ -1,8 +1,0 @@
-<root main_tree_to_execute="MainTree">
-  <BehaviorTree ID="MainTree">
-    <Sequence>
-      <AlwaysSuccess name="Init"/>
-      <AlwaysSuccess name="Work"/>
-    </Sequence>
-  </BehaviorTree>
-</root>
