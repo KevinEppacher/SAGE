@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-    <name>sage_behaviour_tree</name>
+    <name>evaluator_msgs</name>
     <version>0.0.0</version>
     <description>TODO: Package description</description>
     <maintainer email="kevin-eppacher@hotmail.de">ubuntu</maintainer>
@@ -11,16 +11,17 @@
 
     <test_depend>ament_lint_auto</test_depend>
     <test_depend>ament_lint_common</test_depend>
+    
+    <member_of_group>rosidl_interface_packages</member_of_group>
 
-    <depend>rclcpp</depend>
-    <depend>behaviortree_cpp_v3</depend>
-    <depend>ament_index_cpp</depend>
+    <build_depend>multimodal_query_msgs</build_depend>
+    <exec_depend>multimodal_query_msgs</exec_depend>
+
+    <build_depend>std_msgs</build_depend>
+    <exec_depend>std_msgs</exec_depend>
 
     <build_depend>geometry_msgs</build_depend>
     <exec_depend>geometry_msgs</exec_depend>
-    
-    <build_depend>evaluator_msgs</build_depend>
-    <exec_depend>evaluator_msgs</exec_depend>
 
     <export>
         <build_type>ament_cmake</build_type>
