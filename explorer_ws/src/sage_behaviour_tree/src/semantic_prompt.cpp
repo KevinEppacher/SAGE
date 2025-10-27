@@ -21,38 +21,42 @@ BT::PortsList PublishSemanticPrompt::providedPorts()
 
 BT::NodeStatus PublishSemanticPrompt::tick()
 {
-    if (published_) {
-        return BT::NodeStatus::SUCCESS;
-    }
-
-    // Read (optional) topic input port and set up publisher if not already created
+    // Read the topic port
     std::string port_topic;
-    if (getInput<std::string>("topic", port_topic)) {
-        if (!port_topic.empty()) {
-            topic_ = port_topic;
-        }
+    if (getInput<std::string>("topic", port_topic) && !port_topic.empty()) {
+        topic_ = port_topic;
     }
 
+    // Lazily create publisher
     if (!pub) {
         pub = node->create_publisher<multimodal_query_msgs::msg::SemanticPrompt>(topic_, 10);
-        RCLCPP_INFO(node->get_logger(), "PublishSemanticPrompt: publisher created on topic '%s'", topic_.c_str());
+        RCLCPP_INFO(node->get_logger(),
+                    "[%s] Publisher created on topic '%s'", name().c_str(), topic_.c_str());
     }
 
+    // Get the current query
     std::string text;
     if (!getInput<std::string>("text_query", text)) {
-        RCLCPP_ERROR(node->get_logger(), "PublishSemanticPrompt: missing required port 'text_query'");
+        RCLCPP_ERROR(node->get_logger(),
+                     "[%s] Missing required port 'text_query'", name().c_str());
         return BT::NodeStatus::FAILURE;
     }
 
+    // Optional: only republish if query changed
+    static std::string last_query;
+    if (text == last_query) {
+        return BT::NodeStatus::SUCCESS;
+    }
+
+    // Build and publish message
     multimodal_query_msgs::msg::SemanticPrompt msg;
     msg.header.stamp = node->now();
-    msg.header.frame_id = "";
     msg.text_query = text;
-    // image_query left empty for now
 
     pub->publish(msg);
-    RCLCPP_INFO(node->get_logger(), "Published SemanticPrompt to '%s': '%s'", topic_.c_str(), text.c_str());
+    RCLCPP_INFO(node->get_logger(),
+                "[%s] Published SemanticPrompt: '%s'", name().c_str(), text.c_str());
 
-    published_ = true;
+    last_query = text;
     return BT::NodeStatus::SUCCESS;
 }

@@ -62,39 +62,41 @@ BT::NodeStatus KeepRunningUntilObjectFound::tick()
   return child_status;
 }
 
-// ============================ KeepRunningUntilObjectFound ============================ //
+// ============================ ForEachEvaluationPrompt ============================ //
 
 ForEachEvaluationPrompt::ForEachEvaluationPrompt(const std::string &name,
                                                  const BT::NodeConfig &config,
                                                  const rclcpp::Node::SharedPtr &nodePtr)
     : BT::DecoratorNode(name, config), node(nodePtr)
 {
-    rclcpp::QoS qos(1);
-    qos.transient_local();
 
-    subscriber = node->create_subscription<EvaluationEvent>(
-        "/evaluation/event", qos,
-        std::bind(&ForEachEvaluationPrompt::callbackEvent, this, std::placeholders::_1));
-
-    statusPublisher = node->create_publisher<std_msgs::msg::String>(
-        "/evaluation/iteration_status", 10);
 }
 
 BT::PortsList ForEachEvaluationPrompt::providedPorts()
 {
-    return {BT::OutputPort<std::string>("targetObject")};
+    return {
+        BT::OutputPort<std::string>("targetObject"),
+        BT::InputPort<std::string>("evaluation_event_topic", "/evaluation/event",
+                                   "Topic to subscribe for EvaluationEvent"),
+        BT::InputPort<std::string>("iteration_status_topic", "/evaluation/iteration_status",
+                                   "Topic to publish iteration status")
+    };
 }
+
 
 BT::NodeStatus ForEachEvaluationPrompt::tick()
 {
+    initCommsFromPorts();
+
     if (!subscribed) {
         RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 2000,
-                             "[ForEachEvaluationPrompt] Waiting for /evaluation/event...");
+                             "[%s] Waiting for %s...", name().c_str(), evaluation_event_topic_.c_str());
         return BT::NodeStatus::RUNNING;
     }
 
+    // ...existing code...
     if (currentIndex >= promptTexts.size()) {
-        RCLCPP_INFO(node->get_logger(), "[ForEachEvaluationPrompt] All prompts processed.");
+        RCLCPP_INFO(node->get_logger(), "[%s] All prompts processed.", name().c_str());
         return BT::NodeStatus::SUCCESS;
     }
 
@@ -114,6 +116,7 @@ BT::NodeStatus ForEachEvaluationPrompt::tick()
     statusPublisher->publish(msg);
 
     currentIndex++;
+    
     return BT::NodeStatus::RUNNING;
 }
 
@@ -122,16 +125,39 @@ void ForEachEvaluationPrompt::callbackEvent(const EvaluationEvent::SharedPtr msg
     if (subscribed) return;
     subscribed = true;
 
-    RCLCPP_INFO(node->get_logger(), "=== Evaluation Configuration Received ===");
-    RCLCPP_INFO(node->get_logger(), "Experiment: %s", msg->experiment_id.c_str());
-    RCLCPP_INFO(node->get_logger(), "Episode: %s", msg->episode_id.c_str());
-    RCLCPP_INFO(node->get_logger(), "Phase: %s", msg->phase.c_str());
-    RCLCPP_INFO(node->get_logger(), "Prompts in this run:");
+    RCLCPP_INFO(node->get_logger(), "[%s] === Evaluation Configuration Received ===", name().c_str());
+    RCLCPP_INFO(node->get_logger(), "[%s] Experiment: %s", name().c_str(), msg->experiment_id.c_str());
+    RCLCPP_INFO(node->get_logger(), "[%s] Episode: %s", name().c_str(), msg->episode_id.c_str());
+    RCLCPP_INFO(node->get_logger(), "[%s] Phase: %s", name().c_str(), msg->phase.c_str());
+    RCLCPP_INFO(node->get_logger(), "[%s] Prompts in this run:", name().c_str());
 
     for (const auto &prompt : msg->prompt_list.prompt_list) {
-        RCLCPP_INFO(node->get_logger(), "  - %s", prompt.text_query.c_str());
+        RCLCPP_INFO(node->get_logger(), "[%s]   - %s", name().c_str(), prompt.text_query.c_str());
         promptTexts.push_back(prompt.text_query);
     }
 
-    RCLCPP_INFO(node->get_logger(), "==========================================");
+    RCLCPP_INFO(node->get_logger(), "[%s] ==========================================", name().c_str());
+}
+
+void ForEachEvaluationPrompt::initCommsFromPorts()
+{
+    if (commReady) {
+        return;
+    }
+
+    (void)getInput<std::string>("evaluation_event_topic", evaluation_event_topic_);
+    (void)getInput<std::string>("iteration_status_topic", iteration_status_topic_);
+
+    rclcpp::QoS qos(1);
+    qos.transient_local();
+    subscriber = node->create_subscription<EvaluationEvent>(
+        evaluation_event_topic_, qos,
+        std::bind(&ForEachEvaluationPrompt::callbackEvent, this, std::placeholders::_1));
+
+    statusPublisher = node->create_publisher<std_msgs::msg::String>(
+        iteration_status_topic_, 10);
+
+    RCLCPP_INFO(node->get_logger(), "[%s] Using topics: event='%s', status='%s'",
+                name().c_str(), evaluation_event_topic_.c_str(), iteration_status_topic_.c_str());
+    commReady = true;
 }
