@@ -103,6 +103,19 @@ def generate_launch_description():
         }.items()
     )
 
+    graph_node_fusion_node = Node(
+        package='graph_node_fusion',
+        executable='graph_node_fusion',
+        name='graph_node_fusion',
+        namespace='fused',
+        output='screen',
+        emulate_tty=True,
+        parameters=[
+            {'use_sim_time': use_sim_time},
+            explorer_config
+        ],
+    )
+
     rviz_node = ExecuteProcess(
         cmd=['rviz2', '-d', rviz_config],
         output='screen'
@@ -114,6 +127,7 @@ def generate_launch_description():
     ld.add_action(map_explorer_node)
     ld.add_action(pcl_to_scan_node)
     ld.add_action(semantic_frontiers_node)
+    ld.add_action(graph_node_fusion_node)
     ld.add_action(rviz_node)
     ld.add_action(nav2_stack_launch)
     return ld

@@ -251,9 +251,7 @@ class GraphNodeFusion(Node):
     # ---------- Callbacks ----------
     def cb_exploration(self, msg): self.exploration_nodes = list(msg.nodes)
     def cb_exploitation(self, msg): self.exploitation_nodes = list(msg.nodes)
-    def cb_detection(self, msg):
-        print("Detection nodes received:", len(msg.nodes))
-        self.detection_nodes = list(msg.nodes)
+    def cb_detection(self, msg): self.detection_nodes = list(msg.nodes)
 
     # ---------- Main loop ----------
     def _loop(self):
@@ -312,7 +310,7 @@ class GraphNodeFusion(Node):
         self.pub_detection.publish(msg_det)
 
         # Debug info
-        self.get_logger().info(
+        self.get_logger().debug(
             f"Published {len(exploration_nodes)} exploration nodes and {len(detection_nodes)} detection nodes."
         )
 

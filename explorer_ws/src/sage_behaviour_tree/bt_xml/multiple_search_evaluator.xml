@@ -2,7 +2,9 @@
 <root BTCPP_format="4"
       main_tree_to_execute="SAGE_MultiObject">
   <BehaviorTree ID="SAGE_MultiObject">
-    <ForEachEvaluationPrompt targetObject="{target_object}">
+    <ForEachEvaluationPrompt evaluation_event_topic="/evaluation/event"
+                             iteration_status_topic="/evaluation/iteration_status"
+                             targetObject="{target_object}">
       <SubTree ID="SAGE_SingleObject"
                object=""
                _autoremap="true"/>
@@ -24,11 +26,11 @@
         <ReactiveFallback>
           <Sequence name="Detection sequence">
             <IsDetected name="Target object detected?"
-                        detection_threshold="0.85"
+                        detection_threshold="0.35"
                         detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
                         graph_nodes="{detected_graph_node}"/>
             <GoToGraphNode name="Go to likiest GraphNode"
-                           graph_nodes="{likiest_explorer_node}"
+                           graph_nodes="{detected_graph_node}"
                            approach_radius="2"
                            goal_topic="/goal_pose"
                            robot_frame="base_link"
@@ -90,6 +92,10 @@
                   default="/clear_exploration_map"/>
     </Action>
     <Decorator ID="ForEachEvaluationPrompt">
+      <input_port name="evaluation_event_topic"
+                  default="/evaluation/event"/>
+      <input_port name="iteration_status_topic"
+                  default="/evaluation/iteration_status"/>
       <output_port name="targetObject"/>
     </Decorator>
     <Action ID="GoToGraphNode">
