@@ -39,3 +39,4 @@ alias s="source install/setup.bash"
 
 # Selective build
 alias cbps="colcon build --symlink-install --packages-select"
+alias cbps_gdb="colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo --packages-select"

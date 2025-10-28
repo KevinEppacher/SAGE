@@ -306,7 +306,14 @@ class GraphNodeFusion(Node):
         msg_det = GraphNodeArray()
         msg_det.header.frame_id = "map"
         msg_det.header.stamp = self.get_clock().now().to_msg()
-        msg_det.nodes = detection_nodes
+        for detection_node in detection_nodes:
+            node = GraphNode()  # ensure fresh instance
+            node.position.x = detection_node.position.x
+            node.position.y = detection_node.position.y
+            node.position.z = 0.0
+            node.score = detection_node.score
+            node.id = detection_node.id
+            msg_det.nodes.append(node)
         self.pub_detection.publish(msg_det)
 
         # Debug info
