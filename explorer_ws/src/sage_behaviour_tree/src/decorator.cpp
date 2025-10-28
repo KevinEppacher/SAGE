@@ -1,4 +1,11 @@
 #include "sage_behaviour_tree/decorator.hpp"
+#include "sage_behaviour_tree/colors.hpp"
+
+#ifndef ORANGE
+#define ORANGE "\033[38;5;208m"
+#endif
+
+// ============================ KeepRunningUntilObjectFound ============================ //
 
 KeepRunningUntilObjectFound::KeepRunningUntilObjectFound(
     const std::string& name,
@@ -9,67 +16,77 @@ KeepRunningUntilObjectFound::KeepRunningUntilObjectFound(
 
 BT::PortsList KeepRunningUntilObjectFound::providedPorts()
 {
-  return {
-      BT::InputPort<bool>("object_found", false, "True if target object was detected"),
-      BT::InputPort<bool>("any_exploration_nodes", true, "True if frontiers or exploration nodes remain")};
+    return {
+        BT::InputPort<bool>("object_found", false, "True if target object was detected"),
+        BT::InputPort<bool>("any_exploration_nodes", true, "True if frontiers or exploration nodes remain")
+    };
 }
 
 BT::NodeStatus KeepRunningUntilObjectFound::tick()
 {
-  // Perform one-time default initialization
-  if (!initialized)
-  {
-    // Initialize defaults if not on blackboard
-    if (!getInput("object_found", objectFound))
+    static rclcpp::Clock steady_clock(RCL_STEADY_TIME);
+
+    if (!initialized)
     {
-      objectFound = false;
-      setOutput("object_found", objectFound);
+        if (!getInput("object_found", objectFound))
+        {
+            objectFound = false;
+            setOutput("object_found", objectFound);
+        }
+
+        if (!getInput("any_exploration_nodes", anyExplorationNodes))
+        {
+            anyExplorationNodes = true;
+            setOutput("any_exploration_nodes", anyExplorationNodes);
+        }
+
+        initialized = true;
     }
 
-    if (!getInput("any_exploration_nodes", anyExplorationNodes))
+    getInput("object_found", objectFound);
+    getInput("any_exploration_nodes", anyExplorationNodes);
+
+    if (objectFound)
     {
-      anyExplorationNodes = true;
-      setOutput("any_exploration_nodes", anyExplorationNodes);
+        RCLCPP_INFO(rclcpp::get_logger("KeepRunningUntilObjectFound"),
+                    GREEN "[%s] Object found → SUCCESS" RESET, name().c_str());
+        return BT::NodeStatus::SUCCESS;
     }
 
-    initialized = true;
-  }
+    if (!anyExplorationNodes)
+    {
+        RCLCPP_WARN(rclcpp::get_logger("KeepRunningUntilObjectFound"),
+                    RED "[%s] No exploration nodes remaining → FAILURE" RESET, name().c_str());
+        return BT::NodeStatus::FAILURE;
+    }
 
-  // Read the current blackboard values
-  getInput("object_found", objectFound);
-  getInput("any_exploration_nodes", anyExplorationNodes);
+    const BT::NodeStatus childStatus = child_node_->executeTick();
 
-  // Decision logic
-  if (objectFound)
-  {
-    return BT::NodeStatus::SUCCESS;
-  }
+    if (childStatus == BT::NodeStatus::SUCCESS || childStatus == BT::NodeStatus::FAILURE)
+    {
+        RCLCPP_INFO_THROTTLE(rclcpp::get_logger("KeepRunningUntilObjectFound"),
+                             steady_clock, 2000,
+                             ORANGE "[%s] Child finished, continuing loop (RUNNING)" RESET,
+                             name().c_str());
+        return BT::NodeStatus::RUNNING;
+    }
 
-  if (!anyExplorationNodes)
-  {
-    return BT::NodeStatus::FAILURE;
-  }
-
-  // Otherwise, keep child running
-  const BT::NodeStatus child_status = child_node_->executeTick();
-
-  // Keep looping until mission state changes
-  if (child_status == BT::NodeStatus::SUCCESS || child_status == BT::NodeStatus::FAILURE)
-  {
-    return BT::NodeStatus::RUNNING;
-  }
-
-  return child_status;
+    // RCLCPP_INFO_THROTTLE(rclcpp::get_logger("KeepRunningUntilObjectFound"),
+    //                      steady_clock, 2000,
+    //                      ORANGE "[%s] Running child tick..." RESET,
+    //                      name().c_str());
+    return childStatus;
 }
+
 
 // ============================ ForEachEvaluationPrompt ============================ //
 
 ForEachEvaluationPrompt::ForEachEvaluationPrompt(const std::string &name,
                                                  const BT::NodeConfig &config,
                                                  const rclcpp::Node::SharedPtr &nodePtr)
-    : BT::DecoratorNode(name, config), node(nodePtr)
+    : BT::DecoratorNode(name, config),
+      node(nodePtr)
 {
-
 }
 
 BT::PortsList ForEachEvaluationPrompt::providedPorts()
@@ -83,20 +100,23 @@ BT::PortsList ForEachEvaluationPrompt::providedPorts()
     };
 }
 
-
 BT::NodeStatus ForEachEvaluationPrompt::tick()
 {
     initCommsFromPorts();
 
-    if (!subscribed) {
+    if (!subscribed)
+    {
         RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 2000,
-                             "[%s] Waiting for %s...", name().c_str(), evaluation_event_topic_.c_str());
+                             ORANGE "[%s] Waiting for %s..." RESET,
+                             name().c_str(), evaluation_event_topic_.c_str());
         return BT::NodeStatus::RUNNING;
     }
 
-    // ...existing code...
-    if (currentIndex >= promptTexts.size()) {
-        RCLCPP_INFO(node->get_logger(), "[%s] All prompts processed.", name().c_str());
+    if (currentIndex >= promptTexts.size())
+    {
+        RCLCPP_INFO(node->get_logger(),
+                    GREEN "[%s] All prompts processed → SUCCESS" RESET,
+                    name().c_str());
         return BT::NodeStatus::SUCCESS;
     }
 
@@ -105,7 +125,11 @@ BT::NodeStatus ForEachEvaluationPrompt::tick()
 
     BT::NodeStatus childStatus = child_node_->executeTick();
 
-    if (childStatus == BT::NodeStatus::RUNNING) {
+    if (childStatus == BT::NodeStatus::RUNNING)
+    {
+        RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 3000,
+                             ORANGE "[%s] Processing prompt '%s'..." RESET,
+                             name().c_str(), currentPrompt.c_str());
         return BT::NodeStatus::RUNNING;
     }
 
@@ -115,35 +139,52 @@ BT::NodeStatus ForEachEvaluationPrompt::tick()
                (childStatus == BT::NodeStatus::SUCCESS ? "SUCCESS" : "FAILURE");
     statusPublisher->publish(msg);
 
+    RCLCPP_INFO(node->get_logger(),
+                (childStatus == BT::NodeStatus::SUCCESS
+                     ? GREEN "[%s] Prompt '%s' → SUCCESS" RESET
+                     : RED "[%s] Prompt '%s' → FAILURE" RESET),
+                name().c_str(), currentPrompt.c_str());
+
     currentIndex++;
-    
     return BT::NodeStatus::RUNNING;
 }
 
 void ForEachEvaluationPrompt::callbackEvent(const EvaluationEvent::SharedPtr msg)
 {
-    if (subscribed) return;
+    if (subscribed)
+        return;
     subscribed = true;
 
-    RCLCPP_INFO(node->get_logger(), "[%s] === Evaluation Configuration Received ===", name().c_str());
-    RCLCPP_INFO(node->get_logger(), "[%s] Experiment: %s", name().c_str(), msg->experiment_id.c_str());
-    RCLCPP_INFO(node->get_logger(), "[%s] Episode: %s", name().c_str(), msg->episode_id.c_str());
-    RCLCPP_INFO(node->get_logger(), "[%s] Phase: %s", name().c_str(), msg->phase.c_str());
-    RCLCPP_INFO(node->get_logger(), "[%s] Prompts in this run:", name().c_str());
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[%s] === Evaluation Configuration Received ===" RESET,
+                name().c_str());
+    RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Experiment: %s" RESET,
+                name().c_str(), msg->experiment_id.c_str());
+    RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Episode: %s" RESET,
+                name().c_str(), msg->episode_id.c_str());
+    RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Phase: %s" RESET,
+                name().c_str(), msg->phase.c_str());
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[%s] Prompts in this run:" RESET,
+                name().c_str());
 
-    for (const auto &prompt : msg->prompt_list.prompt_list) {
-        RCLCPP_INFO(node->get_logger(), "[%s]   - %s", name().c_str(), prompt.text_query.c_str());
+    for (const auto &prompt : msg->prompt_list.prompt_list)
+    {
+        RCLCPP_INFO(node->get_logger(),
+                    ORANGE "[%s]   - %s" RESET,
+                    name().c_str(), prompt.text_query.c_str());
         promptTexts.push_back(prompt.text_query);
     }
 
-    RCLCPP_INFO(node->get_logger(), "[%s] ==========================================", name().c_str());
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[%s] ==========================================" RESET,
+                name().c_str());
 }
 
 void ForEachEvaluationPrompt::initCommsFromPorts()
 {
-    if (commReady) {
+    if (commReady)
         return;
-    }
 
     (void)getInput<std::string>("evaluation_event_topic", evaluation_event_topic_);
     (void)getInput<std::string>("iteration_status_topic", iteration_status_topic_);
@@ -157,7 +198,9 @@ void ForEachEvaluationPrompt::initCommsFromPorts()
     statusPublisher = node->create_publisher<std_msgs::msg::String>(
         iteration_status_topic_, 10);
 
-    RCLCPP_INFO(node->get_logger(), "[%s] Using topics: event='%s', status='%s'",
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[%s] Using topics: event='%s', status='%s'" RESET,
                 name().c_str(), evaluation_event_topic_.c_str(), iteration_status_topic_.c_str());
+
     commReady = true;
 }
