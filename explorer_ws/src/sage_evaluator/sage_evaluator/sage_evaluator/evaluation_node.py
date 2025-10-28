@@ -14,37 +14,34 @@ class EvaluationDashboard(Node):
     def __init__(self):
         super().__init__('evaluation_dashboard')
 
-        # QoS for persistent evaluator messages
         qos = QoSProfile(depth=1)
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
-        # Publisher: initial evaluation event
+        # --- ROS interfaces ---
         self.event_pub = self.create_publisher(EvaluationEvent, '/evaluation/event', qos)
-
-        # Subscriber: BT iteration status feedback
         self.status_sub = self.create_subscription(
             String, '/evaluation/iteration_status', self.status_callback, 10
         )
 
-        # Example configuration
+        # --- Experiment configuration ---
         self.experiment_id = 'EXP_001'
         self.episode_id = 'E01'
         self.phase = 'START'
         self.prompt_texts = ['bed', 'chair', 'table', 'lamp']
 
-        # Timing
+        # --- Internal state ---
         self.start_time = time.time()
         self.current_prompt = None
         self.prompt_index = 0
-
-        # Publish config after delay
-        self.timer = self.create_timer(2.0, self.publish_event_once)
         self.published = False
+
+        # --- Startup timer ---
+        self.timer = self.create_timer(2.0, self.publish_event_once)
 
         self.get_logger().info("🧭 Evaluation Dashboard initialized. Waiting for BT feedback...")
 
     # ======================================================
-    # Publish EvaluationEvent (setup)
+    # Publish EvaluationEvent (setup message)
     # ======================================================
     def publish_event_once(self):
         if self.published:
@@ -72,49 +69,55 @@ class EvaluationDashboard(Node):
         event.start_pose = Point()
 
         self.event_pub.publish(event)
-
-        self.get_logger().info(
-            f"📤 Published EvaluationEvent: {len(self.prompt_texts)} prompts → {[p.text_query for p in prompt_array.prompt_list]}"
-        )
-
         self.published = True
         self.timer.cancel()
         self.start_time = time.time()
 
+        self.get_logger().info(
+            f"📤 Published EvaluationEvent: {len(self.prompt_texts)} prompts → "
+            f"{[p.text_query for p in prompt_array.prompt_list]}"
+        )
+
     # ======================================================
-    # Receive iteration feedback from BT
+    # Handle feedback from BT node (/evaluation/iteration_status)
     # ======================================================
     def status_callback(self, msg: String):
         elapsed = time.time() - self.start_time
         timestamp = datetime.now().strftime("%H:%M:%S")
 
-        # Parse message structure (from ForEachEvaluationPrompt)
         text = msg.data.strip()
         parts = text.split("'")
-
         current_prompt = parts[1] if len(parts) > 1 else "unknown"
-        status = "unknown"
-        for keyword in ["SUCCESS", "FAILURE", "TIMEOUT"]:
-            if keyword in text:
-                status = keyword
+
+        # detect status keywords
+        status = "UNKNOWN"
+        for key in ["SUCCESS", "FAILURE", "TIMEOUT"]:
+            if key in text:
+                status = key
                 break
 
-        # Emojis for readability
         symbol = {"SUCCESS": "✅", "FAILURE": "❌", "TIMEOUT": "⏳"}.get(status, "🔹")
 
-        # Console log (human-readable summary)
-        self.get_logger().info(
-            f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🕓 [{timestamp}]  Prompt: {current_prompt}\n"
-            f"⏱  Elapsed Time: {elapsed:6.2f} s\n"
-            f"🏁  Status: {symbol} {status}\n"
-            f"📄  Message: {text}\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        )
-
-        # Update current state
+        # --- figure out which prompt comes next ---
         self.current_prompt = current_prompt
         self.prompt_index += 1
+        next_prompt = (
+            self.prompt_texts[self.prompt_index]
+            if self.prompt_index < len(self.prompt_texts)
+            else "— none (experiment complete) —"
+        )
+
+        # --- pretty console log ---
+        self.get_logger().info(
+            f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🕓 [{timestamp}]\n"
+            f"🎯 Current Object : {current_prompt}\n"
+            f"⏱  Elapsed Time   : {elapsed:6.2f} s\n"
+            f"🏁  Status         : {symbol} {status}\n"
+            f"➡️  Next Object    : {next_prompt}\n"
+            f"📄  Message        : {text}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        )
 
 
 def main(args=None):
