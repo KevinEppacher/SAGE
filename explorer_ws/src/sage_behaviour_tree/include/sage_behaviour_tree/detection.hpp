@@ -32,24 +32,24 @@ private:
 class SaveImageAction : public BT::StatefulActionNode
 {
 public:
-  SaveImageAction(const std::string &name,
-                  const BT::NodeConfiguration &config,
-                  rclcpp::Node::SharedPtr node);
+    SaveImageAction(const std::string &name,
+                    const BT::NodeConfiguration &config,
+                    rclcpp::Node::SharedPtr node);
 
-  static BT::PortsList providedPorts();
+    static BT::PortsList providedPorts();
 
-  BT::NodeStatus onStart() override;
-  BT::NodeStatus onRunning() override;
-  void onHalted() override;
+    BT::NodeStatus onStart() override;
+    BT::NodeStatus onRunning() override;
+    void onHalted() override;
 
 private:
-  void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg);
+    void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg);
 
-  rclcpp::Node::SharedPtr node;
-  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub;
+    rclcpp::Node::SharedPtr node;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub;
 
-  std::string topic;
-  std::string savePath;
-  bool done{false};
-  rclcpp::Time startTime;
+    std::string topic;
+    std::string savePath;
+    bool done{false};
+    rclcpp::Time startTime;
 };

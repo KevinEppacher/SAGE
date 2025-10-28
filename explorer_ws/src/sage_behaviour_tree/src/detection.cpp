@@ -1,6 +1,11 @@
 #include "sage_behaviour_tree/detection.hpp"
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/imgcodecs.hpp>
+#include "sage_behaviour_tree/colors.hpp"
+
+#ifndef ORANGE
+#define ORANGE "\033[38;5;208m"
+#endif
 
 using namespace std::chrono_literals;
 
@@ -40,8 +45,9 @@ BT::NodeStatus IsDetected::tick()
 {    
     if (!received_message_) 
     {
-        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] No message received yet on the topic %s. Returning RUNNING", name().c_str(),
-                    sub_->get_topic_name());
+        RCLCPP_WARN(node_ptr_->get_logger(),
+                    ORANGE "[%s] No message received yet on the topic %s. Returning RUNNING" RESET,
+                    name().c_str(), sub_->get_topic_name());
         return BT::NodeStatus::RUNNING;
     }
 
@@ -61,18 +67,25 @@ BT::NodeStatus IsDetected::tick()
 
     if (!best_node) 
     {
-        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] No nodes in the latest message. Returning FAILURE", name().c_str());
+        RCLCPP_WARN(node_ptr_->get_logger(),
+                    RED "[%s] No nodes in the latest message. Returning FAILURE" RESET,
+                    name().c_str());
         return BT::NodeStatus::FAILURE;
     }
     setOutput("graph_nodes", best_node);
 
-    RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Best node ID: %d with score: %.2f. Returning SUCCESS", name().c_str(), best_node->id, best_node->score);
+    RCLCPP_INFO(node_ptr_->get_logger(),
+                GREEN "[%s] Best node ID: %d with score: %.2f. Returning SUCCESS" RESET,
+                name().c_str(), best_node->id, best_node->score);
 
-
-    if(max_score >= threshold) {
-        RCLCPP_INFO(node_ptr_->get_logger(), "[%s] Detection threshold met: %.2f >= %.2f", name().c_str(), max_score, threshold);
+    if (max_score >= threshold) {
+        RCLCPP_INFO(node_ptr_->get_logger(),
+                    GREEN "[%s] Detection threshold met: %.2f >= %.2f" RESET,
+                    name().c_str(), max_score, threshold);
     } else {
-        RCLCPP_WARN(node_ptr_->get_logger(), "[%s] Detection threshold not met: %.2f < %.2f", name().c_str(), max_score, threshold);
+        RCLCPP_WARN(node_ptr_->get_logger(),
+                    RED "[%s] Detection threshold not met: %.2f < %.2f" RESET,
+                    name().c_str(), max_score, threshold);
     }
 
     return (max_score >= threshold) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
@@ -90,76 +103,93 @@ SaveImageAction::SaveImageAction(const std::string &name,
 
 BT::PortsList SaveImageAction::providedPorts()
 {
-  return {
-      BT::InputPort<std::string>("imageTopic", "/yoloe/overlay", "Image topic to subscribe"),
-      BT::InputPort<std::string>("savePath", "/tmp/overlay.jpg", "Output image path")};
+    return {
+        BT::InputPort<std::string>("imageTopic", "/yoloe/overlay", "Image topic to subscribe"),
+        BT::InputPort<std::string>("savePath", "/tmp/overlay.jpg", "Output image path")};
 }
 
 BT::NodeStatus SaveImageAction::onStart()
 {
-  getInput("imageTopic", topic);
-  getInput("savePath", savePath);
+    getInput("imageTopic", topic);
+    getInput("savePath", savePath);
 
-  done = false;
-  sub.reset();
+    done = false;
+    sub.reset();
 
-  // --- Match publisher QoS (e.g. Best Effort for image topics) ---
-  rclcpp::QoS qos(rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_sensor_data));
-  qos.best_effort().durability_volatile();
+    rclcpp::QoS qos(rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_sensor_data));
+    qos.best_effort().durability_volatile();
 
-  sub = node->create_subscription<sensor_msgs::msg::Image>(
-      topic, qos,
-      std::bind(&SaveImageAction::imageCallback, this, std::placeholders::_1));
+    sub = node->create_subscription<sensor_msgs::msg::Image>(
+        topic, qos,
+        std::bind(&SaveImageAction::imageCallback, this, std::placeholders::_1));
 
-  RCLCPP_INFO(node->get_logger(),
-              "[%s] Subscribed to %s (QoS: BestEffort) — waiting for image...",
-              name().c_str(), topic.c_str());
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[%s] Subscribed to %s (QoS: BestEffort) — waiting for image..." RESET,
+                name().c_str(), topic.c_str());
 
-  startTime = node->now();
-  return BT::NodeStatus::RUNNING;
+    startTime = node->now();
+    return BT::NodeStatus::RUNNING;
 }
 
 BT::NodeStatus SaveImageAction::onRunning()
 {
-  if (done)
-    return BT::NodeStatus::SUCCESS;
+    if (done)
+    {
+        RCLCPP_INFO(node->get_logger(),
+                    GREEN "[%s] Image successfully saved." RESET,
+                    name().c_str());
+        return BT::NodeStatus::SUCCESS;
+    }
 
-  if ((node->now() - startTime).seconds() > 10.0)
-  {
-    RCLCPP_WARN(node->get_logger(),
-                "[%s] Timeout after 10s waiting for image.", name().c_str());
-    return BT::NodeStatus::FAILURE;
-  }
+    if ((node->now() - startTime).seconds() > 10.0)
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    RED "[%s] Timeout after 10s waiting for image." RESET,
+                    name().c_str());
+        return BT::NodeStatus::FAILURE;
+    }
 
-  return BT::NodeStatus::RUNNING;
+    RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 2000,
+                         ORANGE "[%s] Still waiting for image..." RESET,
+                         name().c_str());
+
+    return BT::NodeStatus::RUNNING;
 }
 
 void SaveImageAction::onHalted()
 {
-  sub.reset();
-  RCLCPP_INFO(node->get_logger(), "[%s] Halted.", name().c_str());
+    sub.reset();
+    RCLCPP_INFO(node->get_logger(),
+                YELLOW "[%s] Halted." RESET,
+                name().c_str());
 }
 
 void SaveImageAction::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg)
 {
-  if (done) return;  // prevent multiple saves
+    if (done) return;
 
-  try
-  {
-    cv::Mat img = cv_bridge::toCvCopy(msg, "bgr8")->image;
-    if (cv::imwrite(savePath, img))
+    try
     {
-      RCLCPP_INFO(node->get_logger(), "[%s] Image saved to %s", name().c_str(), savePath.c_str());
-      done = true;
-      sub.reset();  // unsubscribe immediately
+        cv::Mat img = cv_bridge::toCvCopy(msg, "bgr8")->image;
+        if (cv::imwrite(savePath, img))
+        {
+            RCLCPP_INFO(node->get_logger(),
+                        GREEN "[%s] 💾 Image saved to %s" RESET,
+                        name().c_str(), savePath.c_str());
+            done = true;
+            sub.reset();
+        }
+        else
+        {
+            RCLCPP_ERROR(node->get_logger(),
+                         RED "[%s] Failed to save image to %s" RESET,
+                         name().c_str(), savePath.c_str());
+        }
     }
-    else
+    catch (const cv_bridge::Exception &e)
     {
-      RCLCPP_ERROR(node->get_logger(), "[%s] Failed to save image to %s", name().c_str(), savePath.c_str());
+        RCLCPP_ERROR(node->get_logger(),
+                     RED "[%s] cv_bridge exception: %s" RESET,
+                     name().c_str(), e.what());
     }
-  }
-  catch (const cv_bridge::Exception &e)
-  {
-    RCLCPP_ERROR(node->get_logger(), "[%s] cv_bridge exception: %s", name().c_str(), e.what());
-  }
 }

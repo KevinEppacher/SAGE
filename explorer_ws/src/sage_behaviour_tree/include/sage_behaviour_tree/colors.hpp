@@ -5,3 +5,4 @@
 #define YELLOW  "\033[93m"
 #define BLUE    "\033[94m"
 #define BOLD    "\033[1m"
+#define ORANGE  "\033[38;5;214m"

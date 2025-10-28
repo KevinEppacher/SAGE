@@ -14,6 +14,7 @@
 #include <graph_node_msgs/msg/graph_node_array.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 #include <std_srvs/srv/empty.hpp>
+
 // Custom Class
 #include "sage_behaviour_tree/robot.hpp"
 
@@ -40,42 +41,41 @@ private:
 class SeekoutGraphNodes : public BT::StatefulActionNode
 {
 public:
-  SeekoutGraphNodes(const std::string &name,
-                    const BT::NodeConfiguration &config,
-                    rclcpp::Node::SharedPtr nodePtr);
+    SeekoutGraphNodes(const std::string &name,
+                      const BT::NodeConfiguration &config,
+                      rclcpp::Node::SharedPtr nodePtr);
 
-  static BT::PortsList providedPorts();
+    static BT::PortsList providedPorts();
 
-  BT::NodeStatus onStart() override;
-  BT::NodeStatus onRunning() override;
-  void onHalted() override;
+    BT::NodeStatus onStart() override;
+    BT::NodeStatus onRunning() override;
+    void onHalted() override;
 
 private:
-  void initSubscription(const std::string &topic);
-  bool computeYawRange(const geometry_msgs::msg::Pose &robotPose,
-                       double sightHorizon,
-                       double &minYaw,
-                       double &maxYaw);
+    void initSubscription(const std::string &topic);
+    bool computeYawRange(const geometry_msgs::msg::Pose &robotPose,
+                         double sightHorizon,
+                         double &minYaw,
+                         double &maxYaw);
 
-  rclcpp::Node::SharedPtr nodePtr_;
-  std::unique_ptr<Robot> robot_;
+    rclcpp::Node::SharedPtr nodePtr_;
+    std::unique_ptr<Robot> robot_;
 
-  rclcpp::Subscription<graph_node_msgs::msg::GraphNodeArray>::SharedPtr sub_;
-  graph_node_msgs::msg::GraphNodeArray::SharedPtr latestMsg_;
-  rclcpp::Clock::SharedPtr clock_{std::make_shared<rclcpp::Clock>(RCL_ROS_TIME)};
+    rclcpp::Subscription<graph_node_msgs::msg::GraphNodeArray>::SharedPtr sub_;
+    graph_node_msgs::msg::GraphNodeArray::SharedPtr latestMsg_;
+    rclcpp::Clock::SharedPtr clock_{std::make_shared<rclcpp::Clock>(RCL_ROS_TIME)};
 
-  bool receivedMsg_{false};
-  rclcpp::Time startTime_;
-  double timeoutSec_{30.0};
+    bool receivedMsg_{false};
+    rclcpp::Time startTime_;
+    double timeoutSec_{30.0};
 
-  // cached inputs
-  std::string topic_;
-  std::string mapFrame_;
-  std::string robotFrame_;
-  double horizon_{10.0};
-  double minDef_{-M_PI};
-  double maxDef_{M_PI};
-
+    // Cached inputs
+    std::string topic_;
+    std::string mapFrame_;
+    std::string robotFrame_;
+    double horizon_{10.0};
+    double minDef_{-M_PI};
+    double maxDef_{M_PI};
 };
 
 // -------------------- CallEmptyService -------------------- //

@@ -22,8 +22,8 @@
 class Spin : public BT::StatefulActionNode
 {
 public:
-    Spin(const std::string& name,
-         const BT::NodeConfiguration& config,
+    Spin(const std::string &name,
+         const BT::NodeConfiguration &config,
          rclcpp::Node::SharedPtr node);
 
     static BT::PortsList providedPorts();
@@ -38,12 +38,12 @@ private:
     rclcpp::Node::SharedPtr node;
     std::shared_ptr<Robot> robot;
 
-    bool done = false;
-    int phase = 0;
-    double turnLeftAngle = 0.0;
-    double turnRightAngle = 0.0;
-    double spinDuration = 15.0;
-    double cumulativeRotation = 0.0;
+    bool done{false};
+    int phase{0};
+    double turnLeftAngle{0.0};
+    double turnRightAngle{0.0};
+    double spinDuration{15.0};
+    double cumulativeRotation{0.0};
     rclcpp_action::ResultCode navResult{};
 };
 
@@ -52,8 +52,8 @@ private:
 class GoToGraphNode : public BT::StatefulActionNode
 {
 public:
-    GoToGraphNode(const std::string& name,
-                  const BT::NodeConfiguration& config,
+    GoToGraphNode(const std::string &name,
+                  const BT::NodeConfiguration &config,
                   rclcpp::Node::SharedPtr node);
 
     static BT::PortsList providedPorts();
@@ -63,28 +63,29 @@ public:
     void onHalted() override;
 
 private:
-    bool isWithinGoal(const graph_node_msgs::msg::GraphNode& node);
+    bool isWithinGoal(const graph_node_msgs::msg::GraphNode &node);
 
     rclcpp::Node::SharedPtr node;
     std::shared_ptr<Robot> robot;
     std::shared_ptr<graph_node_msgs::msg::GraphNode> target;
 
-    std::string mapFrame = "map";
-    std::string robotFrame = "base_link";
-    std::string goalTopic = "/goal_pose";
+    std::string mapFrame{"map"};
+    std::string robotFrame{"base_link"};
+    std::string goalTopic{"/goal_pose"};
 
-    double approachRadius = 2.0;
-    double timeoutSec = 60.0;                     // default timeout
+    double approachRadius{2.0};
+    double timeoutSec{60.0};
     rclcpp::Time lastPublishTime;
-    rclcpp::Time startTime;                      // record start timestamp
+    rclcpp::Time startTime;
 };
+
 // ============================ RealignToObject ============================ //
 
 class RealignToObject : public BT::StatefulActionNode
 {
 public:
-    RealignToObject(const std::string& name,
-                    const BT::NodeConfiguration& config,
+    RealignToObject(const std::string &name,
+                    const BT::NodeConfiguration &config,
                     rclcpp::Node::SharedPtr node);
 
     static BT::PortsList providedPorts();
@@ -94,13 +95,13 @@ public:
     void onHalted() override;
 
 private:
-    double computeYawToTarget(const geometry_msgs::msg::Pose& robotPose,
-                              const graph_node_msgs::msg::GraphNode& target);
+    double computeYawToTarget(const geometry_msgs::msg::Pose &robotPose,
+                              const graph_node_msgs::msg::GraphNode &target);
 
     rclcpp::Node::SharedPtr node;
     std::shared_ptr<Robot> robot;
 
-    double targetYaw = 0.0;
-    double spinDuration = 5.0;
-    bool started = false;
+    double targetYaw{0.0};
+    double spinDuration{5.0};
+    bool started{false};
 };
