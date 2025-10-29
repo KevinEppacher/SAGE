@@ -46,7 +46,7 @@ def generate_launch_description():
         executable='sage_bt_node',
         name='sage_bt_node',
         namespace='sage_behaviour_tree',
-        prefix=['gdbserver :3000'],  # no localhost
+        # prefix=['gdbserver :3000'],  # no localhost
         output='screen',
         emulate_tty=True,
         parameters=[
