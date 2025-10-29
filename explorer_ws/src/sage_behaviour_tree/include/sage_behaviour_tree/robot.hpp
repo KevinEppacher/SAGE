@@ -9,7 +9,7 @@
 #include <nav2_msgs/action/navigate_to_pose.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <graph_node_msgs/msg/graph_node.hpp>
-#include <nav2_msgs/srv/get_costmap.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
 
 using namespace std::chrono_literals;
 
@@ -33,9 +33,12 @@ public:
                              const std::string& goalTopic = "/goal_pose",
                              const std::string& frame = "map");
     bool isHalted();
-    std::shared_ptr<nav2_msgs::msg::Costmap> getGlobalCostmap();
+
+    std::shared_ptr<nav_msgs::msg::OccupancyGrid> getGlobalCostmap();
 
 private:
+    void costmapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
+
     rclcpp::Node::SharedPtr node;
     std::shared_ptr<tf2_ros::Buffer> tfBuffer;
     tf2_ros::TransformListener tfListener;
@@ -46,6 +49,11 @@ private:
     rclcpp_action::Client<NavSpin>::SharedPtr spinClient;
     std::shared_future<typename GoalHandleSpin::SharedPtr> goalHandleFuture;
     rclcpp_action::ResultCode spinResult{rclcpp_action::ResultCode::UNKNOWN};
+
+    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr costmapSub;
+
+    std::shared_ptr<nav_msgs::msg::OccupancyGrid> latestCostmap;
+
     bool spinDone{false};
     bool halted{false};
     rclcpp::Time haltedTime{};

@@ -127,7 +127,7 @@ def generate_launch_description():
     ld.add_action(map_explorer_node)
     ld.add_action(pcl_to_scan_node)
     ld.add_action(semantic_frontiers_node)
-    ld.add_action(graph_node_fusion_node)
+    # ld.add_action(graph_node_fusion_node)
     ld.add_action(rviz_node)
     ld.add_action(nav2_stack_launch)
     return ld
