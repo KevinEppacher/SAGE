@@ -7,7 +7,7 @@ fused:
       plan_rate: 0.1
       approach_radius: 1.5
       max_visited: 200
-      exploration_weight: 0.1
+      exploration_weight: 1.0
       sigma: 1.5
       gaussian_influence: 0.5
       sight_horizon: 5.0

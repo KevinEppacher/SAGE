@@ -9,6 +9,7 @@
 #include <nav2_msgs/action/navigate_to_pose.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <graph_node_msgs/msg/graph_node.hpp>
+#include <nav2_msgs/srv/get_costmap.hpp>
 
 using namespace std::chrono_literals;
 
@@ -32,6 +33,7 @@ public:
                              const std::string& goalTopic = "/goal_pose",
                              const std::string& frame = "map");
     bool isHalted();
+    std::shared_ptr<nav2_msgs::msg::Costmap> getGlobalCostmap();
 
 private:
     rclcpp::Node::SharedPtr node;

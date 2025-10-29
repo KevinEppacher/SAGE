@@ -186,6 +186,7 @@ BT::NodeStatus GoToGraphNode::onStart()
     }
 
     target = nodeRes.value();
+    target->position.z = 0.0;  // ground the target
     robot->cancelNavigationGoals();
 
     robot->publishGoalToTarget(*target, goalTopic, mapFrame);
