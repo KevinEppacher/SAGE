@@ -236,30 +236,49 @@ BT::NodeStatus ApproachPoseAdjustor::tick()
     auto target = *inputNodeRes.value();
     graph_node_msgs::msg::GraphNode reachable = target;
 
-    if (!findReachablePoint(target, reachable))
+    bool foundReachable = findReachablePoint(target, reachable);
+
+    if (!foundReachable)
     {
-        RCLCPP_WARN(node->get_logger(),
-                    YELLOW "[%s] Using fallback: default approach radius (%.2f m)." RESET,
-                    name().c_str(), approachRadius);
-        geometry_msgs::msg::Pose robotPose;
-        if (robot->getPose(robotPose))
+        // Try to see if a costmap even exists
+        auto costmap = robot->getGlobalCostmap();
+
+        if (costmap)
         {
-            double dx = target.position.x - robotPose.position.x;
-            double dy = target.position.y - robotPose.position.y;
-            double dist = std::hypot(dx, dy);
-            if (dist > approachRadius)
+            // Fallback *only* if costmap exists but target is blocked
+            RCLCPP_WARN(node->get_logger(),
+                        YELLOW "[%s] Target not reachable → using fallback at radius %.2f m." RESET,
+                        name().c_str(), approachRadius);
+
+            geometry_msgs::msg::Pose robotPose;
+            if (robot->getPose(robotPose))
             {
-                dx *= approachRadius / dist;
-                dy *= approachRadius / dist;
+                double dx = target.position.x - robotPose.position.x;
+                double dy = target.position.y - robotPose.position.y;
+                double dist = std::hypot(dx, dy);
+                if (dist > approachRadius)
+                {
+                    dx *= approachRadius / dist;
+                    dy *= approachRadius / dist;
+                }
+                reachable.position.x = robotPose.position.x + dx;
+                reachable.position.y = robotPose.position.y + dy;
             }
-            reachable.position.x = robotPose.position.x + dx;
-            reachable.position.y = robotPose.position.y + dy;
+        }
+        else
+        {
+            // No costmap available at all → leave node unchanged
+            RCLCPP_INFO(node->get_logger(),
+                        ORANGE "[%s] No costmap available → using original target position." RESET,
+                        name().c_str());
+            reachable = target;
         }
     }
 
     setOutput("reachable_graph_node", std::make_shared<graph_node_msgs::msg::GraphNode>(reachable));
     return child_node_->executeTick();
 }
+
 
 bool ApproachPoseAdjustor::findReachablePoint(
     const graph_node_msgs::msg::GraphNode &target,
@@ -273,16 +292,16 @@ bool ApproachPoseAdjustor::findReachablePoint(
     if (!robot->getPose(robotPose))
         return false;
 
-    // Extract costmap metadata
-    const double res = costmapPtr->metadata.resolution;
-    const double originX = costmapPtr->metadata.origin.position.x;
-    const double originY = costmapPtr->metadata.origin.position.y;
-    const unsigned int width = costmapPtr->metadata.size_x;
-    const unsigned int height = costmapPtr->metadata.size_y;
+    // Extract costmap info from OccupancyGrid
+    const double res = costmapPtr->info.resolution;
+    const double originX = costmapPtr->info.origin.position.x;
+    const double originY = costmapPtr->info.origin.position.y;
+    const unsigned int width  = costmapPtr->info.width;
+    const unsigned int height = costmapPtr->info.height;
 
     const auto &data = costmapPtr->data;
 
-    // Compute direction from robot → target
+    // Direction from robot → target
     const double wx = robotPose.position.x;
     const double wy = robotPose.position.y;
     const double tx = target.position.x;
@@ -310,17 +329,19 @@ bool ApproachPoseAdjustor::findReachablePoint(
         int mapX = static_cast<int>((cx - originX) / res);
         int mapY = static_cast<int>((cy - originY) / res);
 
-        if (mapX < 0 || mapY < 0 || mapX >= static_cast<int>(width) || mapY >= static_cast<int>(height))
+        if (mapX < 0 || mapY < 0 ||
+            mapX >= static_cast<int>(width) ||
+            mapY >= static_cast<int>(height))
             break;
 
         const int idx = mapY * width + mapX;
         if (idx < 0 || idx >= static_cast<int>(data.size()))
             break;
 
-        uint8_t cost = data[idx];
+        int8_t cost = data[idx];
 
-        // nav2_costmap_2d constants: FREE_SPACE = 0, LETHAL_OBSTACLE = 254, UNKNOWN = 255
-        if (cost >= nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
+        // convention: -1 = unknown, 0 = free, 100 = occupied
+        if (cost > 50)  // treat >50 as obstacle
         {
             reachable.position.x = lastFreeX;
             reachable.position.y = lastFreeY;

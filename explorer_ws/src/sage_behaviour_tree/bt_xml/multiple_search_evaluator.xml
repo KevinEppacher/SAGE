@@ -26,14 +26,14 @@
         <ReactiveFallback>
           <Sequence name="Detection sequence">
             <IsDetected name="Target object detected?"
-                        detection_threshold="0.85"
+                        detection_threshold="0.55"
                         detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
                         graph_nodes="{detected_graph_node}"/>
             <ApproachPoseAdjustor approach_radius="2.5"
-                                  reachable_graph_node="{reachable_graph_node}"
+                                  reachable_graph_node="{reachable_detection_graph_node}"
                                   graph_node="{detected_graph_node}">
               <GoToGraphNode name="Go to likiest GraphNode"
-                             graph_nodes="{reachable_graph_node}"
+                             graph_nodes="{reachable_detection_graph_node}"
                              approach_radius="2"
                              goal_topic="/goal_pose"
                              robot_frame="base_link"
@@ -76,10 +76,10 @@
                                output_key="any_exploration_nodes"/>
               </Fallback>
               <ApproachPoseAdjustor approach_radius="2.5"
-                                    reachable_graph_node="{reachable_graph_node}"
-                                    graph_node="{detected_graph_node}">
+                                    reachable_graph_node="{reachable_explorer_graph_node}"
+                                    graph_node="{likiest_explorer_node}">
                 <GoToGraphNode name="Go to likiest GraphNode"
-                               graph_nodes="{likiest_explorer_node}"
+                               graph_nodes="{reachable_explorer_graph_node}"
                                approach_radius="0.8"
                                goal_topic="/goal_pose"
                                robot_frame="base_link"

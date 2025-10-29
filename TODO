@@ -2,6 +2,3 @@ If comms fails, do comm over localhost and not Docker0
 
 RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/isaac-sim/exts/isaacsim.ros2.bridge/humble/lib
-
-# GoToGraphNode
-Select the nearest point of the graph node, which is not in the costmap inflation area

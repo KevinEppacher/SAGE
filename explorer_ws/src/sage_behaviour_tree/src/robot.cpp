@@ -10,6 +10,12 @@ Robot::Robot(rclcpp::Node::SharedPtr nodePtr)
   tfListener(*tfBuffer)
 {
     spinClient = rclcpp_action::create_client<NavSpin>(node, "/spin");
+
+    // Subscribe to global costmap (OccupancyGrid)
+    costmapSub = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
+        "/global_costmap/costmap",
+        rclcpp::QoS(1).transient_local().reliable(),
+        std::bind(&Robot::costmapCallback, this, std::placeholders::_1));
 }
 
 bool Robot::getPose(geometry_msgs::msg::Pose& outPose,
@@ -160,65 +166,18 @@ bool Robot::isHalted()
            (node->now() - this->haltedTime) < rclcpp::Duration::from_seconds(1.0);
 }
 
-std::shared_ptr<nav2_msgs::msg::Costmap> Robot::getGlobalCostmap()
+std::shared_ptr<nav_msgs::msg::OccupancyGrid> Robot::getGlobalCostmap()
 {
-    static rclcpp::Clock steady_clock(RCL_STEADY_TIME);
-
-    auto client = node->create_client<nav2_msgs::srv::GetCostmap>("/global_costmap/get_costmap");
-
-    // Wait a few seconds for service to appear
-    if (!client->wait_for_service(3s))
+    if (!latestCostmap)
     {
-        RCLCPP_WARN(node->get_logger(),
-                    YELLOW "Robot::getGlobalCostmap() → Service '/global_costmap/get_costmap' unavailable." RESET);
+        RCLCPP_WARN_THROTTLE(node->get_logger(), *node->get_clock(), 2000,
+                             "Robot::getGlobalCostmap() → No costmap received yet.");
         return nullptr;
     }
+    return latestCostmap;
+}
 
-    // Async call, same pattern as CallEmptyService
-    auto request = std::make_shared<nav2_msgs::srv::GetCostmap::Request>();
-    auto future = client->async_send_request(request);
-
-    rclcpp::Time start = node->get_clock()->now();
-    const double timeoutSec = 3.0;
-
-    // Non-blocking poll loop
-    while (rclcpp::ok())
-    {
-        // Check periodically if result is ready
-        if (future.wait_for(50ms) == std::future_status::ready)
-        {
-            try
-            {
-                auto response = future.get();
-                if (response)
-                {
-                    RCLCPP_INFO(node->get_logger(),
-                                GREEN "Robot::getGlobalCostmap() → Received costmap (%u×%u)." RESET,
-                                response->map.metadata.size_x,
-                                response->map.metadata.size_y);
-                    return std::make_shared<nav2_msgs::msg::Costmap>(response->map);
-                }
-            }
-            catch (const std::exception &e)
-            {
-                RCLCPP_ERROR(node->get_logger(),
-                             RED "Robot::getGlobalCostmap() exception: %s" RESET, e.what());
-                return nullptr;
-            }
-        }
-
-        // Timeout guard
-        if ((node->get_clock()->now() - start).seconds() > timeoutSec)
-        {
-            RCLCPP_WARN(node->get_logger(),
-                        YELLOW "Robot::getGlobalCostmap() → Timeout after %.1f s." RESET,
-                        timeoutSec);
-            return nullptr;
-        }
-
-        // Allow other callbacks to run
-        rclcpp::sleep_for(50ms);
-    }
-
-    return nullptr;
+void Robot::costmapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg)
+{
+    latestCostmap = msg;
 }
