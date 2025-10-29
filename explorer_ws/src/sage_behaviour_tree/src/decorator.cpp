@@ -1,10 +1,6 @@
 #include "sage_behaviour_tree/decorator.hpp"
 #include "sage_behaviour_tree/colors.hpp"
 
-#ifndef ORANGE
-#define ORANGE "\033[38;5;208m"
-#endif
-
 // ============================ KeepRunningUntilObjectFound ============================ //
 
 KeepRunningUntilObjectFound::KeepRunningUntilObjectFound(
@@ -203,4 +199,139 @@ void ForEachEvaluationPrompt::initCommsFromPorts()
                 name().c_str(), evaluation_event_topic_.c_str(), iteration_status_topic_.c_str());
 
     commReady = true;
+}
+
+// ============================ ApproachPoseAdjustor ============================ //
+
+ApproachPoseAdjustor::ApproachPoseAdjustor(const std::string &name,
+                                           const BT::NodeConfiguration &config,
+                                           rclcpp::Node::SharedPtr nodePtr)
+    : BT::DecoratorNode(name, config),
+      node(std::move(nodePtr)),
+      robot(std::make_shared<Robot>(node))
+{}
+
+BT::PortsList ApproachPoseAdjustor::providedPorts()
+{
+    return {
+        BT::InputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node", "Input target node"),
+        BT::OutputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("reachable_graph_node", "Adjusted reachable node"),
+        BT::InputPort<double>("approach_radius", 1.0, "Maximum projection distance (m)")
+    };
+}
+
+BT::NodeStatus ApproachPoseAdjustor::tick()
+{
+    getInput("approach_radius", approachRadius);
+
+    auto inputNodeRes = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node");
+    if (!inputNodeRes || !inputNodeRes.value())
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    RED "[%s] No input graph_node provided." RESET,
+                    name().c_str());
+        return BT::NodeStatus::FAILURE;
+    }
+
+    auto target = *inputNodeRes.value();
+    graph_node_msgs::msg::GraphNode reachable = target;
+
+    if (!findReachablePoint(target, reachable))
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    YELLOW "[%s] Using fallback: default approach radius (%.2f m)." RESET,
+                    name().c_str(), approachRadius);
+        geometry_msgs::msg::Pose robotPose;
+        if (robot->getPose(robotPose))
+        {
+            double dx = target.position.x - robotPose.position.x;
+            double dy = target.position.y - robotPose.position.y;
+            double dist = std::hypot(dx, dy);
+            if (dist > approachRadius)
+            {
+                dx *= approachRadius / dist;
+                dy *= approachRadius / dist;
+            }
+            reachable.position.x = robotPose.position.x + dx;
+            reachable.position.y = robotPose.position.y + dy;
+        }
+    }
+
+    setOutput("reachable_graph_node", std::make_shared<graph_node_msgs::msg::GraphNode>(reachable));
+    return child_node_->executeTick();
+}
+
+bool ApproachPoseAdjustor::findReachablePoint(
+    const graph_node_msgs::msg::GraphNode &target,
+    graph_node_msgs::msg::GraphNode &reachable)
+{
+    auto costmapPtr = robot->getGlobalCostmap();
+    if (!costmapPtr)
+        return false;
+
+    geometry_msgs::msg::Pose robotPose;
+    if (!robot->getPose(robotPose))
+        return false;
+
+    // Extract costmap metadata
+    const double res = costmapPtr->metadata.resolution;
+    const double originX = costmapPtr->metadata.origin.position.x;
+    const double originY = costmapPtr->metadata.origin.position.y;
+    const unsigned int width = costmapPtr->metadata.size_x;
+    const unsigned int height = costmapPtr->metadata.size_y;
+
+    const auto &data = costmapPtr->data;
+
+    // Compute direction from robot → target
+    const double wx = robotPose.position.x;
+    const double wy = robotPose.position.y;
+    const double tx = target.position.x;
+    const double ty = target.position.y;
+
+    const double dx = tx - wx;
+    const double dy = ty - wy;
+    const double dist = std::hypot(dx, dy);
+
+    if (dist < 1e-3)
+        return false;
+
+    const double ux = dx / dist;
+    const double uy = dy / dist;
+    const double maxDist = std::min(dist, approachRadius);
+
+    double lastFreeX = wx;
+    double lastFreeY = wy;
+
+    for (double d = 0.0; d <= maxDist; d += res)
+    {
+        const double cx = wx + d * ux;
+        const double cy = wy + d * uy;
+
+        int mapX = static_cast<int>((cx - originX) / res);
+        int mapY = static_cast<int>((cy - originY) / res);
+
+        if (mapX < 0 || mapY < 0 || mapX >= static_cast<int>(width) || mapY >= static_cast<int>(height))
+            break;
+
+        const int idx = mapY * width + mapX;
+        if (idx < 0 || idx >= static_cast<int>(data.size()))
+            break;
+
+        uint8_t cost = data[idx];
+
+        // nav2_costmap_2d constants: FREE_SPACE = 0, LETHAL_OBSTACLE = 254, UNKNOWN = 255
+        if (cost >= nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
+        {
+            reachable.position.x = lastFreeX;
+            reachable.position.y = lastFreeY;
+            return true;
+        }
+
+        lastFreeX = cx;
+        lastFreeY = cy;
+    }
+
+    reachable.position.x = lastFreeX;
+    reachable.position.y = lastFreeY;
+    return true;
 }

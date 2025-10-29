@@ -6,6 +6,10 @@
 #include <thread>
 #include "multimodal_query_msgs/msg/semantic_prompt_array.hpp"
 #include "evaluator_msgs/msg/evaluation_event.hpp"
+#include "sage_behaviour_tree/robot.hpp"
+#include <nav2_costmap_2d/cost_values.hpp>
+#include <tf2/utils.h>
+#include <fstream>
 
 // ============================ KeepRunningUntilObjectFound ============================ //
 
@@ -56,4 +60,26 @@ private:
     bool commReady{false};
     std::string evaluation_event_topic_{"/evaluation/event"};
     std::string iteration_status_topic_{"/evaluation/iteration_status"};
+};
+
+// ============================ ApproachPoseAdjustor ============================ //
+
+class ApproachPoseAdjustor : public BT::DecoratorNode
+{
+public:
+    ApproachPoseAdjustor(const std::string &name,
+                         const BT::NodeConfiguration &config,
+                         rclcpp::Node::SharedPtr node);
+
+    static BT::PortsList providedPorts();
+
+    BT::NodeStatus tick() override;
+
+    private:
+    rclcpp::Node::SharedPtr node;
+    std::shared_ptr<Robot> robot;
+    double approachRadius{1.0};
+
+    bool findReachablePoint(const graph_node_msgs::msg::GraphNode &target,
+                            graph_node_msgs::msg::GraphNode &reachable);
 };

@@ -29,13 +29,17 @@
                         detection_threshold="0.85"
                         detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
                         graph_nodes="{detected_graph_node}"/>
-            <GoToGraphNode name="Go to likiest GraphNode"
-                           graph_nodes="{detected_graph_node}"
-                           approach_radius="2"
-                           goal_topic="/goal_pose"
-                           robot_frame="base_link"
-                           map_frame="map"
-                           timeout="10"/>
+            <ApproachPoseAdjustor approach_radius="2.5"
+                                  reachable_graph_node="{reachable_graph_node}"
+                                  graph_node="{detected_graph_node}">
+              <GoToGraphNode name="Go to likiest GraphNode"
+                             graph_nodes="{reachable_graph_node}"
+                             approach_radius="2"
+                             goal_topic="/goal_pose"
+                             robot_frame="base_link"
+                             map_frame="map"
+                             timeout="10"/>
+            </ApproachPoseAdjustor>
             <RealignToObject detected_graph_node="{detected_graph_node}"
                              spinDuration="5.0"/>
             <SaveImageAction imageTopic="/yoloe/overlay"
@@ -71,13 +75,17 @@
                 <SetBlackboard value="false"
                                output_key="any_exploration_nodes"/>
               </Fallback>
-              <GoToGraphNode name="Go to likiest GraphNode"
-                             graph_nodes="{likiest_explorer_node}"
-                             approach_radius="0.5"
-                             goal_topic="/goal_pose"
-                             robot_frame="base_link"
-                             map_frame="map"
-                             timeout="10"/>
+              <ApproachPoseAdjustor approach_radius="2.5"
+                                    reachable_graph_node="{reachable_graph_node}"
+                                    graph_node="{detected_graph_node}">
+                <GoToGraphNode name="Go to likiest GraphNode"
+                               graph_nodes="{likiest_explorer_node}"
+                               approach_radius="0.8"
+                               goal_topic="/goal_pose"
+                               robot_frame="base_link"
+                               map_frame="map"
+                               timeout="10"/>
+              </ApproachPoseAdjustor>
             </ReactiveSequence>
           </Sequence>
         </ReactiveFallback>
@@ -87,6 +95,15 @@
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
+    <Decorator ID="ApproachPoseAdjustor">
+      <input_port name="approach_radius"
+                  default="1.000000"
+                  type="double">Maximum projection distance (m)</input_port>
+      <output_port name="reachable_graph_node"
+                   type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Adjusted reachable node</output_port>
+      <input_port name="graph_node"
+                  type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Input target node</input_port>
+    </Decorator>
     <Action ID="CallEmptyService">
       <input_port name="service_name"
                   default="/clear_exploration_map"/>
