@@ -34,7 +34,7 @@
                                   graph_node="{detected_graph_node}">
               <GoToGraphNode name="Go to likiest GraphNode"
                              graph_nodes="{reachable_detection_graph_node}"
-                             approach_radius="2"
+                             approach_radius="1"
                              goal_topic="/goal_pose"
                              robot_frame="base_link"
                              map_frame="map"
@@ -80,7 +80,7 @@
                                     graph_node="{likiest_explorer_node}">
                 <GoToGraphNode name="Go to likiest GraphNode"
                                graph_nodes="{reachable_explorer_graph_node}"
-                               approach_radius="0.8"
+                               approach_radius="0.3"
                                goal_topic="/goal_pose"
                                robot_frame="base_link"
                                map_frame="map"

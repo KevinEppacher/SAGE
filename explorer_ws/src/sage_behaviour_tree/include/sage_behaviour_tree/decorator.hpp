@@ -8,6 +8,7 @@
 #include "evaluator_msgs/msg/evaluation_event.hpp"
 #include "sage_behaviour_tree/robot.hpp"
 #include <nav2_costmap_2d/cost_values.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 #include <tf2/utils.h>
 #include <fstream>
 
@@ -72,14 +73,65 @@ public:
                          rclcpp::Node::SharedPtr node);
 
     static BT::PortsList providedPorts();
-
     BT::NodeStatus tick() override;
 
-    private:
+private:
     rclcpp::Node::SharedPtr node;
     std::shared_ptr<Robot> robot;
-    double approachRadius{1.0};
 
+    // Search / validation parameters
+    double approachRadius{2.5};                // meters (from input port)
+    double robotRadius{0.25};                  // meters, robot circular footprint
+    int costThreshold{50};                     // OccupancyGrid: >50 treated as obstacle
+    bool allowUnknown{false};                  // treat -1 as obstacle if false
+    double angularStepDeg{10.0};               // angle sweep step around target
+    int radialSamples{3};                      // how many radii between 0..approachRadius
+    double lineStep{0.05};                     // raycast discretization [m]
+    bool haveCachedReachable{false};
+    graph_node_msgs::msg::GraphNode cachedReachable;
+    BT::NodeStatus lastChildStatus{BT::NodeStatus::IDLE};
+    std::vector<geometry_msgs::msg::Point> lastSamples;
+    graph_node_msgs::msg::GraphNode lastTarget;
+    graph_node_msgs::msg::GraphNode lastReachable;
+    bool lastReachableValid{false};
+
+    // Visualization
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr markerPub;
+    std::string markerFrame{"map"};
+    int markerSeq{0};
+
+    // Core logic
     bool findReachablePoint(const graph_node_msgs::msg::GraphNode &target,
                             graph_node_msgs::msg::GraphNode &reachable);
+
+    bool isFootprintFree(const nav_msgs::msg::OccupancyGrid &grid,
+                         double x, double y,
+                         double radius) const;
+
+    bool rayPathAcceptable(const nav_msgs::msg::OccupancyGrid &grid,
+                           double x0, double y0,
+                           double x1, double y1) const;
+
+    inline bool gridValueAcceptable(int8_t v) const
+    {
+        if (v < 0) return allowUnknown;     // -1 unknown
+        return v <= costThreshold;          // 0..100
+    }
+
+    inline bool worldToMap(const nav_msgs::msg::OccupancyGrid &grid,
+                           double wx, double wy,
+                           int &mx, int &my) const
+    {
+        const auto &info = grid.info;
+        mx = static_cast<int>((wx - info.origin.position.x) / info.resolution);
+        my = static_cast<int>((wy - info.origin.position.y) / info.resolution);
+        return (mx >= 0 && my >= 0 &&
+                mx < static_cast<int>(info.width) &&
+                my < static_cast<int>(info.height));
+    }
+
+    void publishMarkers(const geometry_msgs::msg::Pose &robotPose,
+                        const graph_node_msgs::msg::GraphNode &target,
+                        const graph_node_msgs::msg::GraphNode *reachable,
+                        const std::string &ns);
 };

@@ -2,36 +2,66 @@
 <root BTCPP_format="4"
       main_tree_to_execute="SAGE_SingleObject">
   <BehaviorTree ID="SAGE_SingleObject">
-    <Sequence>
-      <IsDetected name="Already explored all available GraphNodes?"
-                  detection_threshold="0.0"
-                  detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
-                  graph_nodes="{exploration_nodes}"/>
-      <GoToGraphNode name="Go to likiest GraphNode"
-                     graph_nodes="{exploration_nodes}"
-                     approach_radius="2"
-                     goal_topic="/goal_pose"
-                     robot_frame="base_link"
-                     map_frame="map"/>
-    </Sequence>
+    <Delay delay_msec="2">
+      <Sequence>
+        <IsDetected name="Already explored all available GraphNodes?"
+                    graph_nodes="{exploration_node}"
+                    detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                    detection_threshold="0.0"/>
+        <ApproachPoseAdjustor approach_radius="2.5"
+                              reachable_graph_node="{reachable_node}"
+                              graph_node="{exploration_node}">
+          <GoToGraphNode name="Go to likiest GraphNode"
+                         map_frame="map"
+                         timeout="60.000000"
+                         robot_frame="base_link"
+                         goal_topic="/goal_pose"
+                         approach_radius="0.2"
+                         graph_nodes="{reachable_node}"/>
+        </ApproachPoseAdjustor>
+      </Sequence>
+    </Delay>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
+    <Decorator ID="ApproachPoseAdjustor">
+      <input_port name="approach_radius"
+                  default="2.500000"
+                  type="double">Maximum approach distance (m)</input_port>
+      <output_port name="reachable_graph_node"
+                   type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Adjusted reachable node</output_port>
+      <input_port name="graph_node"
+                  type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Input target node</input_port>
+    </Decorator>
     <Action ID="GoToGraphNode">
-      <input_port name="graph_nodes"/>
-      <input_port name="approach_radius"/>
-      <input_port name="goal_topic"/>
-      <input_port name="robot_frame"/>
-      <input_port name="map_frame"/>
+      <input_port name="map_frame"
+                  default="map"
+                  type="std::string">Map frame</input_port>
+      <input_port name="timeout"
+                  default="60.000000"
+                  type="double">Timeout seconds</input_port>
+      <input_port name="robot_frame"
+                  default="base_link"
+                  type="std::string">Robot frame</input_port>
+      <input_port name="goal_topic"
+                  default="/goal_pose"
+                  type="std::string">Goal topic</input_port>
+      <input_port name="approach_radius"
+                  default="2.000000"
+                  type="double">Approach distance in meters</input_port>
+      <input_port name="graph_nodes"
+                  type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Target GraphNode</input_port>
     </Action>
     <Condition ID="IsDetected">
-      <input_port name="detection_threshold"
-                  default="0.8"/>
-      <input_port name="detection_graph_node_topic"
-                  default="/detection_graph_nodes/graph_nodes"/>
       <output_port name="graph_nodes"
-                   default="latest_nodes"/>
+                   type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Best detected GraphNode</output_port>
+      <input_port name="detection_graph_node_topic"
+                  default="/detection_graph_nodes/graph_nodes"
+                  type="std::string">GraphNodeArray topic</input_port>
+      <input_port name="detection_threshold"
+                  default="0.800000"
+                  type="double">Detection threshold</input_port>
     </Condition>
   </TreeNodesModel>
 
