@@ -22,23 +22,51 @@ bool Robot::getPose(geometry_msgs::msg::Pose& outPose,
                     const std::string& mapFrame,
                     const std::string& robotFrame)
 {
-    try
-    {
-        geometry_msgs::msg::TransformStamped tf =
-            tfBuffer->lookupTransform(mapFrame, robotFrame, tf2::TimePointZero);
+    const int maxRetries = 5;
+    const double baseDelay = 0.1;  // seconds
+    const double maxWait = 1.0;    // seconds total
 
-        outPose.position.x = tf.transform.translation.x;
-        outPose.position.y = tf.transform.translation.y;
-        outPose.position.z = tf.transform.translation.z;
-        outPose.orientation = tf.transform.rotation;
-        return true;
-    }
-    catch (const tf2::TransformException& ex)
+    // Use a steady, monotonic clock for measuring timeouts
+    rclcpp::Clock steadyClock(RCL_STEADY_TIME);
+    auto start = steadyClock.now();
+
+    for (int attempt = 0; attempt < maxRetries; ++attempt)
     {
-        RCLCPP_WARN_THROTTLE(node->get_logger(), *node->get_clock(),
-                             2000, "Robot::getPose TF lookup failed: %s", ex.what());
-        return false;
+        try
+        {
+            geometry_msgs::msg::TransformStamped tf =
+                tfBuffer->lookupTransform(mapFrame, robotFrame, tf2::TimePointZero);
+
+            outPose.position.x = tf.transform.translation.x;
+            outPose.position.y = tf.transform.translation.y;
+            outPose.position.z = tf.transform.translation.z;
+            outPose.orientation = tf.transform.rotation;
+            return true;
+        }
+        catch (const tf2::TransformException& ex)
+        {
+            auto elapsed = (steadyClock.now() - start).seconds();
+            if (elapsed > maxWait)
+            {
+                RCLCPP_WARN(node->get_logger(),
+                            "Robot::getPose() - Failed after %.2f s: %s",
+                            elapsed, ex.what());
+                return false;
+            }
+
+            double delay = baseDelay * std::pow(1.5, attempt);
+            RCLCPP_WARN(node->get_logger(),
+                        "Robot::getPose() - TF lookup failed (try %d/%d): %s. Retrying in %.2f s...",
+                        attempt + 1, maxRetries, ex.what(), delay);
+
+            rclcpp::sleep_for(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::duration<double>(delay)));
+        }
     }
+
+    RCLCPP_ERROR(node->get_logger(),
+                 "Robot::getPose() - Failed to get transform after %d retries.", maxRetries);
+    return false;
 }
 
 bool Robot::spin(double yaw, double durationSec)

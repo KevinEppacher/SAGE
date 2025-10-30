@@ -20,11 +20,20 @@ def generate_launch_description():
         description='Use simulation time'
     )
 
+    sage_bt_config = os.path.join(
+        get_package_share_directory("sage_behaviour_tree"),
+        'config',
+        'sage_bt_config.yaml'
+    )
+
     bt_default = os.path.join(
         get_package_share_directory("sage_behaviour_tree"),
         'bt_xml',
+        # 'test',
+        # 'test_goto_graph_node.xml'
         'multiple_search_evaluator.xml'
     )
+
     bt_xml_arg = DeclareLaunchArgument(
         'bt_xml_path', default_value=bt_default,
         description='Behavior Tree XML file path'
@@ -52,6 +61,7 @@ def generate_launch_description():
         parameters=[
             {'use_sim_time': use_sim_time},
             {'tree_xml_file': bt_xml_path},
+            sage_bt_config
         ]
     )
 

@@ -27,7 +27,12 @@ class EvaluationDashboard(Node):
         self.experiment_id = 'EXP_001'
         self.episode_id = 'E01'
         self.phase = 'START'
-        self.prompt_texts = ['bed', 'chair', 'table', 'lamp']
+        self.prompt_texts = [
+            'bath tub',
+            'bed',
+            'toilet',
+            'chair'
+        ]
 
         # --- Internal state ---
         self.start_time = time.time()

@@ -373,7 +373,9 @@ Visualization Manager:
           Enabled: true
           Name: MarkerArray
           Namespaces:
-            {}
+            debug_lines: true
+            debug_text: true
+            graph_nodes: true
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -654,6 +656,18 @@ Visualization Manager:
         Reliability Policy: Best Effort
         Value: /yoloe/overlay
       Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: MarkerArray
+      Namespaces:
+        ApproachPoseAdjustor: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /approach_pose_adjustor/markers
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -700,16 +714,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 14.18095588684082
+      Distance: 9.663924217224121
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 1.6058422327041626
-        Y: 2.639688014984131
-        Z: -3.895548105239868
+        X: 1.7747440338134766
+        Y: -0.18320368230342865
+        Z: -3.895254135131836
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
