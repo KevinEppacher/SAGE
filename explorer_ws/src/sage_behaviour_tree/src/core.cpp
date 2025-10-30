@@ -42,18 +42,6 @@ void SageBehaviorTreeNode::create_behavior_tree()
     factory.registerNodeType<ForEachEvaluationPrompt>("ForEachEvaluationPrompt", shared_from_this());
     factory.registerNodeType<ApproachPoseAdjustor>("ApproachPoseAdjustor", shared_from_this());
 
-    auto xml_model = BT::writeTreeNodesModelXML(factory);
-    std::ofstream("/tmp/sage_nodes_model.xml") << xml_model;
-
-    for (const auto &manifest : factory.manifests())
-    {
-        RCLCPP_INFO(get_logger(), "Node type: %s", manifest.first.c_str());
-        for (const auto &p : manifest.second.ports)
-            RCLCPP_INFO(get_logger(), "  port: %s (%s)",
-                        p.first.c_str(),
-                        BT::toStr(p.second.direction()).c_str());
-    }
-
     // === NEW: export TreeNodesModel to XML for Groot 2 ===
     try
     {
