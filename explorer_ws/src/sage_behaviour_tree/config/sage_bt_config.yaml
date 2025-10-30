@@ -2,10 +2,10 @@ sage_behaviour_tree:
   sage_bt_node:
     ros__parameters:
       approach_pose_adjustor:
-        allow_unknown: true       # helps exploration and frontier regions
-        angular_step_deg: 5.0     # good balance
-        cost_threshold: 60        # allows low-inflation cells
-        line_step: 0.05
-        radial_samples: 5         # more radius layers to test
-        robot_radius: 0.08        # slightly smaller footprint
+        allow_unknown: true       # bool: helps exploration and frontier regions
+        angular_step_deg: 5.0     # double: good balance
+        cost_threshold: 60        # int: allows low-inflation cells
+        line_step: 0.05           # double: more granular line sampling
+        radial_samples: 5         # int: more radius layers to test
+        robot_radius: 0.08        # double: slightly smaller footprint
         marker_frame: map
