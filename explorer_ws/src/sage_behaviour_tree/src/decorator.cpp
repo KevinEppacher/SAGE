@@ -210,6 +210,7 @@ ApproachPoseAdjustor::ApproachPoseAdjustor(const std::string &name,
       node(std::move(nodePtr)),
       robot(std::make_shared<Robot>(node))
 {
+    std::string markerTopic = "approach_pose_adjustor/markers";
     // Optional parameters (declare/get if you like)
     if (!node->has_parameter("approach_pose_adjustor.robot_radius"))
         node->declare_parameter<double>("approach_pose_adjustor.robot_radius", robotRadius);
@@ -225,6 +226,10 @@ ApproachPoseAdjustor::ApproachPoseAdjustor(const std::string &name,
         node->declare_parameter<double>("approach_pose_adjustor.line_step", lineStep);
     if (!node->has_parameter("approach_pose_adjustor.marker_frame"))
         node->declare_parameter<std::string>("approach_pose_adjustor.marker_frame", markerFrame);
+    if (!node->has_parameter("approach_pose_adjustor.debug_markers"))
+        node->declare_parameter<bool>("approach_pose_adjustor.debug_markers", debugMarkers);
+    if (!node->has_parameter("approach_pose_adjustor.marker_topic"))
+        node->declare_parameter<std::string>("approach_pose_adjustor.marker_topic", markerFrame);
 
     robotRadius   = node->get_parameter("approach_pose_adjustor.robot_radius").as_double();
     costThreshold = node->get_parameter("approach_pose_adjustor.cost_threshold").as_int();
@@ -233,9 +238,10 @@ ApproachPoseAdjustor::ApproachPoseAdjustor(const std::string &name,
     radialSamples = node->get_parameter("approach_pose_adjustor.radial_samples").as_int();
     lineStep      = node->get_parameter("approach_pose_adjustor.line_step").as_double();
     markerFrame   = node->get_parameter("approach_pose_adjustor.marker_frame").as_string();
+    debugMarkers  = node->get_parameter("approach_pose_adjustor.debug_markers").as_bool();
 
     markerPub = node->create_publisher<visualization_msgs::msg::MarkerArray>(
-        "/approach_pose_adjustor/markers", 10);
+        markerTopic, 10);
 }
 
 BT::PortsList ApproachPoseAdjustor::providedPorts()
@@ -243,14 +249,14 @@ BT::PortsList ApproachPoseAdjustor::providedPorts()
     return {
         BT::InputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node", "Input target node"),
         BT::OutputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("reachable_graph_node", "Adjusted reachable node"),
-        BT::InputPort<double>("approach_radius", 2.5, "Maximum approach distance (m)")
+        BT::InputPort<double>("search_radius", 2.5, "Maximum approach distance (m)")
     };
 }
 
 // ---------- tick() ----------
 BT::NodeStatus ApproachPoseAdjustor::tick()
 {
-    getInput("approach_radius", approachRadius);
+    getInput("search_radius", searchRadius);
 
     auto inputNodeRes = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node");
     if (!inputNodeRes || !inputNodeRes.value())
@@ -281,8 +287,9 @@ BT::NodeStatus ApproachPoseAdjustor::tick()
         {
             RCLCPP_WARN(node->get_logger(),
                         YELLOW "[%s] No reachable approach pose found inside radius %.2f m → FAILURE" RESET,
-                        name().c_str(), approachRadius);
-            publishMarkers(robotPose, target, nullptr, "ApproachPoseAdjustor");
+                        name().c_str(), searchRadius);
+            if (debugMarkers)
+                publishMarkers(robotPose, target, nullptr, "ApproachPoseAdjustor");
             return BT::NodeStatus::FAILURE;
         }
 
@@ -296,9 +303,10 @@ BT::NodeStatus ApproachPoseAdjustor::tick()
     }
 
     // Always publish markers so RViz stays updated
-    publishMarkers(robotPose, target,
-                   haveCachedReachable ? &cachedReachable : nullptr,
-                   "ApproachPoseAdjustor");
+    if (debugMarkers)
+        publishMarkers(robotPose, target,
+                       haveCachedReachable ? &cachedReachable : nullptr,
+                       "ApproachPoseAdjustor");
 
     // Always keep output port updated while running
     if (haveCachedReachable)
@@ -346,7 +354,7 @@ bool ApproachPoseAdjustor::findReachablePoint(const graph_node_msgs::msg::GraphN
     radii.push_back(0.0);
     if (radialSamples < 1) radialSamples = 1;
     for (int i = 0; i < radialSamples; ++i)
-        radii.push_back(approachRadius * (i + 1) / static_cast<double>(radialSamples));
+        radii.push_back(searchRadius * (i + 1) / static_cast<double>(radialSamples));
 
     const double stepRad = angularStepDeg * M_PI / 180.0;
     auto angles = [&]() {

@@ -80,14 +80,15 @@ private:
     std::shared_ptr<Robot> robot;
 
     // Search / validation parameters
-    double approachRadius{2.5};                // meters (from input port)
+    double searchRadius{2.5};                // meters (from input port)
     double robotRadius{0.25};                  // meters, robot circular footprint
     int costThreshold{50};                     // OccupancyGrid: >50 treated as obstacle
     bool allowUnknown{false};                  // treat -1 as obstacle if false
     double angularStepDeg{10.0};               // angle sweep step around target
-    int radialSamples{3};                      // how many radii between 0..approachRadius
+    int radialSamples{3};                      // how many radii between 0..searchRadius
     double lineStep{0.05};                     // raycast discretization [m]
     bool haveCachedReachable{false};
+    bool debugMarkers{false};
     graph_node_msgs::msg::GraphNode cachedReachable;
     BT::NodeStatus lastChildStatus{BT::NodeStatus::IDLE};
     std::vector<geometry_msgs::msg::Point> lastSamples;

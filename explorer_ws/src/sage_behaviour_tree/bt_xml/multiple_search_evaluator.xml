@@ -29,7 +29,7 @@
                         detection_threshold="0.55"
                         detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
                         graph_nodes="{detected_graph_node}"/>
-            <ApproachPoseAdjustor approach_radius="2.5"
+            <ApproachPoseAdjustor search_radius="2.5"
                                   reachable_graph_node="{reachable_detection_graph_node}"
                                   graph_node="{detected_graph_node}">
               <GoToGraphNode name="Go to likiest GraphNode"
@@ -75,7 +75,7 @@
                 <SetBlackboard value="false"
                                output_key="any_exploration_nodes"/>
               </Fallback>
-              <ApproachPoseAdjustor approach_radius="2.5"
+              <ApproachPoseAdjustor search_radius="2.5"
                                     reachable_graph_node="{reachable_explorer_graph_node}"
                                     graph_node="{likiest_explorer_node}">
                 <GoToGraphNode name="Go to likiest GraphNode"
@@ -95,99 +95,79 @@
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
-    <Decorator ID="ApproachPoseAdjustor">
-      <input_port name="approach_radius"
-                  default="1.000000"
-                  type="double">Maximum projection distance (m)</input_port>
-      <output_port name="reachable_graph_node"
-                   type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Adjusted reachable node</output_port>
-      <input_port name="graph_node"
-                  type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Input target node</input_port>
+    <Decorator ID="ApproachPoseAdjustor"
+               editable="true">
+      <input_port name="search_radius"/>
+      <output_port name="reachable_graph_node"/>
+      <input_port name="graph_node"/>
     </Decorator>
-    <Action ID="CallEmptyService">
-      <input_port name="service_name"
-                  default="/clear_exploration_map"/>
+    <Action ID="CallEmptyService"
+            editable="true">
+      <input_port name="service_name"/>
     </Action>
-    <Decorator ID="ForEachEvaluationPrompt">
-      <input_port name="evaluation_event_topic"
-                  default="/evaluation/event"/>
-      <input_port name="iteration_status_topic"
-                  default="/evaluation/iteration_status"/>
+    <Decorator ID="ForEachEvaluationPrompt"
+               editable="true">
+      <input_port name="evaluation_event_topic"/>
+      <input_port name="iteration_status_topic"/>
       <output_port name="targetObject"/>
     </Decorator>
-    <Action ID="GoToGraphNode">
+    <Action ID="GoToGraphNode"
+            editable="true">
       <input_port name="graph_nodes"/>
       <input_port name="approach_radius"/>
       <input_port name="goal_topic"/>
       <input_port name="robot_frame"/>
       <input_port name="map_frame"/>
-      <input_port name="timeout"
-                  default="60.0"/>
+      <input_port name="timeout"/>
     </Action>
-    <Condition ID="IsDetected">
-      <input_port name="detection_threshold"
-                  default="0.8"/>
-      <input_port name="detection_graph_node_topic"
-                  default="/detection_graph_nodes/graph_nodes"/>
-      <output_port name="graph_nodes"
-                   default="latest_nodes"/>
+    <Condition ID="IsDetected"
+               editable="true">
+      <input_port name="detection_threshold"/>
+      <input_port name="detection_graph_node_topic"/>
+      <output_port name="graph_nodes"/>
     </Condition>
-    <Decorator ID="KeepRunningUntilObjectFound">
-      <input_port name="object_found"
-                  default="false"/>
-      <input_port name="any_exploration_nodes"
-                  default="true"/>
+    <Decorator ID="KeepRunningUntilObjectFound"
+               editable="true">
+      <input_port name="object_found"/>
+      <input_port name="any_exploration_nodes"/>
     </Decorator>
-    <Action ID="PublishSemanticPrompt">
+    <Action ID="PublishSemanticPrompt"
+            editable="true">
       <input_port name="text_query"/>
-      <input_port name="topic"
-                  default="/user_prompt"/>
+      <input_port name="topic"/>
     </Action>
-    <Action ID="RealignToObject">
+    <Action ID="RealignToObject"
+            editable="true">
       <input_port name="detected_graph_node"/>
-      <input_port name="spinDuration"
-                  default="5.0"/>
+      <input_port name="spinDuration"/>
     </Action>
-    <SubTree ID="SAGE_SingleObject">
-      <input_port name="object"/>
-    </SubTree>
-    <Action ID="SaveImageAction">
-      <input_port name="imageTopic"
-                  default="/yoloe/overlay"/>
-      <input_port name="savePath"
-                  default="/tmp/overlay.jpg"/>
+    <Action ID="SaveImageAction"
+            editable="true">
+      <input_port name="imageTopic"/>
+      <input_port name="savePath"/>
     </Action>
-    <Action ID="SeekoutGraphNodes">
-      <input_port name="graph_node_topic"
-                  default="/fused/exploration_graph_nodes/graph_nodes"/>
-      <input_port name="robot_frame"
-                  default="base_link"/>
-      <input_port name="map_frame"
-                  default="map"/>
-      <input_port name="sight_horizon"
-                  default="10.0"/>
-      <input_port name="min_yaw_default"
-                  default="-0.523"/>
-      <input_port name="max_yaw_default"
-                  default="0.523"/>
+    <Action ID="SeekoutGraphNodes"
+            editable="true">
+      <input_port name="graph_node_topic"/>
+      <input_port name="robot_frame"/>
+      <input_port name="map_frame"/>
+      <input_port name="sight_horizon"/>
+      <input_port name="min_yaw_default"/>
+      <input_port name="max_yaw_default"/>
       <output_port name="min_yaw"/>
       <output_port name="max_yaw"/>
     </Action>
-    <Action ID="SetParameterNode">
-      <input_port name="target_node"
-                  default="/value_map"/>
-      <input_port name="parameter_name"
-                  default="decay_factor"/>
-      <input_port name="value"
-                  default="1.0"/>
+    <Action ID="SetParameterNode"
+            editable="true">
+      <input_port name="target_node"/>
+      <input_port name="parameter_name"/>
+      <input_port name="value"/>
     </Action>
-    <Action ID="Spin">
-      <input_port name="turnLeftAngle"
-                  default="3.14159"/>
-      <input_port name="turnRightAngle"
-                  default="-3.14159"/>
-      <input_port name="spinDuration"
-                  default="10.0"/>
+    <Action ID="Spin"
+            editable="true">
+      <input_port name="turnLeftAngle"/>
+      <input_port name="turnRightAngle"/>
+      <input_port name="spinDuration"/>
     </Action>
   </TreeNodesModel>
 
