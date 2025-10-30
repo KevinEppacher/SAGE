@@ -243,14 +243,14 @@ BT::PortsList ApproachPoseAdjustor::providedPorts()
     return {
         BT::InputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node", "Input target node"),
         BT::OutputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("reachable_graph_node", "Adjusted reachable node"),
-        BT::InputPort<double>("search_radius", 2.5, "Maximum approach distance (m)")
+        BT::InputPort<double>("approach_radius", 2.5, "Maximum approach distance (m)")
     };
 }
 
 // ---------- tick() ----------
 BT::NodeStatus ApproachPoseAdjustor::tick()
 {
-    getInput("approach_radius", searchRadius);
+    getInput("approach_radius", approachRadius);
 
     auto inputNodeRes = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node");
     if (!inputNodeRes || !inputNodeRes.value())
@@ -281,7 +281,7 @@ BT::NodeStatus ApproachPoseAdjustor::tick()
         {
             RCLCPP_WARN(node->get_logger(),
                         YELLOW "[%s] No reachable approach pose found inside radius %.2f m → FAILURE" RESET,
-                        name().c_str(), searchRadius);
+                        name().c_str(), approachRadius);
             publishMarkers(robotPose, target, nullptr, "ApproachPoseAdjustor");
             return BT::NodeStatus::FAILURE;
         }
@@ -346,7 +346,7 @@ bool ApproachPoseAdjustor::findReachablePoint(const graph_node_msgs::msg::GraphN
     radii.push_back(0.0);
     if (radialSamples < 1) radialSamples = 1;
     for (int i = 0; i < radialSamples; ++i)
-        radii.push_back(searchRadius * (i + 1) / static_cast<double>(radialSamples));
+        radii.push_back(approachRadius * (i + 1) / static_cast<double>(radialSamples));
 
     const double stepRad = angularStepDeg * M_PI / 180.0;
     auto angles = [&]() {
