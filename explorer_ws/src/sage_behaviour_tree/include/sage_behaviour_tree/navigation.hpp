@@ -18,6 +18,7 @@
 #include <graph_node_msgs/msg/graph_node_array.hpp>
 #include <std_msgs/msg/float32.hpp>
 #include <visualization_msgs/msg/marker.hpp>
+#include <deque>
 
 // =============================== Spin =================================== //
 
@@ -65,6 +66,8 @@ private:
     double originYaw{0.0};   // yaw at onStart()
     int phase{0};
     bool done{false};
+    std::deque<double> sweepTargetsAbs;   // absolute yaws in 'map'
+    const double yaw_epsilon = 0.03;      // ~1.7 deg; treat as reached
 
     // Time tracking
     rclcpp::Clock steadyClock{RCL_STEADY_TIME};
