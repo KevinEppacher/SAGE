@@ -29,9 +29,9 @@ def generate_launch_description():
     bt_default = os.path.join(
         get_package_share_directory("sage_behaviour_tree"),
         'bt_xml',
-        'test',
+        # 'test',
         # 'test_goto_graph_node.xml'
-        'test_detection.xml'
+        'multiple_search_evaluator.xml'
     )
 
     bt_xml_arg = DeclareLaunchArgument(
