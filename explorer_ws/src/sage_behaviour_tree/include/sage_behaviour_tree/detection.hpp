@@ -5,7 +5,10 @@
 #include <graph_node_msgs/msg/graph_node.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <behaviortree_cpp/action_node.h>
+#include <filesystem>
 #include <rclcpp/qos.hpp>
+
+namespace fs = std::filesystem;
 
 // ============================ IsDetected ============================ //
 

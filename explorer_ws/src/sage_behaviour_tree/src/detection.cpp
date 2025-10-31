@@ -74,11 +74,8 @@ BT::NodeStatus IsDetected::tick()
     }
     setOutput("graph_nodes", best_node);
 
-    RCLCPP_INFO(node_ptr_->get_logger(),
-                GREEN "[%s] Best node ID: %d with score: %.2f. Returning SUCCESS" RESET,
-                name().c_str(), best_node->id, best_node->score);
-
-    if (max_score >= threshold) {
+    bool detection_met = (max_score >= threshold);
+    if (detection_met) {
         RCLCPP_INFO(node_ptr_->get_logger(),
                     GREEN "[%s] Detection threshold met: %.2f >= %.2f" RESET,
                     name().c_str(), max_score, threshold);
@@ -88,7 +85,7 @@ BT::NodeStatus IsDetected::tick()
                     name().c_str(), max_score, threshold);
     }
 
-    return (max_score >= threshold) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+    return detection_met ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 // ============================ SaveImageAction ============================ //
@@ -170,7 +167,32 @@ void SaveImageAction::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg
 
     try
     {
+        // Convert ROS image to OpenCV
         cv::Mat img = cv_bridge::toCvCopy(msg, "bgr8")->image;
+
+        // --- Ensure directory exists ---
+        fs::path savePathFS(savePath);
+        fs::path directory = savePathFS.parent_path();
+
+        if (!fs::exists(directory))
+        {
+            try
+            {
+                fs::create_directories(directory);
+                RCLCPP_INFO(node->get_logger(),
+                            GREEN "[%s] Created directory path: %s" RESET,
+                            name().c_str(), directory.c_str());
+            }
+            catch (const std::exception &e)
+            {
+                RCLCPP_ERROR(node->get_logger(),
+                             RED "[%s] Failed to create directory '%s': %s" RESET,
+                             name().c_str(), directory.c_str(), e.what());
+                return;
+            }
+        }
+
+        // --- Save image ---
         if (cv::imwrite(savePath, img))
         {
             RCLCPP_INFO(node->get_logger(),
@@ -190,6 +212,12 @@ void SaveImageAction::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg
     {
         RCLCPP_ERROR(node->get_logger(),
                      RED "[%s] cv_bridge exception: %s" RESET,
+                     name().c_str(), e.what());
+    }
+    catch (const std::exception &e)
+    {
+        RCLCPP_ERROR(node->get_logger(),
+                     RED "[%s] Exception while saving image: %s" RESET,
                      name().c_str(), e.what());
     }
 }
