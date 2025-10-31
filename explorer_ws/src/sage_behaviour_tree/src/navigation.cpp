@@ -10,7 +10,14 @@ Spin::Spin(const std::string &name,
            rclcpp::Node::SharedPtr nodePtr)
     : BT::StatefulActionNode(name, config),
       node(std::move(nodePtr)),
-      robot(std::make_shared<Robot>(node)) {}
+      robot(std::make_shared<Robot>(node)) 
+{
+    // Declare ROS parameter for timeout if not already present
+    if (!node->has_parameter("spin_node.spin_timeout"))
+        node->declare_parameter<double>("spin_node.spin_timeout", spinTimeout);
+
+    spinTimeout = node->get_parameter("spin_node.spin_timeout").as_double();
+}
 
 BT::PortsList Spin::providedPorts()
 {
@@ -33,10 +40,14 @@ BT::NodeStatus Spin::onStart()
     getInput("turnRightAngle", turnRightAngle);
     getInput("spinDuration", spinDuration);
 
+    // Refresh timeout parameter dynamically
+    spinTimeout = node->get_parameter("spin_node.spin_timeout").as_double();
+
     robot->cancelNavigationGoals();
     done = false;
     phase = 0;
     cumulativeRotation = 0.0;
+    startTime = node->now();
 
     if (turnLeftAngle == 0.0 && turnRightAngle == 0.0)
     {
@@ -92,6 +103,17 @@ BT::NodeStatus Spin::onStart()
 
 BT::NodeStatus Spin::onRunning()
 {
+
+    double elapsed = (node->now() - startTime).seconds();
+    if (elapsed > spinTimeout)
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    "%s[%s] Spin timeout after %.2f s (limit %.2f s) → %sFAILURE%s",
+                    RED, name().c_str(), elapsed, spinTimeout, RED, RESET);
+        robot->cancelSpin();
+        return BT::NodeStatus::FAILURE;
+    }
+
     if (!robot->isSpinDone())
     {
         RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 2000,

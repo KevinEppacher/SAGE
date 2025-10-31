@@ -43,8 +43,10 @@ private:
     double turnLeftAngle{0.0};
     double turnRightAngle{0.0};
     double spinDuration{15.0};
+    double spinTimeout{30.0};               // from ROS parameter
     double cumulativeRotation{0.0};
     rclcpp_action::ResultCode navResult{};
+    rclcpp::Time startTime;
 };
 
 // ============================ GoToGraphNode ============================ //

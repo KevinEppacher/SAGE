@@ -11,3 +11,5 @@ sage_behaviour_tree:
         marker_frame: map
         marker_topic: approach_pose_adjustor/markers
         debug_markers: true       # bool: enable debug markers in RViz
+      spin_node:
+        spin_timeout: 30.0        # double: timeout for spin action in seconds
