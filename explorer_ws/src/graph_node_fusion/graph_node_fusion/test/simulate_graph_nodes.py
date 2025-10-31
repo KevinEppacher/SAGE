@@ -20,7 +20,7 @@ class SimulateGraphNodes(Node):
 
         # Hardcoded nodes
         self.exploration_nodes = [
-            GraphNode(id=1, position=Point(x=2.0, y=-1.0, z=0.0), score=0.9, is_visited=False),
+            GraphNode(id=1, position=Point(x=-2.0, y=-1.0, z=0.0), score=0.9, is_visited=False),
             GraphNode(id=1, position=Point(x=2.0, y=1.0, z=0.0), score=0.9, is_visited=False),
             # GraphNode(id=1, position=Point(x=0.0, y=0.0, z=0.0), score=0.9, is_visited=False),
             # GraphNode(id=2, position=Point(x=3.0, y=-1.0, z=0.0), score=0.7, is_visited=False),
