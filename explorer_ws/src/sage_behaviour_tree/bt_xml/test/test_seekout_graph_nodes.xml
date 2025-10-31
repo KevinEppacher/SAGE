@@ -12,9 +12,11 @@
                          max_yaw_default="0.523"
                          min_yaw="{min_yaw}"
                          max_yaw="{max_yaw}"/>
-      <Spin turn_left_angle="{max_yaw}"
+      <Spin cosine_similarity_topic="/value_map/cosine_similarity"
+            return_to_likeliest_value="true"
+            spin_duration="15.0"
             turn_right_angle="{min_yaw}"
-            spin_duration="15.0"/>
+            turn_left_angle="{max_yaw}"/>
     </Sequence>
   </BehaviorTree>
 
@@ -37,12 +39,21 @@
       <output_port name="max_yaw"/>
     </Action>
     <Action ID="Spin">
-      <input_port name="turn_left_angle"
-                  default="3.14159"/>
-      <input_port name="turn_right_angle"
-                  default="-3.14159"/>
+      <input_port name="cosine_similarity_topic"
+                  default="/value_map/cosine_similarity"
+                  type="std::string">Cosine similarity topic</input_port>
+      <input_port name="return_to_likeliest_value"
+                  default="false"
+                  type="bool">Return to likeliest cosine similarity</input_port>
       <input_port name="spin_duration"
-                  default="10.0"/>
+                  default="15.000000"
+                  type="double">Spin duration seconds</input_port>
+      <input_port name="turn_right_angle"
+                  default="0.000000"
+                  type="double">CW rotation angle in radians</input_port>
+      <input_port name="turn_left_angle"
+                  default="0.000000"
+                  type="double">CCW rotation angle in radians</input_port>
     </Action>
   </TreeNodesModel>
 

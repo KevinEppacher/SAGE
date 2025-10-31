@@ -16,6 +16,8 @@
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <graph_node_msgs/msg/graph_node.hpp>
 #include <graph_node_msgs/msg/graph_node_array.hpp>
+#include <std_msgs/msg/float32.hpp>
+#include <visualization_msgs/msg/marker.hpp>
 
 // =============================== Spin =================================== //
 
@@ -33,21 +35,47 @@ public:
     void onHalted() override;
 
 private:
+    // Internal helpers
     double shortestReturn(double angle);
+    void cosineCallback(const std_msgs::msg::Float32::SharedPtr msg);
+    double findLikeliestYaw() const;
+    void publishCosineProfile();
 
+    // Marker publishing
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr markerPub;
+    std::string markerFrame{"map"};
+    int markerId{0};
+
+    // Yaw tracking (update per sample)
+    double currentYaw{0.0};
+
+    // Helper
+    void publishDirectionMarker(double yaw, float cosineVal);
+
+    // Core ROS & behaviour objects
     rclcpp::Node::SharedPtr node;
     std::shared_ptr<Robot> robot;
+    rclcpp_action::ResultCode navResult{};
 
-    bool done{false};
-    int phase{0};
+    // Spin configuration
     double turnLeftAngle{0.0};
     double turnRightAngle{0.0};
     double spinDuration{15.0};
-    double spinTimeout{30.0};               // from ROS parameter
-    double cumulativeRotation{0.0};
-    rclcpp_action::ResultCode navResult{};
+    double spinTimeout{30.0};
+    double originYaw{0.0};   // yaw at onStart()
+    int phase{0};
+    bool done{false};
+
+    // Time tracking
     rclcpp::Clock steadyClock{RCL_STEADY_TIME};
     rclcpp::Time startTimeSteady;
+
+    // Cosine similarity behaviour
+    bool returnToLikeliest{false};
+    std::string cosineTopic{"/value_map/cosine_similarity"};
+    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr cosineSub;
+    std::vector<std::pair<double, float>> cosineSamples;
+    float lastCosine{0.0f};
 };
 
 // ============================ GoToGraphNode ============================ //
