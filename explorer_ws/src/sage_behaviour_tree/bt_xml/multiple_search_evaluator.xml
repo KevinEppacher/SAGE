@@ -61,9 +61,9 @@
                                max_yaw_default="0.523"
                                min_yaw="{min_yaw}"
                                max_yaw="{max_yaw}"/>
-            <Spin turnLeftAngle="{max_yaw}"
-                  turnRightAngle="{min_yaw}"
-                  spinDuration="5"/>
+            <Spin turn_left_angle="{max_yaw}"
+                  turn_right_angle="{min_yaw}"
+                  spin_duration="5"/>
             <SetParameterNode target_node="/value_map/value_map"
                               parameter_name="semantic_map.decay_factor"
                               value="0.999"/>
@@ -172,9 +172,9 @@
     </Action>
     <Action ID="Spin"
             editable="true">
-      <input_port name="turnLeftAngle"/>
-      <input_port name="turnRightAngle"/>
-      <input_port name="spinDuration"/>
+      <input_port name="turn_left_angle"/>
+      <input_port name="turn_right_angle"/>
+      <input_port name="spin_duration"/>
     </Action>
   </TreeNodesModel>
 
