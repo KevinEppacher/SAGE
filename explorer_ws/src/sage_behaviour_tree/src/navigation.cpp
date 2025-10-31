@@ -15,16 +15,18 @@ Spin::Spin(const std::string &name,
     // Declare ROS parameter for timeout if not already present
     if (!node->has_parameter("spin_node.spin_timeout"))
         node->declare_parameter<double>("spin_node.spin_timeout", spinTimeout);
-
+    // if (!node->has_parameter("spin_node.spin_timeout"))
+    //     node->declare_parameter<double>("spin_node.spin_timeout", spinTimeout);
+        
     spinTimeout = node->get_parameter("spin_node.spin_timeout").as_double();
 }
 
 BT::PortsList Spin::providedPorts()
 {
     return {
-        BT::InputPort<double>("turnLeftAngle", 0.0, "CCW rotation angle in radians"),
-        BT::InputPort<double>("turnRightAngle", 0.0, "CW rotation angle in radians"),
-        BT::InputPort<double>("spinDuration", 15.0, "Spin duration seconds")};
+        BT::InputPort<double>("turn_left_angle", 0.0, "CCW rotation angle in radians"),
+        BT::InputPort<double>("turn_right_angle", 0.0, "CW rotation angle in radians"),
+        BT::InputPort<double>("spin_duration", 15.0, "Spin duration seconds")};
 }
 
 double Spin::shortestReturn(double angle)
@@ -36,51 +38,32 @@ double Spin::shortestReturn(double angle)
 
 BT::NodeStatus Spin::onStart()
 {
-    getInput("turnLeftAngle", turnLeftAngle);
-    getInput("turnRightAngle", turnRightAngle);
-    getInput("spinDuration", spinDuration);
+    getInput("turn_left_angle",  turnLeftAngle);
+    getInput("turn_right_angle", turnRightAngle);
+    getInput("spin_duration",    spinDuration);
 
-    // Refresh timeout parameter dynamically
     spinTimeout = node->get_parameter("spin_node.spin_timeout").as_double();
 
     robot->cancelNavigationGoals();
-    done = false;
     phase = 0;
-    cumulativeRotation = 0.0;
-    startTime = node->now();
+    startTimeSteady = steadyClock.now();
 
-    if (turnLeftAngle == 0.0 && turnRightAngle == 0.0)
-    {
-        RCLCPP_WARN(node->get_logger(),
-                    "%s[%s] No rotation specified → %sSUCCESS%s",
-                    GREEN, name().c_str(), GREEN, RESET);
-        return BT::NodeStatus::SUCCESS;
-    }
+    // --- full spin check ---
+    bool fullTurnNeeded =
+        std::fabs(turnLeftAngle) > 120.0 * M_PI / 180.0 ||
+        std::fabs(turnRightAngle) > 120.0 * M_PI / 180.0;
 
-    bool fullLeft = std::fabs(turnLeftAngle) > M_PI;
-    bool fullRight = std::fabs(turnRightAngle) > M_PI;
-    double fullTurn = 2 * M_PI;
-
-    if (fullLeft && !fullRight)
+    if (fullTurnNeeded)
     {
         RCLCPP_INFO(node->get_logger(),
-                    "%s[%s] Performing full CCW turn (%.2f rad)%s",
-                    ORANGE, name().c_str(), turnLeftAngle, RESET);
-        robot->spin(fullTurn, spinDuration);
+                    "%s[%s] Large yaw span → full 360° spin%s",
+                    ORANGE, name().c_str(), RESET);
+        robot->spin(2 * M_PI, spinDuration);
         phase = 99;
         return BT::NodeStatus::RUNNING;
     }
 
-    if (fullRight && !fullLeft)
-    {
-        RCLCPP_INFO(node->get_logger(),
-                    "%s[%s] Performing full CW turn (%.2f rad)%s",
-                    ORANGE, name().c_str(), turnRightAngle, RESET);
-        robot->spin(-fullTurn, spinDuration);
-        phase = 99;
-        return BT::NodeStatus::RUNNING;
-    }
-
+    // --- phase 1: spin left ---
     if (turnLeftAngle != 0.0)
     {
         RCLCPP_INFO(node->get_logger(),
@@ -88,23 +71,29 @@ BT::NodeStatus Spin::onStart()
                     ORANGE, name().c_str(), turnLeftAngle, RESET);
         robot->spin(turnLeftAngle, spinDuration);
         phase = 1;
-    }
-    else if (turnRightAngle != 0.0)
-    {
-        RCLCPP_INFO(node->get_logger(),
-                    "%s[%s] Phase 1: spinning CW to %.2f rad%s",
-                    ORANGE, name().c_str(), turnRightAngle, RESET);
-        robot->spin(turnRightAngle, spinDuration);
-        phase = 3;
+        return BT::NodeStatus::RUNNING;
     }
 
-    return BT::NodeStatus::RUNNING;
+    // --- if no left rotation, go straight to phase 2 ---
+    if (turnRightAngle != 0.0)
+    {
+        RCLCPP_INFO(node->get_logger(),
+                    "%s[%s] No left angle, starting CW sweep of %.2f rad%s",
+                    ORANGE, name().c_str(), turnRightAngle, RESET);
+        robot->spin(turnRightAngle, spinDuration);
+        phase = 2;
+        return BT::NodeStatus::RUNNING;
+    }
+
+    RCLCPP_WARN(node->get_logger(),
+                "%s[%s] No rotation specified → %sSUCCESS%s",
+                GREEN, name().c_str(), GREEN, RESET);
+    return BT::NodeStatus::SUCCESS;
 }
 
 BT::NodeStatus Spin::onRunning()
 {
-
-    double elapsed = (node->now() - startTime).seconds();
+    double elapsed = (steadyClock.now() - startTimeSteady).seconds();
     if (elapsed > spinTimeout)
     {
         RCLCPP_WARN(node->get_logger(),
@@ -115,48 +104,48 @@ BT::NodeStatus Spin::onRunning()
     }
 
     if (!robot->isSpinDone())
-    {
-        RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 2000,
-                             "%s[%s] Spinning... %sRUNNING%s",
-                             ORANGE, name().c_str(), ORANGE, RESET);
         return BT::NodeStatus::RUNNING;
-    }
 
     navResult = robot->getSpinResult();
-
     if (navResult != rclcpp_action::ResultCode::SUCCEEDED)
-    {
-        RCLCPP_WARN(node->get_logger(),
-                    "%s[%s] Spin failed or canceled → %sFAILURE%s",
-                    RED, name().c_str(), RED, RESET);
         return BT::NodeStatus::FAILURE;
-    }
 
     switch (phase)
     {
         case 1:
         {
-            double returnYaw = shortestReturn(turnLeftAngle);
+            // from CCW end → CW side relative to origin
+            double cwSpan = -(turnLeftAngle + std::fabs(turnRightAngle));
             RCLCPP_INFO(node->get_logger(),
-                        "%s[%s] Phase 2: returning %.2f rad%s",
-                        ORANGE, name().c_str(), returnYaw, RESET);
-            robot->spin(returnYaw, spinDuration);
+                        "%s[%s] Phase 2: sweeping CW by %.2f rad%s",
+                        ORANGE, name().c_str(), cwSpan, RESET);
+            robot->spin(cwSpan, spinDuration);
             phase = 2;
             return BT::NodeStatus::RUNNING;
         }
 
         case 2:
         {
+            // from CW end → shortest return to origin
+            double returnYaw = shortestReturn(turnRightAngle);
             RCLCPP_INFO(node->get_logger(),
-                        "%s[%s] Completed CCW rotation → %sSUCCESS%s",
+                        "%s[%s] Phase 3: returning %.2f rad to origin%s",
+                        ORANGE, name().c_str(), returnYaw, RESET);
+            robot->spin(returnYaw, spinDuration);
+            phase = 3;
+            return BT::NodeStatus::RUNNING;
+        }
+
+        case 3:
+        case 99:
+        {
+            RCLCPP_INFO(node->get_logger(),
+                        "%s[%s] Spin sequence complete → %sSUCCESS%s",
                         GREEN, name().c_str(), GREEN, RESET);
             return BT::NodeStatus::SUCCESS;
         }
 
         default:
-            RCLCPP_INFO(node->get_logger(),
-                        "%s[%s] Spin sequence finished → %sSUCCESS%s",
-                        GREEN, name().c_str(), GREEN, RESET);
             return BT::NodeStatus::SUCCESS;
     }
 }
