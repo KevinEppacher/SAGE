@@ -10,6 +10,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <graph_node_msgs/msg/graph_node.hpp>
 #include <nav_msgs/msg/occupancy_grid.hpp>
+#include <tf2/utils.hpp>
 
 using namespace std::chrono_literals;
 
@@ -26,6 +27,7 @@ public:
     bool spin(double yaw, double durationSec);
     void cancelSpin();
     bool isSpinDone() const;
+    bool spinRelativeTo(const std::string& frame, double targetYawAbs, double durationSec);
     rclcpp_action::ResultCode getSpinResult() const;
 
     void cancelNavigationGoals();

@@ -47,14 +47,14 @@ BT::NodeStatus Spin::onStart()
     robot->cancelNavigationGoals();
     startTimeSteady = steadyClock.now();
 
-    // Store origin pose yaw (in map frame)
+    // --- Store origin yaw in map frame ---
     geometry_msgs::msg::Pose originPose;
     if (robot->getPose(originPose, markerFrame, "base_link"))
         originYaw = tf2::getYaw(originPose.orientation);
     else
         originYaw = 0.0;
 
-    // Setup cosine listener if needed
+    // --- Setup cosine listener if needed ---
     if (returnToLikeliest)
     {
         cosineSamples.clear();
@@ -70,7 +70,7 @@ BT::NodeStatus Spin::onStart()
         cosineSub.reset();
     }
 
-    // --- phase selection ---
+    // --- Full turn check ---
     bool fullTurnNeeded =
         std::fabs(turnLeftAngle) > 120.0 * M_PI / 180.0 &&
         std::fabs(turnRightAngle) > 120.0 * M_PI / 180.0;
@@ -85,30 +85,43 @@ BT::NodeStatus Spin::onStart()
         return BT::NodeStatus::RUNNING;
     }
 
-    if (turnLeftAngle != 0.0)
+    // --- Build sweep queue ---
+    sweepTargetsAbs.clear();
+
+    const double ccwAbs = originYaw + std::fabs(turnLeftAngle);
+    const double cwAbs  = originYaw - std::fabs(turnRightAngle);
+
+    auto push_if_nonzero = [&](double absYaw, double mag)
     {
+        if (mag > 1e-6) sweepTargetsAbs.push_back(absYaw);
+    };
+
+    if (std::fabs(turnLeftAngle) < std::fabs(turnRightAngle))
+    {
+        push_if_nonzero(ccwAbs, std::fabs(turnLeftAngle));
+        push_if_nonzero(cwAbs,  std::fabs(turnRightAngle));
+    }
+    else
+    {
+        push_if_nonzero(cwAbs,  std::fabs(turnRightAngle));
+        push_if_nonzero(ccwAbs, std::fabs(turnLeftAngle));
+    }
+
+    // --- Kick off first sweep ---
+    if (!sweepTargetsAbs.empty())
+    {
+        const double tgt = sweepTargetsAbs.front();
         RCLCPP_INFO(node->get_logger(),
-                    "%s[%s] Phase 1: spinning CCW %.2f rad%s",
-                    ORANGE, name().c_str(), turnLeftAngle, RESET);
-        robot->spin(turnLeftAngle, spinDuration);
+                    "%s[%s] Starting sweep to abs yaw %.2f%s",
+                    ORANGE, name().c_str(), tgt, RESET);
+        robot->spinRelativeTo("map", tgt, spinDuration);
         phase = 1;
         return BT::NodeStatus::RUNNING;
     }
 
-    if (turnRightAngle != 0.0)
-    {
-        RCLCPP_INFO(node->get_logger(),
-                    "%s[%s] Phase 2: spinning CW %.2f rad%s",
-                    ORANGE, name().c_str(), turnRightAngle, RESET);
-        robot->spin(turnRightAngle, spinDuration);
-        phase = 2;
-        return BT::NodeStatus::RUNNING;
-    }
-
-    RCLCPP_INFO(node->get_logger(),
-                "%s[%s] No rotation requested → %sSUCCESS%s",
-                GREEN, name().c_str(), GREEN, RESET);
-    return BT::NodeStatus::SUCCESS;
+    // --- Nothing to rotate, skip directly to final phase ---
+    phase = 3;
+    return BT::NodeStatus::RUNNING;
 }
 
 BT::NodeStatus Spin::onRunning()
@@ -136,64 +149,91 @@ BT::NodeStatus Spin::onRunning()
 
     switch (phase)
     {
+        // ===================================================
+        // Sweep phase — iterate over queued absolute targets
+        // ===================================================
         case 1:
         {
-            // CCW done → spin CW if requested
-            if (turnRightAngle != 0.0)
+            if (!sweepTargetsAbs.empty())
+                sweepTargetsAbs.pop_front();  // remove finished target
+
+            if (!sweepTargetsAbs.empty())
             {
-                double cwSpan = -(turnLeftAngle + std::fabs(turnRightAngle));
+                const double nextAbs = sweepTargetsAbs.front();
+
+                geometry_msgs::msg::Pose pose;
+                double currentYawNow = currentYaw;
+                if (robot->getPose(pose, markerFrame, "base_link"))
+                    currentYawNow = tf2::getYaw(pose.orientation);
+
+                const double delta = std::atan2(std::sin(nextAbs - currentYawNow),
+                                                std::cos(nextAbs - currentYawNow));
+
+                if (std::fabs(delta) < yaw_epsilon)
+                {
+                    RCLCPP_INFO(node->get_logger(),
+                                "%s[%s] Next sweep target %.2f already reached (Δ=%.3f) → skipping%s",
+                                ORANGE, name().c_str(), nextAbs, delta, RESET);
+                    return BT::NodeStatus::RUNNING;
+                }
+
                 RCLCPP_INFO(node->get_logger(),
-                            "%s[%s] Phase 2: sweeping CW %.2f rad%s",
-                            ORANGE, name().c_str(), cwSpan, RESET);
-                robot->spin(cwSpan, spinDuration);
-                phase = 2;
+                            "%s[%s] Sweeping to next abs yaw %.2f (Δ=%.3f)%s",
+                            ORANGE, name().c_str(), nextAbs, delta, RESET);
+
+                robot->spinRelativeTo("map", nextAbs, spinDuration);
                 return BT::NodeStatus::RUNNING;
             }
+
+            // Queue finished → move to final orientation
             phase = 3;
             break;
         }
 
-        case 2:
+        // ===================================================
+        // Full spin mode (phase 99)
+        // ===================================================
         case 99:
-            // Both partial and full spins end here
             phase = 3;
             break;
 
+        // ===================================================
+        // Final orientation (cosine-best or origin)
+        // ===================================================
         case 3:
         {
-            // --- Final orientation phase ---
-            double diffYaw = 0.0;
+            double targetAbs = originYaw;
+
             if (returnToLikeliest && !cosineSamples.empty())
             {
-                double bestYaw = findLikeliestYaw();
-                // diffYaw = shortestReturn(bestYaw - currentYaw);
-                diffYaw = bestYaw - currentYaw;
-
-                float bestCosine = 0.0f;
+                targetAbs = findLikeliestYaw();
+                float bestCos = 0.0f;
                 for (auto &p : cosineSamples)
-                    if (std::fabs(p.first - bestYaw) < 1e-3)
-                        bestCosine = p.second;
+                    if (std::fabs(p.first - targetAbs) < 1e-3)
+                        bestCos = p.second;
 
                 publishCosineProfile();
-                publishDirectionMarker(bestYaw, bestCosine);
+                publishDirectionMarker(targetAbs, bestCos);
 
                 RCLCPP_INFO(node->get_logger(),
-                            "%s[%s] Orienting to likeliest yaw: target %.2f (Δ=%.2f)%s",
-                            CYAN, name().c_str(), bestYaw, diffYaw, RESET);
+                            "%s[%s] Orienting to likeliest abs yaw %.2f%s",
+                            CYAN, name().c_str(), targetAbs, RESET);
             }
             else
             {
-                diffYaw = shortestReturn(originYaw - currentYaw);
                 RCLCPP_INFO(node->get_logger(),
-                            "%s[%s] Returning to origin (Δ=%.2f rad)%s",
-                            ORANGE, name().c_str(), diffYaw, RESET);
+                            "%s[%s] Returning to origin abs yaw %.2f%s",
+                            ORANGE, name().c_str(), targetAbs, RESET);
             }
 
-            robot->spin(diffYaw, spinDuration);
+            robot->spinRelativeTo("map", targetAbs, spinDuration);
             phase = 4;
             return BT::NodeStatus::RUNNING;
         }
 
+        // ===================================================
+        // Completion
+        // ===================================================
         case 4:
         {
             if (!robot->isSpinDone())

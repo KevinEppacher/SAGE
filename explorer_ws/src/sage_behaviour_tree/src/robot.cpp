@@ -4,6 +4,20 @@
 #include <cmath>
 using namespace std::chrono_literals;
 
+static inline double normalizeAngle(double a)
+{
+    // Wrap to [-pi, pi]
+    while (a >  M_PI) a -= 2.0 * M_PI;
+    while (a < -M_PI) a += 2.0 * M_PI;
+    return a;
+}
+
+static inline double shortestAngularDistance(double from, double to)
+{
+    // Smallest signed angle to rotate from -> to
+    return normalizeAngle(to - from);
+}
+
 Robot::Robot(rclcpp::Node::SharedPtr nodePtr)
 : node(std::move(nodePtr)),
   tfBuffer(std::make_shared<tf2_ros::Buffer>(node->get_clock())),
@@ -208,4 +222,30 @@ std::shared_ptr<nav_msgs::msg::OccupancyGrid> Robot::getGlobalCostmap()
 void Robot::costmapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg)
 {
     latestCostmap = msg;
+}
+
+bool Robot::spinRelativeTo(const std::string& frame, double targetYawAbs, double durationSec)
+{
+    // 1) Get current yaw in 'frame'
+    geometry_msgs::msg::Pose pose;
+    if (!getPose(pose, frame, "base_link"))
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    "spinRelativeTo(): can't get pose in frame '%s'", frame.c_str());
+        return false;
+    }
+    const double currentYaw = tf2::getYaw(pose.orientation);
+
+    // 2) Compute minimal relative rotation to reach absolute target
+    const double delta = shortestAngularDistance(currentYaw, targetYawAbs);
+
+    if (std::fabs(delta) < 0.01) {   // ~0.6 deg
+        RCLCPP_INFO(node->get_logger(),
+                    "spinRelativeTo('%s'): already aligned (|Δ|=%.3f) → no-op",
+                    frame.c_str(), delta);
+        // Mimic immediate success: do NOT set any internal flags here; just return true.
+        return true;
+    }
+
+    return spin(delta, durationSec);
 }
