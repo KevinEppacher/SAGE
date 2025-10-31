@@ -51,6 +51,8 @@ CallbackReturn ValueMap::on_configure(const rclcpp_lifecycle::State &)
     semanticPromptSub = this->create_subscription<multimodal_query_msgs::msg::SemanticPrompt>(
         semanticPromptTopic, 10, std::bind(&ValueMap::semanticPromptCallback, this, std::placeholders::_1));
 
+    cosineSimPub = this->create_publisher<std_msgs::msg::Float32>("cosine_similarity", 10);
+
     return CallbackReturn::SUCCESS;
 
 }
@@ -93,6 +95,8 @@ CallbackReturn ValueMap::on_deactivate(const rclcpp_lifecycle::State &)
     semanticMap->on_deactivate();
     serviceHandler->on_deactivate();
     robot->on_deactivate();
+    cosineSimPub.reset();
+    semanticPromptSub.reset();
     return CallbackReturn::SUCCESS;
 }
 
@@ -104,6 +108,8 @@ CallbackReturn ValueMap::on_cleanup(const rclcpp_lifecycle::State &)
     semanticMap->on_cleanup();
     serviceHandler->on_cleanup();
     robot->on_cleanup();
+    cosineSimPub.reset();
+    semanticPromptSub.reset();
 
     RCLCPP_INFO(this->get_logger(), "%s[Cleanup]%s Timer and subscriber cleaned up.", BLUE, RESET);
     return CallbackReturn::SUCCESS;
@@ -115,6 +121,8 @@ CallbackReturn ValueMap::on_shutdown(const rclcpp_lifecycle::State &)
     semanticMap->on_shutdown();
     serviceHandler->on_shutdown();
     robot->on_shutdown();
+    cosineSimPub.reset();
+    semanticPromptSub.reset();
     return CallbackReturn::SUCCESS;
 }
 
@@ -136,9 +144,14 @@ void ValueMap::timerCallback()
 
     // Get image
     sensor_msgs::msg::Image::SharedPtr rgbImage = robot->getImage();
-
+    
     // If no image is available, return
     if (!rgbImage) return;
+
+    // Get cosine similarity score
+    double score = serviceHandler->getSemanticSimilarityScore(*rgbImage, textPrompt);
+    // Publish cosine similarity score
+    publishCosineSimilarity(score);
 
     // Get pose
     geometry_msgs::msg::PoseStamped::SharedPtr pose = robot->getPose(rgbImage->header.stamp);
@@ -146,12 +159,11 @@ void ValueMap::timerCallback()
     // If pose is empty, return
     if (!pose) return;
 
-    // Get cosine similarity score
-    double score = serviceHandler->getSemanticSimilarityScore(*rgbImage, textPrompt);
+    
     semScore.setScore(score);
     semScore.setHeader(rgbImage->header);
 
-    RCLCPP_INFO(this->get_logger(), "%s%s Semantic Similarity: %.2f", BLUE, RESET, score);
+    RCLCPP_DEBUG(this->get_logger(), "%s%s Semantic Similarity: %.2f", BLUE, RESET, score);
 
     // Update semantic map
     semanticMap->updateSemanticMap(semScore, *pose);
@@ -163,4 +175,11 @@ void ValueMap::semanticPromptCallback(const multimodal_query_msgs::msg::Semantic
     RCLCPP_INFO(this->get_logger(), "Received Semantic Prompt: %s", msg->text_query.c_str());
     textPrompt = msg->text_query;
     semanticMap->clearValueMap();
+}
+
+void ValueMap::publishCosineSimilarity(double score)
+{
+    auto message = std_msgs::msg::Float32();
+    message.data = static_cast<float>(score);
+    cosineSimPub->publish(message);
 }

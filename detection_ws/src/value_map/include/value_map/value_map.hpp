@@ -13,6 +13,7 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <std_msgs/msg/float32.hpp>
 
 #include "semantic_score.hpp"
 #include "robot.hpp"
@@ -41,8 +42,10 @@ class ValueMap : public LifecycleNode {
         //************ Subscribers ************//
         void semanticPromptCallback(const multimodal_query_msgs::msg::SemanticPrompt::SharedPtr msg);
         rclcpp::Subscription<multimodal_query_msgs::msg::SemanticPrompt>::SharedPtr semanticPromptSub;
+        void publishCosineSimilarity(double score);
 
         //************ Publishers ************//
+        rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr cosineSimPub;
 
         //************ Timers ************//
         rclcpp::TimerBase::SharedPtr timer;
