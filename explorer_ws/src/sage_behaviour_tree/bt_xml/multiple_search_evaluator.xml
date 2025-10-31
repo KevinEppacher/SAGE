@@ -4,7 +4,8 @@
   <BehaviorTree ID="SAGE_MultiObject">
     <ForEachEvaluationPrompt evaluation_event_topic="/evaluation/event"
                              iteration_status_topic="/evaluation/iteration_status"
-                             targetObject="{target_object}">
+                             save_image_path="{image_path}"
+                             target_object="{target_object}">
       <SubTree ID="SAGE_SingleObject"
                object=""
                _autoremap="true"/>
@@ -43,7 +44,7 @@
             <RealignToObject detected_graph_node="{detected_graph_node}"
                              spinDuration="5.0"/>
             <SaveImageAction imageTopic="/yoloe/overlay"
-                             savePath="/app/image.png"/>
+                             savePath="{image_path}"/>
             <SetBlackboard value="true"
                            output_key="object_found"/>
           </Sequence>
@@ -105,11 +106,17 @@
             editable="true">
       <input_port name="service_name"/>
     </Action>
-    <Decorator ID="ForEachEvaluationPrompt"
-               editable="true">
-      <input_port name="evaluation_event_topic"/>
-      <input_port name="iteration_status_topic"/>
-      <output_port name="targetObject"/>
+    <Decorator ID="ForEachEvaluationPrompt">
+      <input_port name="evaluation_event_topic"
+                  default="/evaluation/event"
+                  type="std::string">Topic to subscribe for EvaluationEvent</input_port>
+      <input_port name="iteration_status_topic"
+                  default="/evaluation/iteration_status"
+                  type="std::string">Topic to publish iteration status</input_port>
+      <output_port name="save_image_path"
+                   type="std::string"/>
+      <output_port name="target_object"
+                   type="std::string"/>
     </Decorator>
     <Action ID="GoToGraphNode"
             editable="true">

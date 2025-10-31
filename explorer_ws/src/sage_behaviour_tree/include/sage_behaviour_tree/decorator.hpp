@@ -57,6 +57,8 @@ private:
     size_t currentIndex{0};
     std::vector<std::string> promptTexts;
 
+    std::string baseSavePath;
+
     // Comms config/state
     bool commReady{false};
     std::string evaluation_event_topic_{"/evaluation/event"};

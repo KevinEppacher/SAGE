@@ -88,11 +88,20 @@ ForEachEvaluationPrompt::ForEachEvaluationPrompt(const std::string &name,
 BT::PortsList ForEachEvaluationPrompt::providedPorts()
 {
     return {
-        BT::OutputPort<std::string>("targetObject"),
-        BT::InputPort<std::string>("evaluation_event_topic", "/evaluation/event",
-                                   "Topic to subscribe for EvaluationEvent"),
-        BT::InputPort<std::string>("iteration_status_topic", "/evaluation/iteration_status",
-                                   "Topic to publish iteration status")
+        // --- Output ports ---
+        BT::OutputPort<std::string>("target_object"),
+        BT::OutputPort<std::string>("save_image_path"),
+
+        // --- Input ports ---
+        BT::InputPort<std::string>(
+            "evaluation_event_topic",
+            "/evaluation/event",
+            "Topic to subscribe for EvaluationEvent"),
+
+        BT::InputPort<std::string>(
+            "iteration_status_topic",
+            "/evaluation/iteration_status",
+            "Topic to publish iteration status")
     };
 }
 
@@ -117,7 +126,9 @@ BT::NodeStatus ForEachEvaluationPrompt::tick()
     }
 
     std::string currentPrompt = promptTexts[currentIndex];
-    setOutput("targetObject", currentPrompt);
+    std::string saveFile = baseSavePath + currentPrompt + ".png";
+    setOutput("target_object", currentPrompt);
+    setOutput("save_image_path", saveFile);
 
     BT::NodeStatus childStatus = child_node_->executeTick();
 
@@ -151,11 +162,19 @@ void ForEachEvaluationPrompt::callbackEvent(const EvaluationEvent::SharedPtr msg
         return;
     subscribed = true;
 
+    baseSavePath = msg->save_path;  // e.g. /app/src/sage_evaluator/sage_evaluator/data/scene/EXP_001/E01/
+    if (!baseSavePath.empty() && baseSavePath.back() != '/')
+        baseSavePath += '/';
+
     RCLCPP_INFO(node->get_logger(),
                 ORANGE "[%s] === Evaluation Configuration Received ===" RESET,
                 name().c_str());
     RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Experiment: %s" RESET,
                 name().c_str(), msg->experiment_id.c_str());
+    RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Scene: %s" RESET,
+                name().c_str(), msg->scene.c_str());
+    RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Save Path: %s" RESET,
+                name().c_str(), msg->save_path.c_str());
     RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Episode: %s" RESET,
                 name().c_str(), msg->episode_id.c_str());
     RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Phase: %s" RESET,
@@ -253,7 +272,6 @@ BT::PortsList ApproachPoseAdjustor::providedPorts()
     };
 }
 
-// ---------- tick() ----------
 BT::NodeStatus ApproachPoseAdjustor::tick()
 {
     getInput("search_radius", searchRadius);
@@ -323,8 +341,6 @@ BT::NodeStatus ApproachPoseAdjustor::tick()
     return lastChildStatus;
 }
 
-
-// ---------- core search ----------
 bool ApproachPoseAdjustor::findReachablePoint(const graph_node_msgs::msg::GraphNode &target,
                                               graph_node_msgs::msg::GraphNode &reachable)
 {
@@ -396,7 +412,6 @@ bool ApproachPoseAdjustor::findReachablePoint(const graph_node_msgs::msg::GraphN
     return false;
 }
 
-// ---------- footprint collision check ----------
 bool ApproachPoseAdjustor::isFootprintFree(const nav_msgs::msg::OccupancyGrid &grid,
                                            double x, double y,
                                            double radius) const
@@ -446,7 +461,6 @@ bool ApproachPoseAdjustor::isFootprintFree(const nav_msgs::msg::OccupancyGrid &g
     return true;
 }
 
-// ---------- ray/path cost check ----------
 bool ApproachPoseAdjustor::rayPathAcceptable(const nav_msgs::msg::OccupancyGrid &grid,
                                              double x0, double y0,
                                              double x1, double y1) const
@@ -480,7 +494,6 @@ bool ApproachPoseAdjustor::rayPathAcceptable(const nav_msgs::msg::OccupancyGrid 
     return true;
 }
 
-// ---------- visualization ----------
 void ApproachPoseAdjustor::publishMarkers(const geometry_msgs::msg::Pose &robotPose,
                                           const graph_node_msgs::msg::GraphNode &target,
                                           const graph_node_msgs::msg::GraphNode *reachable,

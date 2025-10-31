@@ -24,14 +24,15 @@ class EvaluationDashboard(Node):
         )
 
         # --- Experiment configuration ---
+        self.scene = "00809-Qpor2mEya8F"
         self.experiment_id = 'EXP_001'
         self.episode_id = 'E01'
         self.phase = 'START'
         self.prompt_texts = [
-            'bath tub',
             'bed',
-            'toilet',
-            'chair'
+            'chair',
+            'bath tub',
+            'toilet'
         ]
 
         # --- Internal state ---
@@ -64,8 +65,10 @@ class EvaluationDashboard(Node):
 
         event = EvaluationEvent()
         event.phase = self.phase
+        event.scene = self.scene
         event.experiment_id = self.experiment_id
         event.episode_id = self.episode_id
+        event.save_path = f"/app/src/sage_evaluator/sage_evaluator/data/{self.scene}/{self.experiment_id}/{self.episode_id}/"
         event.prompt_list = prompt_array
         event.elapsed_time = 0.0
         event.success = False

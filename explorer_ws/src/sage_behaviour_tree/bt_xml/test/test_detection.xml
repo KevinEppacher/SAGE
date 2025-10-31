@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4">
+  <BehaviorTree ID="Untitled">
+    <KeepRunningUntilFailure>
+      <Fallback>
+        <IsDetected graph_nodes="{node}"
+                    detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
+                    detection_threshold="0.5"/>
+        <AlwaysSuccess/>
+      </Fallback>
+    </KeepRunningUntilFailure>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Condition ID="IsDetected">
+      <output_port name="graph_nodes"
+                   type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Best detected GraphNode</output_port>
+      <input_port name="detection_graph_node_topic"
+                  default="/detection_graph_nodes/graph_nodes"
+                  type="std::string">GraphNodeArray topic</input_port>
+      <input_port name="detection_threshold"
+                  default="0.800000"
+                  type="double">Detection threshold</input_port>
+    </Condition>
+  </TreeNodesModel>
+
+</root>
