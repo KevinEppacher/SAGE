@@ -30,7 +30,7 @@ def generate_launch_description():
         get_package_share_directory("sage_behaviour_tree"),
         'bt_xml',
         # 'test',
-        # 'test_seekout_graph_nodes.xml'
+        # 'test_detection.xml'
         'multiple_search_evaluator.xml'
     )
 

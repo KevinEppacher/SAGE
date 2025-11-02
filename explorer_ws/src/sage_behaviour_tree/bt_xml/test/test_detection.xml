@@ -2,27 +2,81 @@
 <root BTCPP_format="4">
   <BehaviorTree ID="Untitled">
     <KeepRunningUntilFailure>
-      <Fallback>
-        <IsDetected graph_nodes="{node}"
-                    detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
-                    detection_threshold="0.5"/>
+      <ReactiveFallback>
+        <Sequence name="Detection sequence">
+          <IsDetected name="Target object detected?"
+                      graph_nodes="{detected_graph_node}"
+                      detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
+                      time_threshold="1.000000"
+                      detection_threshold="0.55"/>
+          <ApproachPoseAdjustor search_radius="2.5"
+                                reachable_graph_node="{reachable_detection_graph_node}"
+                                graph_node="{detected_graph_node}">
+            <GoToGraphNode name="Go to likiest GraphNode"
+                           graph_nodes="{reachable_detection_graph_node}"
+                           approach_radius="1"
+                           goal_topic="/goal_pose"
+                           robot_frame="base_link"
+                           map_frame="map"
+                           timeout="60"/>
+          </ApproachPoseAdjustor>
+          <RealignToObject detected_graph_node="{detected_graph_node}"
+                           spinDuration="5.0"/>
+          <IsDetected name="Target object detected?"
+                      graph_nodes="{detected_graph_node}"
+                      detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
+                      time_threshold="2"
+                      detection_threshold="0.55"/>
+          <SaveImageAction imageTopic="/yoloe/overlay"
+                           savePath="/app/image.png"/>
+          <SetBlackboard value="true"
+                         output_key="object_found"/>
+        </Sequence>
         <AlwaysSuccess/>
-      </Fallback>
+      </ReactiveFallback>
     </KeepRunningUntilFailure>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
+    <Decorator ID="ApproachPoseAdjustor"
+               editable="true">
+      <input_port name="search_radius"/>
+      <output_port name="reachable_graph_node"/>
+      <input_port name="graph_node"/>
+    </Decorator>
+    <Action ID="GoToGraphNode"
+            editable="true">
+      <input_port name="graph_nodes"/>
+      <input_port name="approach_radius"/>
+      <input_port name="goal_topic"/>
+      <input_port name="robot_frame"/>
+      <input_port name="map_frame"/>
+      <input_port name="timeout"/>
+    </Action>
     <Condition ID="IsDetected">
       <output_port name="graph_nodes"
                    type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Best detected GraphNode</output_port>
       <input_port name="detection_graph_node_topic"
                   default="/detection_graph_nodes/graph_nodes"
                   type="std::string">GraphNodeArray topic</input_port>
+      <input_port name="time_threshold"
+                  default="1.000000"
+                  type="double">Seconds the detection must persist</input_port>
       <input_port name="detection_threshold"
                   default="0.800000"
-                  type="double">Detection threshold</input_port>
+                  type="double">Minimum detection score threshold</input_port>
     </Condition>
+    <Action ID="RealignToObject"
+            editable="true">
+      <input_port name="detected_graph_node"/>
+      <input_port name="spinDuration"/>
+    </Action>
+    <Action ID="SaveImageAction"
+            editable="true">
+      <input_port name="imageTopic"/>
+      <input_port name="savePath"/>
+    </Action>
   </TreeNodesModel>
 
 </root>

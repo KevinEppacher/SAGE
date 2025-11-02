@@ -3,35 +3,38 @@
 #include <opencv2/imgcodecs.hpp>
 #include "sage_behaviour_tree/colors.hpp"
 
-#ifndef ORANGE
-#define ORANGE "\033[38;5;208m"
-#endif
-
 using namespace std::chrono_literals;
 
 // ============================ IsDetected ============================ //
 
 IsDetected::IsDetected(const std::string& name,
                        const BT::NodeConfiguration& config,
-                       rclcpp::Node::SharedPtr node_ptr)
-    : BT::ConditionNode(name, config), node_ptr_(std::move(node_ptr))
+                       rclcpp::Node::SharedPtr nodePtr)
+    : BT::ConditionNode(name, config),
+      nodePtr(std::move(nodePtr))
 {
     std::string topic;
     getInput<std::string>("detection_graph_node_topic", topic);
-    sub_ = node_ptr_->create_subscription<graph_node_msgs::msg::GraphNodeArray>(
+
+    subscriber = this->nodePtr->create_subscription<graph_node_msgs::msg::GraphNodeArray>(
         topic, 10,
-        [this](const graph_node_msgs::msg::GraphNodeArray::SharedPtr msg) {
-            latest_msg_ = msg;
-            received_message_ = true;
-            missed_ticks_ = 0;
+        [this](const graph_node_msgs::msg::GraphNodeArray::SharedPtr msg)
+        {
+            latestMsg = msg;
+            receivedMessage = true;
+            missedTicks = 0;
         });
+
+    RCLCPP_INFO(this->nodePtr->get_logger(),
+                "[%s] Subscribed to detection topic: %s",
+                this->name().c_str(), topic.c_str());
 }
 
 BT::PortsList IsDetected::providedPorts()
 {
     return {
-        BT::InputPort<double>(
-            "detection_threshold", 0.8, "Detection threshold"),
+        BT::InputPort<double>("detection_threshold", 0.8, "Minimum detection score threshold"),
+        BT::InputPort<double>("time_threshold", 1.0, "Seconds the detection must persist"),
         BT::InputPort<std::string>(
             "detection_graph_node_topic",
             "/detection_graph_nodes/graph_nodes",
@@ -42,50 +45,86 @@ BT::PortsList IsDetected::providedPorts()
 }
 
 BT::NodeStatus IsDetected::tick()
-{    
-    if (!received_message_) 
+{
+    if (!receivedMessage)
     {
-        RCLCPP_WARN(node_ptr_->get_logger(),
-                    ORANGE "[%s] No message received yet on the topic %s. Returning RUNNING" RESET,
-                    name().c_str(), sub_->get_topic_name());
+        RCLCPP_WARN_THROTTLE(nodePtr->get_logger(), *nodePtr->get_clock(), 2000,
+                             ORANGE "[%s] Waiting for detection messages..." RESET,
+                             name().c_str());
         return BT::NodeStatus::RUNNING;
     }
 
     double threshold = 0.8;
+    double timeThreshold = 1.0;
     getInput("detection_threshold", threshold);
+    getInput("time_threshold", timeThreshold);
 
-    double max_score = -1.0;
-    std::shared_ptr<graph_node_msgs::msg::GraphNode> best_node = nullptr;
-    for (auto &n : latest_msg_->nodes) 
+    // Find node with maximum score
+    double maxScore = -1.0;
+    std::shared_ptr<graph_node_msgs::msg::GraphNode> bestNode = nullptr;
+
+    for (auto& n : latestMsg->nodes)
     {
-        if (n.score > max_score) 
+        if (n.score > maxScore)
         {
-            max_score = n.score;
-            best_node = std::make_shared<graph_node_msgs::msg::GraphNode>(n);
+            maxScore = n.score;
+            bestNode = std::make_shared<graph_node_msgs::msg::GraphNode>(n);
         }
     }
 
-    if (!best_node) 
+    if (!bestNode)
     {
-        RCLCPP_WARN(node_ptr_->get_logger(),
-                    RED "[%s] No nodes in the latest message. Returning FAILURE" RESET,
+        RCLCPP_WARN(nodePtr->get_logger(),
+                    RED "[%s] No detections in message. Returning FAILURE" RESET,
                     name().c_str());
+        aboveThreshold = false;
         return BT::NodeStatus::FAILURE;
     }
-    setOutput("graph_nodes", best_node);
 
-    bool detection_met = (max_score >= threshold);
-    if (detection_met) {
-        RCLCPP_INFO(node_ptr_->get_logger(),
-                    GREEN "[%s] Detection threshold met: %.2f >= %.2f" RESET,
-                    name().c_str(), max_score, threshold);
-    } else {
-        RCLCPP_WARN(node_ptr_->get_logger(),
-                    RED "[%s] Detection threshold not met: %.2f < %.2f" RESET,
-                    name().c_str(), max_score, threshold);
+    setOutput("graph_nodes", bestNode);
+
+    // --- Detection stability logic using steady clock ---
+    rclcpp::Time now = steadyClock.now();
+
+    if (maxScore >= threshold)
+    {
+        if (!aboveThreshold)
+        {
+            detectionStartTime = now;
+            aboveThreshold = true;
+            RCLCPP_INFO(nodePtr->get_logger(),
+                        YELLOW "[%s] Detection above %.2f (%.2f). Timer started [steady clock]." RESET,
+                        name().c_str(), threshold, maxScore);
+        }
+
+        double elapsed = (now - detectionStartTime).seconds();
+
+        if (elapsed >= timeThreshold)
+        {
+            RCLCPP_INFO(nodePtr->get_logger(),
+                        GREEN "[%s] Detection stable for %.2fs (score %.2f ≥ %.2f) → SUCCESS" RESET,
+                        name().c_str(), elapsed, maxScore, threshold);
+            return BT::NodeStatus::SUCCESS;
+        }
+        else
+        {
+            RCLCPP_INFO_THROTTLE(nodePtr->get_logger(), *nodePtr->get_clock(), 1000,
+                                 ORANGE "[%s] Detection ongoing %.2fs / %.2fs (score %.2f)" RESET,
+                                 name().c_str(), elapsed, timeThreshold, maxScore);
+            return BT::NodeStatus::FAILURE;
+        }
     }
-
-    return detection_met ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+    else
+    {
+        if (aboveThreshold)
+        {
+            RCLCPP_WARN(nodePtr->get_logger(),
+                        RED "[%s] Detection lost (%.2f < %.2f). Resetting timer." RESET,
+                        name().c_str(), maxScore, threshold);
+        }
+        aboveThreshold = false;
+        return BT::NodeStatus::FAILURE;
+    }
 }
 
 // ============================ SaveImageAction ============================ //

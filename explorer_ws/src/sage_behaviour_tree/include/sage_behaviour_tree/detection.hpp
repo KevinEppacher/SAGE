@@ -12,22 +12,28 @@ namespace fs = std::filesystem;
 
 // ============================ IsDetected ============================ //
 
+
 class IsDetected : public BT::ConditionNode
 {
 public:
     IsDetected(const std::string& name,
                const BT::NodeConfiguration& config,
-               rclcpp::Node::SharedPtr node_ptr);
+               rclcpp::Node::SharedPtr nodePtr);
 
     static BT::PortsList providedPorts();
     BT::NodeStatus tick() override;
 
 private:
-    rclcpp::Node::SharedPtr node_ptr_;
-    rclcpp::Subscription<graph_node_msgs::msg::GraphNodeArray>::SharedPtr sub_;
-    graph_node_msgs::msg::GraphNodeArray::SharedPtr latest_msg_;
-    bool received_message_{false};
-    int missed_ticks_{8};
+    rclcpp::Node::SharedPtr nodePtr;
+    rclcpp::Subscription<graph_node_msgs::msg::GraphNodeArray>::SharedPtr subscriber;
+    graph_node_msgs::msg::GraphNodeArray::SharedPtr latestMsg;
+
+    bool receivedMessage = false;
+    int missedTicks = 8;
+
+    bool aboveThreshold = false;
+    rclcpp::Clock steadyClock{RCL_STEADY_TIME};
+    rclcpp::Time detectionStartTime;
 };
 
 // ============================ SaveImageAction ============================ //
