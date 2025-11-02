@@ -308,7 +308,7 @@ BT::NodeStatus ApproachPoseAdjustor::tick()
                         name().c_str(), searchRadius);
             if (debugMarkers)
                 publishMarkers(robotPose, target, nullptr, "ApproachPoseAdjustor");
-            return BT::NodeStatus::FAILURE;
+            setOutput("reachable_graph_node", inputNodeRes.value());
         }
 
         cachedReachable = reachable;

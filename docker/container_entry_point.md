@@ -39,7 +39,7 @@ ros2 launch sage_commander detection_ws.launch.py
 
 # Launch SAGE Containers (Local)
 ```bash
-cd /home/kevin/Documents/4_Semester/SAGE/docker && docker compose up -d detection_container explorer_container lavis_container isaac_sim
+cd /home/kevin/Documents/4_Semester/SAGE/docker && docker compose up -d detection_container explorer_container lavis_container isaac_sim exploitation_container
 ```
 
 # Launch Groot2 (Local)
