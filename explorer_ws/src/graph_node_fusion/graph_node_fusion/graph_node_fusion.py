@@ -9,7 +9,10 @@ from graph_node_msgs.msg import GraphNodeArray, GraphNode
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
 import matplotlib.pyplot as plt
-
+import struct
+import numpy as np
+from sensor_msgs.msg import PointCloud2
+from rcl_interfaces.msg import SetParametersResult
 
 # ===============================================================
 # Robot class: handles TF lookup and provides robot position
@@ -168,14 +171,111 @@ class Markers:
 # NodeWeighter: handles scoring and weighting logic
 # ===============================================================
 class NodeWeighter:
-    def __init__(self, exploration_weight: float = 0.7):
+    def __init__(self, node, exploration_weight: float = 0.7):
+        self.node = node
         self.exploration_weight = exploration_weight
+        self.value_map_points = None  # numpy array (x, y, intensity)
 
+        # --- Dynamic parameters ---
+        self.det_weight = 1.0
+        self.map_weight = 1.0
+        self.mem_weight = 1.0
+        self.mem_sigma = 0.5  # spatial falloff [m]
+
+        node.declare_parameter("weights.det_weight", 1.0)
+        node.declare_parameter("weights.map_weight", 1.0)
+        node.declare_parameter("weights.mem_weight", 1.0)
+        node.declare_parameter("weights.mem_sigma", 0.5)
+
+        node.add_on_set_parameters_callback(self._param_callback)
+
+        qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+
+        # Subscribe to the value map
+        node.create_subscription(
+            PointCloud2,
+            "/value_map/value_map_raw",
+            self._cb_value_map,
+            qos,
+        )
+
+    # ----------------------------------------------------------------------
+    # Dynamic parameter callback
+    # ----------------------------------------------------------------------
+    def _param_callback(self, params):
+        for p in params:
+            if p.name == "weights.det_weight":
+                self.det_weight = max(0.0, min(1.0, p.value))
+            elif p.name == "weights.map_weight":
+                self.map_weight = max(0.0, min(1.0, p.value))
+            elif p.name == "weights.mem_weight":
+                self.mem_weight = max(0.0, min(1.0, p.value))
+            elif p.name == "weights.mem_sigma":
+                self.mem_sigma = max(0.05, float(p.value))
+        res = SetParametersResult()
+        res.successful = True
+        return res
+
+    # ----------------------------------------------------------------------
+    # Parse PointCloud2 manually (no ros_numpy)
+    # ----------------------------------------------------------------------
+    def _cb_value_map(self, msg: PointCloud2):
+        try:
+            fmt = "<ffff"  # x, y, z, intensity
+            step = msg.point_step
+            npts = msg.width * msg.height
+            pts = []
+            for i in range(npts):
+                x, y, z, inten = struct.unpack_from(fmt, msg.data, i * step)
+                if inten > 0.0:
+                    pts.append((x, y, inten))
+            if pts:
+                self.value_map_points = np.array(pts, dtype=np.float32)
+        except Exception as e:
+            self.node.get_logger().warn(f"Failed to parse /value_map/value_map_raw: {e}")
+
+    # ----------------------------------------------------------------------
+    # Mean intensity around (x, y)
+    # ----------------------------------------------------------------------
+    def _get_score_from_value_map(self, x, y, radius=0.3):
+        if self.value_map_points is None or len(self.value_map_points) == 0:
+            return 0.0
+        pts = self.value_map_points
+        dx = pts[:, 0] - x
+        dy = pts[:, 1] - y
+        mask = (dx*dx + dy*dy) < radius**2
+        if not np.any(mask):
+            return 0.0
+        return float(np.mean(pts[mask, 2]))
+
+    # ----------------------------------------------------------------------
+    # Memory relevance = spatial proximity to exploitation nodes
+    # ----------------------------------------------------------------------
+    def _get_score_from_memory(self, x, y, exploitation_nodes):
+        if not exploitation_nodes:
+            return 0.0
+        sigma2 = self.mem_sigma * self.mem_sigma
+        num, denom = 0.0, 0.0
+        for m in exploitation_nodes:
+            dx = x - m.position.x
+            dy = y - m.position.y
+            d2 = dx*dx + dy*dy
+            w = math.exp(-d2 / (2.0 * sigma2))
+            num += m.score * w
+            denom += w
+        return num / denom if denom > 0 else 0.0
+
+    # ----------------------------------------------------------------------
+    # Weighted Noisy-OR fusion (detector + value map + memory)
+    # ----------------------------------------------------------------------
     def weight_nodes(self, exploration_nodes, exploitation_nodes, detection_nodes):
-        """Applies weighting between node groups and returns fused lists."""
         fused_exploration, fused_detection = [], []
 
-        # exploration vs exploitation weighting
+        # --- Exploration vs exploitation weighting ---
         for n in exploration_nodes:
             n.score *= self.exploration_weight
         for n in exploitation_nodes:
@@ -185,9 +285,20 @@ class NodeWeighter:
         all_exp.sort(key=lambda n: n.score, reverse=True)
         fused_exploration.extend(all_exp)
 
+        # --- Fuse detections using semantic + memory priors ---
+        for n in detection_nodes:
+            s_det = max(0.0, min(1.0, n.score))
+            s_map = self._get_score_from_value_map(n.position.x, n.position.y)
+            s_mem = self._get_score_from_memory(n.position.x, n.position.y, exploitation_nodes)
+
+            s_fused = 1.0 - (1.0 - self.det_weight * s_det) \
+                            * (1.0 - self.map_weight * s_map) \
+                            * (1.0 - self.mem_weight * s_mem)
+
+            n.score = min(max(s_fused, 0.0), 1.0)
+
         fused_detection = sorted(detection_nodes, key=lambda n: n.score, reverse=True)
         return fused_exploration, fused_detection
-
 
 # ===============================================================
 # Main orchestrator node
@@ -237,7 +348,7 @@ class GraphNodeFusion(Node):
         # --- Modules ---
         self.robot = Robot(self)
         self.markers = Markers(self, debug_distance=self.debug_distance)
-        self.weighter = NodeWeighter(self.exploration_weight)
+        self.weighter = NodeWeighter(self, self.exploration_weight)
 
         # --- State ---
         self.exploration_nodes = []

@@ -14,6 +14,9 @@ fused:
       fused_topics:
         detection_graph_nodes: "detection_graph_nodes/graph_nodes"
         exploration_graph_nodes: "exploration_graph_nodes/graph_nodes"
+      weights:
+        det_weight: 1.0
+        vlm_weight: 1.0
 
 # fused:
 #   graph_node_fusion:

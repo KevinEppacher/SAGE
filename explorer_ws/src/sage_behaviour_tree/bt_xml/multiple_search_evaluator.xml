@@ -22,27 +22,34 @@
       <CallEmptyService service_name="/value_map/clear"/>
       <PublishSemanticPrompt text_query="{target_object}"
                              topic="/user_prompt"/>
+      <Sleep msec="2000"/>
       <KeepRunningUntilObjectFound object_found="{object_found}"
                                    any_exploration_nodes="{any_exploration_nodes}">
         <ReactiveFallback>
           <Sequence name="Detection sequence">
             <IsDetected name="Target object detected?"
-                        detection_threshold="0.55"
+                        graph_nodes="{detected_graph_node}"
                         detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
-                        graph_nodes="{detected_graph_node}"/>
+                        time_threshold="1.000000"
+                        detection_threshold="0.35"/>
             <ApproachPoseAdjustor search_radius="2.5"
                                   reachable_graph_node="{reachable_detection_graph_node}"
                                   graph_node="{detected_graph_node}">
-              <GoToGraphNode name="Go to likiest GraphNode"
+              <GoToGraphNode name="Go to detected GraphNode"
                              graph_nodes="{reachable_detection_graph_node}"
                              approach_radius="1"
                              goal_topic="/goal_pose"
                              robot_frame="base_link"
                              map_frame="map"
-                             timeout="10"/>
+                             timeout="30"/>
             </ApproachPoseAdjustor>
             <RealignToObject detected_graph_node="{detected_graph_node}"
                              spinDuration="5.0"/>
+            <IsDetected name="Target object still detected?"
+                        graph_nodes="{detected_graph_node}"
+                        detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
+                        time_threshold="0"
+                        detection_threshold="0.6"/>
             <SaveImageAction imageTopic="/yoloe/overlay"
                              savePath="{image_path}"/>
             <SetBlackboard value="true"
@@ -72,9 +79,10 @@
             <ReactiveSequence>
               <Fallback>
                 <IsDetected name="Already explored all available GraphNodes?"
-                            detection_threshold="0.0"
+                            graph_nodes="{likiest_explorer_node}"
                             detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
-                            graph_nodes="{likiest_explorer_node}"/>
+                            time_threshold="0.0"
+                            detection_threshold="0.0"/>
                 <SetBlackboard value="false"
                                output_key="any_exploration_nodes"/>
               </Fallback>
@@ -129,11 +137,18 @@
       <input_port name="map_frame"/>
       <input_port name="timeout"/>
     </Action>
-    <Condition ID="IsDetected"
-               editable="true">
-      <input_port name="detection_threshold"/>
-      <input_port name="detection_graph_node_topic"/>
-      <output_port name="graph_nodes"/>
+    <Condition ID="IsDetected">
+      <output_port name="graph_nodes"
+                   type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Best detected GraphNode</output_port>
+      <input_port name="detection_graph_node_topic"
+                  default="/detection_graph_nodes/graph_nodes"
+                  type="std::string">GraphNodeArray topic</input_port>
+      <input_port name="time_threshold"
+                  default="1.000000"
+                  type="double">Seconds the detection must persist</input_port>
+      <input_port name="detection_threshold"
+                  default="0.800000"
+                  type="double">Minimum detection score threshold</input_port>
     </Condition>
     <Decorator ID="KeepRunningUntilObjectFound"
                editable="true">
