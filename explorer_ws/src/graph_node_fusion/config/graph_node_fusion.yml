@@ -1,26 +1,9 @@
-# fused:
-#   graph_node_fusion:
-#     ros__parameters:
-#       exploitation_topic: "/exploitation_graph_nodes/graph_nodes"
-#       exploration_topic: /exploration_graph_nodes/graph_nodes
-#       detection_topic: /detection_graph_nodes/graph_nodes
-#       plan_rate: 0.1
-#       approach_radius: 1.5
-#       max_visited: 200
-#       exploration_weight: 1.0
-#       sigma: 1.5
-#       gaussian_influence: 0.5
-#       sight_horizon: 5.0
-#       fused_topics:
-#         detection_graph_nodes: "detection_graph_nodes/graph_nodes"
-#         exploration_graph_nodes: "exploration_graph_nodes/graph_nodes"
-
 fused:
   graph_node_fusion:
     ros__parameters:
-      exploitation_topic: "/test/exploitation_graph_nodes/graph_nodes"
-      exploration_topic: /test/exploration_graph_nodes/graph_nodes
-      detection_topic: /test/detection_graph_nodes/graph_nodes
+      exploitation_topic: "/exploitation_graph_nodes/graph_nodes"
+      exploration_topic: /exploration_graph_nodes/graph_nodes
+      detection_topic: /detection_graph_nodes/graph_nodes
       plan_rate: 0.1
       approach_radius: 1.5
       max_visited: 200
@@ -31,3 +14,20 @@ fused:
       fused_topics:
         detection_graph_nodes: "detection_graph_nodes/graph_nodes"
         exploration_graph_nodes: "exploration_graph_nodes/graph_nodes"
+
+# fused:
+#   graph_node_fusion:
+#     ros__parameters:
+#       exploitation_topic: "/test/exploitation_graph_nodes/graph_nodes"
+#       exploration_topic: /test/exploration_graph_nodes/graph_nodes
+#       detection_topic: /test/detection_graph_nodes/graph_nodes
+#       plan_rate: 0.1
+#       approach_radius: 1.5
+#       max_visited: 200
+#       exploration_weight: 1.0
+#       sigma: 1.5
+#       gaussian_influence: 0.5
+#       sight_horizon: 5.0
+#       fused_topics:
+#         detection_graph_nodes: "detection_graph_nodes/graph_nodes"
+#         exploration_graph_nodes: "exploration_graph_nodes/graph_nodes"

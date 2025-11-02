@@ -68,13 +68,16 @@ class EvaluationDashboard(Node):
         event.scene = self.scene
         event.experiment_id = self.experiment_id
         event.episode_id = self.episode_id
-        event.save_path = f"/app/src/sage_evaluator/sage_evaluator/data/{self.scene}/{self.experiment_id}/{self.episode_id}/"
         event.prompt_list = prompt_array
         event.elapsed_time = 0.0
         event.success = False
         event.reason = "init"
         event.goal_pose = Point()
         event.start_pose = Point()
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        event.save_path = f"/app/src/sage_evaluator/sage_evaluator/data/{self.scene}/{timestamp}/"
+        # event.save_path = f"/app/src/sage_evaluator/sage_evaluator/data/{self.scene}/{self.experiment_id}/{self.episode_id}/{timestamp}/"
 
         self.event_pub.publish(event)
         self.published = True
