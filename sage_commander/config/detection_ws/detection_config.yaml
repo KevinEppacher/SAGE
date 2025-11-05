@@ -11,9 +11,9 @@ rgb_throttle:
     output_topic: "/rgb/throttled"
     timer_frequency: 10.0  # Hz
 
-    resize_enabled: false
-    resize_width: 300
-    resize_height: 200
+    resize_enabled: True
+    resize_width: 640
+    resize_height: 480
 
     input_qos:
       reliability: "best_effort"
@@ -33,9 +33,9 @@ depth_throttle:
     output_topic: "/depth/throttled"
     timer_frequency: 10.0  # Hz
 
-    resize_enabled: false
-    resize_width: 300
-    resize_height: 200
+    resize_enabled: True
+    resize_width: 640
+    resize_height: 480
 
     input_qos:
       reliability: "best_effort"
@@ -63,7 +63,7 @@ yoloe:
       download_url: ""                  # optional http(s) url; leave empty if weights are local
 
       # Initial class prompts (can be updated at runtime via /user_prompt)
-      prompts: ["person", "chair", "bottle"]
+      # prompts: ["person", "chair", "bottle"]
 
       # --- Inference ---
       imgsz: 640                        # inference resolution
