@@ -30,6 +30,7 @@ setup(
     entry_points={
         'console_scripts': [
             'evaluate = sage_evaluator.evaluation_node:main',
+            'semantic_pcl_loader_node = sage_evaluator.semantic_pcl_loader_node:main',
         ],
     },
 )
