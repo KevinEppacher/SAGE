@@ -24,6 +24,7 @@ services:
     volumes:
       - ../../SAGE/explorer_ws:/app
       - ../sage_commander:/app/src/sage_commander
+      - ../sage_evaluator:/app/src/sage_evaluator
       - /tmp/.X11-unix:/tmp/.X11-unix
       - $XAUTHORITY:/root/.Xauthority
     environment:
@@ -54,6 +55,7 @@ services:
     volumes:
       - ../../SAGE/exploitation_ws:/app
       - ../sage_commander:/app/src/sage_commander
+      - ../sage_evaluator:/app/src/sage_evaluator
       - /tmp/.X11-unix:/tmp/.X11-unix
       - $XAUTHORITY:/root/.Xauthority
     environment:
