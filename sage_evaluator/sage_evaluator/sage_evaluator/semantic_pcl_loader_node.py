@@ -11,38 +11,44 @@ import json
 from sklearn.cluster import DBSCAN
 import os
 
+from multimodal_query_msgs.msg import SemanticPrompt
 
-class SemanticPointCloudLoader(Node):
+
+class SemanticPCLLoaderNode(Node):
     def __init__(self):
         super().__init__("semantic_pcl_loader")
 
         # Parameters
         self.declare_parameter("ply_path", "/app/data/semantic_maps/semantic_20251105_173245.ply")
         self.declare_parameter("json_path", "/app/data/semantic_maps/semantic_20251105_173245.json")
-        self.declare_parameter("target_class", "sofa")
         self.declare_parameter("dbscan_eps", 0.4)
         self.declare_parameter("dbscan_min_samples", 30)
         self.declare_parameter("frame_id", "map")
+        self.declare_parameter("user_prompt_topic", "/user_prompt")
 
         self.ply_path = self.get_parameter("ply_path").value
         self.json_path = self.get_parameter("json_path").value
-        self.target_class = self.get_parameter("target_class").value
         self.frame_id = self.get_parameter("frame_id").value
         self.eps = float(self.get_parameter("dbscan_eps").value)
         self.min_samples = int(self.get_parameter("dbscan_min_samples").value)
+        user_prompt_topic = self.get_parameter("user_prompt_topic").value
 
         # Publishers
         self.pc_pub = self.create_publisher(PointCloud2, "filtered_semantic_pc", 1)
         self.marker_pub = self.create_publisher(MarkerArray, "semantic_centroids", 1)
 
-        # Load files
+        # Load semantic map and class mapping
         self.get_logger().info(f"Loading semantic map from {self.ply_path}")
         self.points, self.colors, self.class_ids = self._load_ply(self.ply_path)
         self.class_map = self._load_json(self.json_path)
         self.inv_class_map = {v: int(k) for k, v in self.class_map.items()}
 
-        # Periodic publish
-        self.timer = self.create_timer(2.0, self.timer_callback)
+        # Subscribe to user prompt (SemanticPrompt)
+        self.prompt_sub = self.create_subscription(
+            SemanticPrompt, user_prompt_topic, self.handle_prompt, 10
+        )
+
+        self.get_logger().info("SemanticPCLLoader ready. Waiting for text prompts...")
 
     # ---------------- File I/O ----------------
     def _load_ply(self, path):
@@ -50,11 +56,9 @@ class SemanticPointCloudLoader(Node):
             self.get_logger().error(f"PLY file not found: {path}")
             return np.empty((0, 3)), np.empty((0, 3)), np.empty((0,))
         pcd = o3d.t.io.read_point_cloud(path)
-
         pts = pcd.point["positions"].numpy()
         cols = pcd.point["colors"].numpy()
         cls = pcd.point["class_id"].numpy().flatten()
-
         return pts, cols, cls
 
     def _load_json(self, path):
@@ -64,16 +68,37 @@ class SemanticPointCloudLoader(Node):
         with open(path, "r") as f:
             return json.load(f)
 
+    # ---------------- Prompt Handler ----------------
+    def handle_prompt(self, msg):
+        """Callback for incoming SemanticPrompt messages."""
+        class_name = msg.text_query.strip().lower()
+        self.get_logger().info(f"Received prompt: '{class_name}'")
+
+        if class_name not in [c.lower() for c in self.class_map.values()]:
+            self.get_logger().warn(f"Class '{class_name}' not found in map keys.")
+            return
+
+        pts, cols = self._filter_class(class_name)
+        centroids = self._cluster(pts)
+        self._publish_pc(pts, cols)
+        self._publish_markers(centroids)
+
+        self.get_logger().info(
+            f"Published {len(pts)} '{class_name}' points "
+            f"and {len(centroids)} centroids."
+        )
+
     # ---------------- Processing ----------------
     def _filter_class(self, class_name):
-        class_id = self.inv_class_map.get(class_name)
+        # Handle case-insensitive lookups
+        inv_map_lower = {v.lower(): int(k) for k, v in self.class_map.items()}
+        class_id = inv_map_lower.get(class_name)
         if class_id is None:
-            self.get_logger().warn(f"Class '{class_name}' not found.")
+            self.get_logger().warn(f"Class '{class_name}' not found in map.")
             return np.empty((0, 3)), np.empty((0, 3))
         mask = self.class_ids == class_id
         pts, cols = self.points[mask], self.colors[mask]
-        # paint everything green for visualization
-        cols[:] = np.array([0.0, 1.0, 0.0])
+        cols[:] = np.array([0.0, 1.0, 0.0])  # paint green
         return pts, cols
 
     def _cluster(self, pts):
@@ -130,21 +155,10 @@ class SemanticPointCloudLoader(Node):
             marker_array.markers.append(m)
         self.marker_pub.publish(marker_array)
 
-    # ---------------- Timer ----------------
-    def timer_callback(self):
-        pts, cols = self._filter_class(self.target_class)
-        centroids = self._cluster(pts)
-        self._publish_pc(pts, cols)
-        self._publish_markers(centroids)
-        self.get_logger().info(
-            f"Published {len(pts)} '{self.target_class}' points "
-            f"and {len(centroids)} clusters."
-        )
-
 
 def main(args=None):
     rclpy.init(args=args)
-    node = SemanticPointCloudLoader()
+    node = SemanticPCLLoaderNode()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
