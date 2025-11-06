@@ -19,8 +19,8 @@ class SemanticPCLLoaderNode(Node):
         super().__init__("semantic_pcl_loader")
 
         # ---------------- Parameters ----------------
-        self.declare_parameter("ply_path", "/app/data/semantic_maps/semantic_20251105_173245.ply")
-        self.declare_parameter("json_path", "/app/data/semantic_maps/semantic_20251105_173245.json")
+        self.declare_parameter("ply_path", "/app/src/sage_evaluator/datasets/matterport_isaac/00809-Qpor2mEya8F/annotations/v1.0/semantic_20251106_182804.ply")
+        self.declare_parameter("json_path", "/app/src/sage_evaluator/datasets/matterport_isaac/00809-Qpor2mEya8F/annotations/v1.0/semantic_20251106_182804.json")
         self.declare_parameter("dbscan_eps", 0.4)
         self.declare_parameter("dbscan_min_samples", 30)
         self.declare_parameter("frame_id", "robot_original_pose_at_scan")

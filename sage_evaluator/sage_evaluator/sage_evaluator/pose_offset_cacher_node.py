@@ -5,11 +5,10 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped
-from tf_transformations import quaternion_from_euler, euler_from_quaternion
+from tf_transformations import euler_from_quaternion
 import tf2_ros
 
 CACHE_PATH = "/app/data/robot_alignment_cache.json"
-
 
 class RobotAlignmentCache(Node):
     def __init__(self):
@@ -20,12 +19,14 @@ class RobotAlignmentCache(Node):
         self.declare_parameter("rotation_threshold_deg", 5.0)
         self.declare_parameter("parent_frame", "map")
         self.declare_parameter("child_frame", "robot_original_pose_at_scan")
+        self.declare_parameter("cache_path", CACHE_PATH)
 
         self.pose_topic = self.get_parameter("pose_topic").value
         self.trans_thresh = self.get_parameter("translation_threshold").value
         self.rot_thresh = np.deg2rad(self.get_parameter("rotation_threshold_deg").value)
         self.parent_frame = self.get_parameter("parent_frame").value
         self.child_frame = self.get_parameter("child_frame").value
+        self.cache_path = self.get_parameter("cache_path").value
 
         self.tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
         self.latest_pose = None
@@ -50,10 +51,10 @@ class RobotAlignmentCache(Node):
 
     # ----------------------------------------------------------------------
     def _load_cached_pose(self):
-        if not os.path.exists(CACHE_PATH):
+        if not os.path.exists(self.cache_path):
             return None
         try:
-            with open(CACHE_PATH, "r") as f:
+            with open(self.cache_path, "r") as f:
                 data = json.load(f)
             return data
         except Exception as e:
@@ -61,10 +62,10 @@ class RobotAlignmentCache(Node):
             return None
 
     def _save_cached_pose(self, pose):
-        os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
-        with open(CACHE_PATH, "w") as f:
+        os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
+        with open(self.cache_path, "w") as f:
             json.dump(pose, f, indent=2)
-        self.get_logger().info(f"Saved alignment cache → {CACHE_PATH}")
+        self.get_logger().info(f"Saved alignment cache → {self.cache_path}")
 
     # ----------------------------------------------------------------------
     def pose_callback(self, msg):

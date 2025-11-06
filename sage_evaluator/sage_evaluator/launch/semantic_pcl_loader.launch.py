@@ -22,41 +22,43 @@ def generate_launch_description():
     # Get the launch configuration for use_sim_time
     use_sim_time = LaunchConfiguration('use_sim_time')
 
-    eval_map_server = Node(
-        package="nav2_map_server",
-        executable="map_server",
-        output="screen",
-        namespace="evaluator",
+    scene_config = os.path.join(
+        get_package_share_directory("sage_evaluator"),
+        'config',
+        '00809-Qpor2mEya8F.yaml'
+    )
+
+    semantic_pcl_loader_node = Node(
+        package="sage_evaluator",
+        executable='semantic_pcl_loader',
+        name="semantic_pcl_loader",
+        output='screen',
+        namespace='evaluator',
+        emulate_tty=True,
+        # arguments=['--ros-args', '--log-level', 'debug'],
         parameters=[
-            {"use_sim_time": use_sim_time},
-            {"yaml_filename": "/app/data/semantic_maps/map.yaml"}
+            {'use_sim_time': use_sim_time},
+            scene_config
         ]
     )
 
-    lcm = Node(
-        package='nav2_lifecycle_manager',
-        executable='lifecycle_manager',
-        name='lifecycle_manager_detection',
+    pose_offset_cacher_node = Node(
+        package="sage_evaluator",
+        executable='pose_offset_cacher',
+        name="pose_offset_cacher",
         output='screen',
-        parameters=[{
-            'use_sim_time': use_sim_time,
-            'autostart': True,
-            'bond_timeout': 0.0,
-            'node_names': [
-                '/evaluator/map_server'
-            ]
-        }]
-    )
-
-    # Delayed lifecycle manager launch (2 seconds delay)
-    delayed_lcm = TimerAction(
-        period=2.0,
-        actions=[lcm]
+        namespace='evaluator',
+        emulate_tty=True,
+        # arguments=['--ros-args', '--log-level', 'debug'],
+        parameters=[
+            {'use_sim_time': use_sim_time},
+            scene_config
+        ]
     )
 
     ld = LaunchDescription()
     ld.add_action(console_format)
     ld.add_action(sim_time_arg)
-    ld.add_action(eval_map_server)
-    ld.add_action(delayed_lcm)
+    ld.add_action(semantic_pcl_loader_node)
+    ld.add_action(pose_offset_cacher_node)
     return ld
