@@ -3,7 +3,7 @@ from launch_ros.actions import LifecycleNode, Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, DeclareLaunchArgument, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, DeclareLaunchArgument, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 import os
 
@@ -48,9 +48,15 @@ def generate_launch_description():
         }]
     )
 
+    # Delayed lifecycle manager launch (2 seconds delay)
+    delayed_lcm = TimerAction(
+        period=2.0,
+        actions=[lcm]
+    )
+
     ld = LaunchDescription()
     ld.add_action(console_format)
     ld.add_action(sim_time_arg)
     ld.add_action(eval_map_server)
-    ld.add_action(lcm)
+    ld.add_action(delayed_lcm)
     return ld
