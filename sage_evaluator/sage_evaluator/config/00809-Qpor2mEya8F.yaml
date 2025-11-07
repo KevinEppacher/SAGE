@@ -1,0 +1,21 @@
+evaluator:
+  pose_offset_cacher:
+    ros__parameters:
+      cache_path: /app/src/sage_evaluator/datasets/matterport_isaac/00809-Qpor2mEya8F/annotations/v1.0/robot_start_pose.json
+      child_frame: robot_original_pose_at_scan
+      parent_frame: map
+      pose_topic: /initialpose
+      rotation_threshold_deg: 5.0
+      translation_threshold: 0.1
+      use_sim_time: true
+
+  semantic_pcl_loader:
+    ros__parameters:
+      dbscan_eps: 0.4
+      dbscan_min_samples: 30
+      frame_id: robot_original_pose_at_scan
+      json_path: /app/src/sage_evaluator/datasets/matterport_isaac/00809-Qpor2mEya8F/annotations/v1.0/semantic_20251106_182804.json
+      ply_path: /app/src/sage_evaluator/datasets/matterport_isaac/00809-Qpor2mEya8F/annotations/v1.0/semantic_20251106_182804.ply
+      publish_rate: 0.5
+      use_sim_time: true
+      user_prompt_topic: /user_prompt

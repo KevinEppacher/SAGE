@@ -13,7 +13,6 @@ import sensor_msgs_py.point_cloud2 as pc2
 
 from multimodal_query_msgs.msg import SemanticPrompt
 
-
 class SemanticPCLLoaderNode(Node):
     def __init__(self):
         super().__init__("semantic_pcl_loader")

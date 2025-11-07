@@ -27,6 +27,8 @@ class RobotAlignmentCache(Node):
         self.parent_frame = self.get_parameter("parent_frame").value
         self.child_frame = self.get_parameter("child_frame").value
         self.cache_path = self.get_parameter("cache_path").value
+        
+        self.get_logger().info(f"Using cache path: {self.cache_path}")
 
         self.tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
         self.latest_pose = None
