@@ -89,13 +89,13 @@ def generate_launch_description():
         ]
     )
 
-    local_costmap_node = LifecycleNode(
+    global_costmap_node = LifecycleNode(
         package='nav2_costmap_2d',
         executable='nav2_costmap_2d',
-        name='local_costmap',
+        name='global_costmap',
         output='screen',
         emulate_tty=True,
-        namespace='local_costmap',
+        namespace='global_costmap',
         parameters=[
             {'use_sim_time': True},
             explorer_config
@@ -162,15 +162,15 @@ def generate_launch_description():
     #---------------------- Delayed Launches ------------------------------#
 
     i = 1
-    time_const = 5.0
-    delayed_initial_pose_publisher = TimerAction(
-        period=time_const * i,
-        actions=[initial_pose_publisher_node]
-    )
-    i += 1
+    time_const = 8.0
     delayed_lcm = TimerAction(
         period=time_const * i,
         actions=[lcm]
+    )
+    i += 1
+    delayed_initial_pose_publisher = TimerAction(
+        period=time_const * i,
+        actions=[initial_pose_publisher_node]
     )
 
     # delayed_navigation_launch = TimerAction(
@@ -187,7 +187,7 @@ def generate_launch_description():
     ld.add_action(pcl_to_scan_node)
     ld.add_action(localization_launch)
     ld.add_action(delayed_initial_pose_publisher)
-    ld.add_action(local_costmap_node)
+    ld.add_action(global_costmap_node)
     ld.add_action(planner_server_node)
     ld.add_action(delayed_lcm)
     return ld
