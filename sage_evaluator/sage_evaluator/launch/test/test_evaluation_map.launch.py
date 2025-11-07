@@ -7,8 +7,8 @@ from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, Dec
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 import os
 
-# MAP_PATH = "/app/src/sage_evaluator/datasets/matterport_isaac/00809-Qpor2mEya8F/annotations/v1.1/slam_map_20251107_154330.yaml"
-MAP_PATH = "/app/map.yaml"
+MAP_PATH = "/app/src/sage_evaluator/datasets/matterport_isaac/00809-Qpor2mEya8F/annotations/v1.1/slam_map_20251107_154330.yaml"
+# MAP_PATH = "/app/map.yaml"
 
 
 def generate_launch_description():
@@ -85,9 +85,38 @@ def generate_launch_description():
         emulate_tty=True,
         parameters=[
             {'use_sim_time': use_sim_time},
+            sage_evaluator_config
+        ]
+    )
+
+    local_costmap_node = LifecycleNode(
+        package='nav2_costmap_2d',
+        executable='nav2_costmap_2d',
+        name='local_costmap',
+        output='screen',
+        emulate_tty=True,
+        namespace='local_costmap',
+        parameters=[
+            {'use_sim_time': True},
             explorer_config
         ]
     )
+
+    planner_server_node = LifecycleNode(
+        package='nav2_planner',
+        executable='planner_server',
+        name='planner_server',
+        output='screen',
+        emulate_tty=True,
+        namespace='',
+        respawn=True,
+        respawn_delay=2.0,
+        parameters=[
+            {'use_sim_time': True},
+            explorer_config
+        ],
+    )
+
 
     #---------------------- Launches ------------------------------#
 
@@ -108,6 +137,28 @@ def generate_launch_description():
     #     }.items()
     # )
 
+    #---------------------- Lifecycle Manager ------------------------------#
+
+    lifecycle_nodes = [
+        'costmap/costmap',
+        'planner_server'
+    ]
+
+    lcm = Node(
+        package='nav2_lifecycle_manager',
+        executable='lifecycle_manager',
+        name='lifecycle_manager_local_costmap',
+        output='screen',
+        parameters=[{
+            'autostart': True,
+            'node_names': lifecycle_nodes,
+            'bond_timeout': 0.0,
+            'bond_respawn': True
+        }],
+        # arguments=['--ros-args', '--log-level', 'debug'],
+        emulate_tty=True
+    )
+
     #---------------------- Delayed Launches ------------------------------#
 
     i = 1
@@ -117,10 +168,16 @@ def generate_launch_description():
         actions=[initial_pose_publisher_node]
     )
     i += 1
+    delayed_lcm = TimerAction(
+        period=time_const * i,
+        actions=[lcm]
+    )
+
     # delayed_navigation_launch = TimerAction(
     #     period=time_const * i,
     #     actions=[navigation_launch]
     # )
+
 
     #---------------------- Launch Description ------------------------------#
 
@@ -129,5 +186,8 @@ def generate_launch_description():
     ld.add_action(sim_time_arg)
     ld.add_action(pcl_to_scan_node)
     ld.add_action(localization_launch)
-    # ld.add_action(delayed_initial_pose_publisher)
+    ld.add_action(delayed_initial_pose_publisher)
+    ld.add_action(local_costmap_node)
+    ld.add_action(planner_server_node)
+    ld.add_action(delayed_lcm)
     return ld
