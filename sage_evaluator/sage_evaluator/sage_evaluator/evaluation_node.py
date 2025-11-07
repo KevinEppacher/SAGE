@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import rclpy
-from sage_evaluator.sage_evaluator.evaluation import EvaluationDashboard
+from sage_evaluator.evaluation import EvaluationDashboard
 
 def main(args=None):
     rclpy.init(args=args)
