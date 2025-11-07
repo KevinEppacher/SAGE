@@ -9,7 +9,12 @@ from std_msgs.msg import String, Header
 import time
 from datetime import datetime
 
+from sage_evaluator.metrics import Metrics
 
+
+# --------------------------------------------------------------------------- #
+# Evaluation Dashboard Node
+# --------------------------------------------------------------------------- #
 class EvaluationDashboard(Node):
     def __init__(self):
         super().__init__('evaluation_dashboard')
@@ -28,26 +33,20 @@ class EvaluationDashboard(Node):
         self.experiment_id = 'EXP_001'
         self.episode_id = 'E01'
         self.phase = 'START'
-        self.prompt_texts = [
-            'bed',
-            'chair',
-            'bath tub',
-            'toilet'
-        ]
+        self.prompt_texts = ['bed', 'chair', 'bath tub', 'toilet']
 
         # --- Internal state ---
         self.start_time = time.time()
-        self.current_prompt = None
         self.prompt_index = 0
         self.published = False
 
-        # --- Startup timer ---
-        self.timer = self.create_timer(2.0, self.publish_event_once)
+        # --- Metrics instance ---
+        self.metrics = Metrics(self)
 
+        # --- Timer ---
+        self.timer = self.create_timer(2.0, self.publish_event_once)
         self.get_logger().info("🧭 Evaluation Dashboard initialized. Waiting for BT feedback...")
 
-    # ======================================================
-    # Publish EvaluationEvent (setup message)
     # ======================================================
     def publish_event_once(self):
         if self.published:
@@ -59,7 +58,6 @@ class EvaluationDashboard(Node):
 
         for text in self.prompt_texts:
             p = SemanticPrompt()
-            p.header = Header()
             p.text_query = text
             prompt_array.prompt_list.append(p)
 
@@ -77,48 +75,34 @@ class EvaluationDashboard(Node):
 
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
         event.save_path = f"/app/src/sage_evaluator/sage_evaluator/data/{self.scene}/{timestamp}/"
-        # event.save_path = f"/app/src/sage_evaluator/sage_evaluator/data/{self.scene}/{self.experiment_id}/{self.episode_id}/{timestamp}/"
 
         self.event_pub.publish(event)
         self.published = True
-        self.timer.cancel()
         self.start_time = time.time()
 
         self.get_logger().info(
-            f"📤 Published EvaluationEvent: {len(self.prompt_texts)} prompts → "
-            f"{[p.text_query for p in prompt_array.prompt_list]}"
+            f"📤 Published EvaluationEvent: {len(self.prompt_texts)} prompts → {[p.text_query for p in prompt_array.prompt_list]}"
         )
 
-    # ======================================================
-    # Handle feedback from BT node (/evaluation/iteration_status)
     # ======================================================
     def status_callback(self, msg: String):
         elapsed = time.time() - self.start_time
         timestamp = datetime.now().strftime("%H:%M:%S")
-
         text = msg.data.strip()
+
+        # Parse message
         parts = text.split("'")
         current_prompt = parts[1] if len(parts) > 1 else "unknown"
-
-        # detect status keywords
-        status = "UNKNOWN"
-        for key in ["SUCCESS", "FAILURE", "TIMEOUT"]:
-            if key in text:
-                status = key
-                break
-
+        status = next((key for key in ["SUCCESS", "FAILURE", "TIMEOUT"] if key in text), "UNKNOWN")
         symbol = {"SUCCESS": "✅", "FAILURE": "❌", "TIMEOUT": "⏳"}.get(status, "🔹")
 
-        # --- figure out which prompt comes next ---
-        self.current_prompt = current_prompt
         self.prompt_index += 1
         next_prompt = (
             self.prompt_texts[self.prompt_index]
             if self.prompt_index < len(self.prompt_texts)
-            else "— none (experiment complete) —"
+            else "— none (complete) —"
         )
 
-        # --- pretty console log ---
         self.get_logger().info(
             f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🕓 [{timestamp}]\n"
@@ -129,3 +113,7 @@ class EvaluationDashboard(Node):
             f"📄  Message        : {text}\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         )
+
+        # On success or completion → summarize metrics
+        if status in ["SUCCESS", "FAILURE", "TIMEOUT"] and next_prompt == "— none (complete) —":
+            self.metrics.summarize()
