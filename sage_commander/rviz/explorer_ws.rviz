@@ -110,7 +110,7 @@ Visualization Manager:
         - Alpha: 0.699999988079071
           Class: rviz_default_plugins/Map
           Color Scheme: map
-          Draw Behind: false
+          Draw Behind: true
           Enabled: true
           Name: Map
           Topic:
@@ -610,8 +610,6 @@ Visualization Manager:
               Value: true
             right_wheel_link:
               Value: true
-            robot_original_pose_at_scan:
-              Value: true
           Marker Scale: 1
           Name: TF
           Show Arrows: true
@@ -639,8 +637,6 @@ Visualization Manager:
                         {}
                     right_wheel_link:
                       {}
-              robot_original_pose_at_scan:
-                {}
           Update Interval: 0
           Value: true
         - Alpha: 0.20000000298023224
@@ -787,6 +783,67 @@ Visualization Manager:
             Reliability Policy: Reliable
             Value: /trajectories
           Value: true
+        - Alpha: 1
+          Class: rviz_default_plugins/RobotModel
+          Collision Enabled: false
+          Description File: ""
+          Description Source: Topic
+          Description Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /robot_description
+          Enabled: true
+          Links:
+            All Links Enabled: true
+            Expand Joint Details: false
+            Expand Link Details: false
+            Expand Tree: false
+            Link Tree Style: Links in Alphabetic Order
+            chassis_link:
+              Alpha: 1
+              Show Axes: false
+              Show Trail: false
+              Value: true
+            com_offset:
+              Alpha: 1
+              Show Axes: false
+              Show Trail: false
+              Value: true
+            imu:
+              Alpha: 1
+              Show Axes: false
+              Show Trail: false
+              Value: true
+            left_wheel_link:
+              Alpha: 1
+              Show Axes: false
+              Show Trail: false
+              Value: true
+            rear_pivot_link:
+              Alpha: 1
+              Show Axes: false
+              Show Trail: false
+              Value: true
+            rear_wheel_link:
+              Alpha: 1
+              Show Axes: false
+              Show Trail: false
+              Value: true
+            right_wheel_link:
+              Alpha: 1
+              Show Axes: false
+              Show Trail: false
+              Value: true
+          Mass Properties:
+            Inertia: false
+            Mass: false
+          Name: RobotModel
+          TF Prefix: ""
+          Update Interval: 0
+          Value: true
+          Visual Enabled: true
       Enabled: true
       Name: common
     - Class: rviz_default_plugins/Image
@@ -849,16 +906,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 9.312929153442383
+      Distance: 5.255854606628418
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.9270426034927368
-        Y: 0.6122739315032959
-        Z: 0.812439501285553
+        X: 0.9748215079307556
+        Y: 0.8364847302436829
+        Z: 0.8124831914901733
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
@@ -867,7 +924,7 @@ Visualization Manager:
       Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 3.188633918762207
+      Yaw: 3.1536290645599365
     Saved: ~
 Window Geometry:
   Displays:

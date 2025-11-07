@@ -36,6 +36,12 @@ def generate_launch_description():
         'nav_bringup.launch.py'
     )
 
+    robot_description_launch_file = os.path.join(
+        get_package_share_directory('carter_description'),
+        'launch',
+        'display.launch.py'
+    )
+
     inflated_map_node = Node(
         package='semantic_frontier_exploration',
         executable='map_inflation_node',
@@ -103,6 +109,13 @@ def generate_launch_description():
         }.items()
     )
 
+    robot_description_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(robot_description_launch_file),
+        launch_arguments={
+            'use_sim_time': use_sim_time
+        }.items()
+    )
+
     graph_node_fusion_node = Node(
         package='graph_node_fusion',
         executable='graph_node_fusion',
@@ -130,4 +143,5 @@ def generate_launch_description():
     # ld.add_action(graph_node_fusion_node)
     ld.add_action(rviz_node)
     ld.add_action(nav2_stack_launch)
+    ld.add_action(robot_description_launch)
     return ld
