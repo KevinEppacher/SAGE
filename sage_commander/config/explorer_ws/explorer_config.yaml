@@ -40,6 +40,12 @@ pcl_to_scan:
         publisher:
           reliability: reliable
           durability: volatile
+      # /clock:
+      #   subscription:
+      #     depth: 1
+      #     durability: volatile
+      #     history: keep_last
+      #     reliability: best_effort
 
 exploration_graph_nodes:
   semantic_frontier_exploration_node:

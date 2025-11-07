@@ -4,6 +4,7 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /Global Options1
         - /detection_ws1/yolo1
         - /detection_ws1/yolo1/PointCloud21/Topic1
         - /exploitation_ws1/openfusion_ros1/PoseArray1/Topic1
@@ -906,16 +907,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 5.255854606628418
+      Distance: 7.384097576141357
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.9748215079307556
-        Y: 0.8364847302436829
-        Z: 0.8124831914901733
+        X: 0.36660343408584595
+        Y: -0.06854482740163803
+        Z: 0.8118638396263123
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
@@ -924,7 +925,7 @@ Visualization Manager:
       Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 3.1536290645599365
+      Yaw: 3.1836297512054443
     Saved: ~
 Window Geometry:
   Displays:
