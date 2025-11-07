@@ -10,6 +10,8 @@ import os
 
 def generate_launch_description():
 
+    #---------------------- Arguments ------------------------------#
+
     sim_time_arg = DeclareLaunchArgument(
         'use_sim_time', default_value='true',
         description='Flag to enable use_sim_time'
@@ -17,6 +19,8 @@ def generate_launch_description():
 
     # Get the launch configuration for use_sim_time
     use_sim_time = LaunchConfiguration('use_sim_time')
+
+    #---------------------- Paths ------------------------------#
     
     rviz_config = os.path.join(
         get_package_share_directory('sage_commander'),
@@ -41,6 +45,8 @@ def generate_launch_description():
         'launch',
         'display.launch.py'
     )
+
+    #---------------------- Nodes ------------------------------#
 
     inflated_map_node = Node(
         package='semantic_frontier_exploration',
@@ -67,11 +73,6 @@ def generate_launch_description():
             {'use_sim_time': use_sim_time}
         ],            
     )
-
-    # delayed_map_explorer_node = TimerAction(
-    #     period=5.0,
-    #     actions=[map_explorer_node]
-    # )
 
     semantic_frontiers_node = Node(
         package='semantic_frontier_exploration',
@@ -102,6 +103,21 @@ def generate_launch_description():
         ]
     )
 
+    graph_node_fusion_node = Node(
+        package='graph_node_fusion',
+        executable='graph_node_fusion',
+        name='graph_node_fusion',
+        namespace='fused',
+        output='screen',
+        emulate_tty=True,
+        parameters=[
+            {'use_sim_time': use_sim_time},
+            explorer_config
+        ],
+    )
+
+    #---------------------- Launches ------------------------------#
+
     nav2_stack_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(nav2_launch_file),
         launch_arguments={
@@ -116,23 +132,14 @@ def generate_launch_description():
         }.items()
     )
 
-    graph_node_fusion_node = Node(
-        package='graph_node_fusion',
-        executable='graph_node_fusion',
-        name='graph_node_fusion',
-        namespace='fused',
-        output='screen',
-        emulate_tty=True,
-        parameters=[
-            {'use_sim_time': use_sim_time},
-            explorer_config
-        ],
-    )
+    #---------------------- Execute Processes ------------------------------#
 
     rviz_node = ExecuteProcess(
         cmd=['rviz2', '-d', rviz_config],
         output='screen'
     )
+
+    #---------------------- Launch Description ------------------------------#
 
     ld = LaunchDescription()
     ld.add_action(sim_time_arg)
