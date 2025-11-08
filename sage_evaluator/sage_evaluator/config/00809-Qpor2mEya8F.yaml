@@ -20,9 +20,4 @@ evaluator:
       use_sim_time: true
       user_prompt_topic: /user_prompt
 
-initial_pose_publisher:
-  ros__parameters:
-    annotations_dir: /app/src/sage_evaluator/datasets/matterport_isaac/00809-Qpor2mEya8F/annotations/v1.1
-    use_sim_time: true
-
 
