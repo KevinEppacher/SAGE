@@ -35,12 +35,6 @@ def generate_launch_description():
         'localization_launch.py'
     )
 
-    nav2_navigation_launch_path = os.path.join(
-        get_package_share_directory('nav2_bringup'),
-        'launch',
-        'navigation_launch.py'
-    )
-
     nav2_params_path = os.path.join(
         get_package_share_directory('sage_evaluator'),
         'config',
@@ -117,7 +111,6 @@ def generate_launch_description():
         ],
     )
 
-
     #---------------------- Launches ------------------------------#
 
     localization_launch = IncludeLaunchDescription(
@@ -128,14 +121,6 @@ def generate_launch_description():
                 'map': MAP_PATH,
         }.items()
     )
-
-    # navigation_launch = IncludeLaunchDescription(
-    #     PythonLaunchDescriptionSource(nav2_navigation_launch_path),
-    #     launch_arguments={
-    #             'use_sim_time': use_sim_time,
-    #             'params_file': nav2_params_path,
-    #     }.items()
-    # )
 
     #---------------------- Lifecycle Manager ------------------------------#
 
@@ -162,7 +147,7 @@ def generate_launch_description():
     #---------------------- Delayed Launches ------------------------------#
 
     i = 1
-    time_const = 8.0
+    time_const = 2.0
     delayed_lcm = TimerAction(
         period=time_const * i,
         actions=[lcm]
@@ -172,12 +157,6 @@ def generate_launch_description():
         period=time_const * i,
         actions=[initial_pose_publisher_node]
     )
-
-    # delayed_navigation_launch = TimerAction(
-    #     period=time_const * i,
-    #     actions=[navigation_launch]
-    # )
-
 
     #---------------------- Launch Description ------------------------------#
 
