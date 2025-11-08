@@ -5,13 +5,12 @@ from launch.substitutions import LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
 from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, DeclareLaunchArgument, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from sage_datasets.utils import DatasetManager
 import os
 
-MAP_PATH = "/app/src/sage_evaluator/datasets/matterport_isaac/00809-Qpor2mEya8F/annotations/v1.1/slam_map_20251107_154330.yaml"
-# MAP_PATH = "/app/map.yaml"
-
-
 def generate_launch_description():
+
+    dm = DatasetManager(scene="00809-Qpor2mEya8F", version="v1.1")
 
     #---------------------- Arguments ------------------------------#
 
@@ -78,7 +77,10 @@ def generate_launch_description():
         output='screen',
         emulate_tty=True,
         parameters=[
-            {'use_sim_time': use_sim_time},
+            {
+                'use_sim_time': use_sim_time,
+                'annotations_dir': dm.annotations_dir
+            },
             sage_evaluator_config
         ]
     )
@@ -113,12 +115,13 @@ def generate_launch_description():
 
     #---------------------- Launches ------------------------------#
 
+
     localization_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(nav2_localization_launch_path),
         launch_arguments={
                 'use_sim_time': LaunchConfiguration('use_sim_time'),
                 'params_file': nav2_params_path,
-                'map': MAP_PATH,
+                'map': dm.map(),
         }.items()
     )
 
