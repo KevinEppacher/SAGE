@@ -1,0 +1,42 @@
+costmap:
+  costmap:
+    ros__parameters:
+      global_frame: robot_original_pose_at_scan
+      robot_base_frame: base_link
+      map_topic: /evaluator/map
+      update_frequency: 15.0
+      publish_frequency: 1.0
+      resolution: 0.1
+      width: 5
+      height: 5
+      origin_x: 0.0
+      origin_y: 0.0
+      rolling_window: false
+      always_send_full_costmap: false
+      transform_tolerance: 0.3
+      track_unknown_space: false
+      use_sim_time: false
+      plugins:
+        - static_layer
+        - obstacle_layer
+        - inflation_layer
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        enabled: true
+        map_topic: "/evaluator/map"
+        subscribe_to_updates: false
+        map_subscribe_transient_local: true
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: ""
+        footprint_clearing_enabled: true
+        max_obstacle_height: 2.0
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        enabled: true
+        inflation_radius: 0.55
+        cost_scaling_factor: 10.0
