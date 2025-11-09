@@ -4,11 +4,12 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
-        - /Global Options1
         - /detection_ws1/yolo1
         - /detection_ws1/yolo1/PointCloud21/Topic1
         - /exploitation_ws1/openfusion_ros1/PoseArray1/Topic1
+        - /evaluation1
         - /Image1/Topic1
+        - /Map1
       Splitter Ratio: 0.561097264289856
     Tree Height: 481
   - Class: rviz_common/Selection
@@ -611,6 +612,8 @@ Visualization Manager:
               Value: true
             right_wheel_link:
               Value: true
+            robot_original_pose_at_scan:
+              Value: true
           Marker Scale: 1
           Name: TF
           Show Arrows: true
@@ -638,6 +641,8 @@ Visualization Manager:
                         {}
                     right_wheel_link:
                       {}
+              robot_original_pose_at_scan:
+                {}
           Update Interval: 0
           Value: true
         - Alpha: 0.20000000298023224
@@ -861,6 +866,27 @@ Visualization Manager:
         Reliability Policy: Best Effort
         Value: /yoloe/overlay
       Value: true
+    - Alpha: 0.699999988079071
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Map
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /evaluation/map
+      Update Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /evaluation/map_updates
+      Use Timestamp: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -907,16 +933,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 7.384097576141357
+      Distance: 9.129230499267578
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.36660343408584595
-        Y: -0.06854482740163803
-        Z: 0.8118638396263123
+        X: 1.154209017753601
+        Y: 0.38657304644584656
+        Z: 0.8126651048660278
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
@@ -925,7 +951,7 @@ Visualization Manager:
       Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 3.1836297512054443
+      Yaw: 3.188638210296631
     Saved: ~
 Window Geometry:
   Displays:

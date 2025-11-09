@@ -6,7 +6,24 @@ from ament_index_python.packages import get_package_share_directory
 from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, DeclareLaunchArgument, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from sage_datasets.utils import DatasetManager
+import subprocess
 import os
+
+
+# def node_exists(node_name: str) -> bool:
+#     """Check if a ROS 2 node with the given name is already running."""
+#     try:
+#         result = subprocess.run(
+#             ["ros2", "node", "list"],
+#             stdout=subprocess.PIPE,
+#             stderr=subprocess.DEVNULL,
+#             text=True,
+#             check=True
+#         )
+#         active_nodes = result.stdout.strip().splitlines()
+#         return any(node_name in n for n in active_nodes)
+#     except Exception:
+#         return False
 
 def generate_launch_description():
 
@@ -25,6 +42,14 @@ def generate_launch_description():
 
     # Get the launch configuration for use_sim_time
     use_sim_time = LaunchConfiguration('use_sim_time')
+
+    namespace_arg = DeclareLaunchArgument(
+        'namespace',
+        default_value='evaluator',
+        description='Namespace for evaluator Nav2 stack'
+    )
+
+    namespace = LaunchConfiguration('namespace')
 
     #---------------------- Paths ------------------------------#
 
@@ -91,7 +116,7 @@ def generate_launch_description():
         name='global_costmap',
         output='screen',
         emulate_tty=True,
-        namespace='global_costmap',
+        namespace='evaluator/global_costmap',
         parameters=[
             {'use_sim_time': True},
             explorer_config
@@ -104,7 +129,7 @@ def generate_launch_description():
         name='planner_server',
         output='screen',
         emulate_tty=True,
-        namespace='',
+        namespace='evaluator',
         respawn=True,
         respawn_delay=2.0,
         parameters=[
@@ -113,8 +138,40 @@ def generate_launch_description():
         ],
     )
 
-    #---------------------- Launches ------------------------------#
+    semantic_pcl_loader_node = Node(
+        package="sage_evaluator",
+        executable='semantic_pcl_loader',
+        name="semantic_pcl_loader",
+        output='screen',
+        namespace='evaluator',
+        emulate_tty=True,
+        # arguments=['--ros-args', '--log-level', 'debug'],
+        parameters=[
+            {
+                'use_sim_time': use_sim_time,
+                'ply_path': dm.pointcloud(),
+                'json_path': dm.semantic_pcl_classes(),
+            }
+        ]
+    )
 
+    pose_offset_cacher_node = Node(
+        package="sage_evaluator",
+        executable='pose_offset_cacher',
+        name="pose_offset_cacher",
+        output='screen',
+        namespace='evaluator',
+        emulate_tty=True,
+        # arguments=['--ros-args', '--log-level', 'debug'],
+        parameters=[
+            {
+                'use_sim_time': use_sim_time,
+                'cache_path': dm.pose(),
+            }
+        ]
+    )
+
+    #---------------------- Launches ------------------------------#
 
     localization_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(nav2_localization_launch_path),
@@ -122,6 +179,7 @@ def generate_launch_description():
                 'use_sim_time': LaunchConfiguration('use_sim_time'),
                 'params_file': nav2_params_path,
                 'map': dm.map(),
+                'namespace': namespace,
         }.items()
     )
 
@@ -137,6 +195,7 @@ def generate_launch_description():
         executable='lifecycle_manager',
         name='lifecycle_manager_local_costmap',
         output='screen',
+        namespace='evaluator',
         parameters=[{
             'autostart': True,
             'node_names': lifecycle_nodes,
@@ -166,10 +225,13 @@ def generate_launch_description():
     ld = LaunchDescription()
     ld.add_action(console_format)
     ld.add_action(sim_time_arg)
+    ld.add_action(namespace_arg)
     ld.add_action(pcl_to_scan_node)
     ld.add_action(localization_launch)
-    ld.add_action(delayed_initial_pose_publisher)
-    ld.add_action(global_costmap_node)
-    ld.add_action(planner_server_node)
-    ld.add_action(delayed_lcm)
+    # ld.add_action(global_costmap_node)
+    # ld.add_action(planner_server_node)
+    # ld.add_action(semantic_pcl_loader_node)
+    # ld.add_action(pose_offset_cacher_node)
+    # ld.add_action(delayed_initial_pose_publisher)
+    # ld.add_action(delayed_lcm)
     return ld
