@@ -26,91 +26,56 @@ def generate_launch_description():
     # Get the launch configuration for use_sim_time
     use_sim_time = LaunchConfiguration('use_sim_time')
 
+    namespace_arg = DeclareLaunchArgument(
+        'namespace',
+        default_value='evaluator',
+        description='Namespace for evaluator Nav2 stack'
+    )
+
+    namespace = LaunchConfiguration('namespace')
+
     #---------------------- Paths ------------------------------#
 
-    nav2_localization_launch_path = os.path.join(
-        get_package_share_directory('nav2_bringup'),
-        'launch',
-        'localization_launch.py'
-    )
-
-    nav2_params_path = os.path.join(
+    evaluator_map_config_path = os.path.join(
         get_package_share_directory('sage_evaluator'),
         'config',
-        'carter_nav2_params.yaml'
-    )
-
-    explorer_config = os.path.join(
-        get_package_share_directory('sage_commander'),
-        'config',
-        'explorer_config.yaml'
-    )
-
-    sage_evaluator_config = os.path.join(
-        get_package_share_directory('sage_evaluator'),
-        'config',
-        '00809-Qpor2mEya8F.yaml'
+        'evaluator_map.yaml'
     )
 
     #---------------------- Nodes ------------------------------#
 
-    pcl_to_scan_node = Node(
-        package='pointcloud_to_laserscan',
-        executable='pointcloud_to_laserscan_node',
-        name='pcl_to_scan',
-        output='screen',
-        emulate_tty=True,
-        parameters=[
-            {'use_sim_time': use_sim_time},
-            explorer_config
-        ],
-        remappings=[
-            ('cloud_in', '/pcl_scan'),
-            ('scan', '/scan')
-        ]
-    )
-
-    initial_pose_publisher_node = Node(
+    pose_offset_cacher_node = Node(
         package="sage_evaluator",
-        executable='initial_pose_publisher',
-        name="initial_pose_publisher",
+        executable='pose_offset_cacher',
+        name="pose_offset_cacher",
         output='screen',
+        namespace='evaluator',
         emulate_tty=True,
+        # arguments=['--ros-args', '--log-level', 'debug'],
         parameters=[
             {
                 'use_sim_time': use_sim_time,
-                'annotations_dir': dm.annotations_dir
-            },
-            sage_evaluator_config
+                'cache_path': dm.pose(),
+            }
         ]
     )
 
-    global_costmap_node = LifecycleNode(
-        package='nav2_costmap_2d',
-        executable='nav2_costmap_2d',
-        name='global_costmap',
+    map_server_node = LifecycleNode(
+        package='nav2_map_server',
+        executable='map_server',
+        name='map_server',
         output='screen',
-        emulate_tty=True,
-        namespace='global_costmap',
-        parameters=[
-            {'use_sim_time': True},
-            explorer_config
-        ]
-    )
-
-    planner_server_node = LifecycleNode(
-        package='nav2_planner',
-        executable='planner_server',
-        name='planner_server',
-        output='screen',
-        emulate_tty=True,
-        namespace='',
         respawn=True,
         respawn_delay=2.0,
+        namespace='evaluator',
+        # arguments=['--ros-args', '--log-level', log_level],
         parameters=[
-            {'use_sim_time': True},
-            explorer_config
-        ],
+            {
+                'use_sim_time': use_sim_time,
+                'yaml_filename': dm.map()
+            },
+            evaluator_map_config_path
+        ]        
     )
 
     semantic_pcl_loader_node = Node(
@@ -130,45 +95,52 @@ def generate_launch_description():
         ]
     )
 
-    pose_offset_cacher_node = Node(
-        package="sage_evaluator",
-        executable='pose_offset_cacher',
-        name="pose_offset_cacher",
-        output='screen',
+    global_costmap_node = LifecycleNode(
+        package='evaluator_costmap',
+        executable='evaluator_costmap_node',
+        name='global_costmap',
         namespace='evaluator',
+        output='screen',
         emulate_tty=True,
-        # arguments=['--ros-args', '--log-level', 'debug'],
         parameters=[
             {
-                'use_sim_time': use_sim_time,
-                'cache_path': dm.pose(),
-            }
+                'use_sim_time': LaunchConfiguration('use_sim_time'),
+            },
+            evaluator_map_config_path,
         ]
     )
 
-    #---------------------- Launches ------------------------------#
+    # planner_server_node = LifecycleNode(
+    #     package='nav2_planner',
+    #     executable='planner_server',
+    #     name='planner_server',
+    #     output='screen',
+    #     emulate_tty=True,
+    #     namespace='evaluator',
+    #     respawn=True,
+    #     respawn_delay=2.0,
+    #     parameters=[
+    #         {'use_sim_time': True},
+    #         explorer_config
+    #     ],
+    # )
 
-    localization_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(nav2_localization_launch_path),
-        launch_arguments={
-                'use_sim_time': LaunchConfiguration('use_sim_time'),
-                'params_file': nav2_params_path,
-                'map': dm.map(),
-        }.items()
-    )
+    #---------------------- Launches ------------------------------#
 
     #---------------------- Lifecycle Manager ------------------------------#
 
     lifecycle_nodes = [
-        'costmap/costmap',
-        'planner_server'
+        '/evaluator/map_server',
+        '/evaluator/global_costmap',
+        # '/evaluator/planner_server',
     ]
 
     lcm = Node(
         package='nav2_lifecycle_manager',
         executable='lifecycle_manager',
-        name='lifecycle_manager_local_costmap',
+        name='lifecycle_manager',
         output='screen',
+        # namespace='evaluator',
         parameters=[{
             'autostart': True,
             'node_names': lifecycle_nodes,
@@ -188,22 +160,21 @@ def generate_launch_description():
         actions=[lcm]
     )
     i += 1
-    delayed_initial_pose_publisher = TimerAction(
-        period=time_const * i,
-        actions=[initial_pose_publisher_node]
-    )
+    # delayed_initial_pose_publisher = TimerAction(
+    #     period=time_const * i,
+    #     actions=[initial_pose_publisher_node]
+    # )
 
     #---------------------- Launch Description ------------------------------#
 
     ld = LaunchDescription()
     ld.add_action(console_format)
     ld.add_action(sim_time_arg)
-    ld.add_action(pcl_to_scan_node)
-    ld.add_action(localization_launch)
-    ld.add_action(delayed_initial_pose_publisher)
-    ld.add_action(global_costmap_node)
-    ld.add_action(planner_server_node)
-    ld.add_action(semantic_pcl_loader_node)
-    ld.add_action(pose_offset_cacher_node)
+    ld.add_action(namespace_arg)
+    ld.add_action(map_server_node)
     ld.add_action(delayed_lcm)
+    ld.add_action(pose_offset_cacher_node)
+    ld.add_action(semantic_pcl_loader_node)
+    ld.add_action(global_costmap_node)
+    # ld.add_action(planner_server_node)
     return ld

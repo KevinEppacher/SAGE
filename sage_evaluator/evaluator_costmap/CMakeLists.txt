@@ -18,20 +18,15 @@ find_package(ament_cmake REQUIRED)
 
 # ROS 2 packages
 find_package(rclcpp REQUIRED)
-find_package(sensor_msgs REQUIRED)
 find_package(nav2_costmap_2d REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
-
-# Point Cloud Library (PCL) components
-find_package(PCL REQUIRED COMPONENTS common io filters segmentation search)
 
 ############################################################
 # Include Directories
 ############################################################
 
 include_directories(
-  include                           # Local headers
-  include/evaluator_costmap
+
 )
 
 #####################################################################
@@ -83,7 +78,6 @@ endif()
 
 # Install launch files
 install(DIRECTORY
-  include
   src  
   DESTINATION share/${PROJECT_NAME}
 )
