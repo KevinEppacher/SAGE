@@ -10,7 +10,7 @@ import os
 
 def generate_launch_description():
 
-    dm = DatasetManager(scene="00809-Qpor2mEya8F", version="v1.1")
+    dm = DatasetManager(scene="00809-Qpor2mEya8F", version="v1.2")
 
     #---------------------- Arguments ------------------------------#
 
