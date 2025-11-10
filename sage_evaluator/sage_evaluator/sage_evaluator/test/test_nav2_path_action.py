@@ -12,13 +12,13 @@ class Nav2PathTester(Node):
         super().__init__("nav2_path_tester")
 
         # Action client for the global planner
-        self.client = ActionClient(self, ComputePathToPose, "/compute_path_to_pose")
+        self.client = ActionClient(self, ComputePathToPose, "/evaluator/compute_path_to_pose")
 
         # Example poses (you can edit these)
-        self.start = self._make_pose(0.0, 0.0, 0.0)
-        self.goal = self._make_pose(2.5, 1.5, 0.0)
+        self.start = self._make_pose(0.0, 0.0, frame_id="base_link")
+        self.goal = self._make_pose(10.0, -5.0, frame_id="robot_original_pose_at_scan")
 
-        self.get_logger().info("Waiting for /compute_path_to_pose action server...")
+        self.get_logger().info("Waiting for /evaluator/compute_path_to_pose action server...")
         self.client.wait_for_server()
         self.get_logger().info("Planner available. Sending goal...")
 
@@ -32,9 +32,9 @@ class Nav2PathTester(Node):
         send_goal_future.add_done_callback(self._goal_response_callback)
 
     # ------------------------------------------------------------------
-    def _make_pose(self, x, y, yaw):
+    def _make_pose(self, x, y, frame_id = "map"):
         pose = PoseStamped()
-        pose.header.frame_id = "map"
+        pose.header.frame_id = frame_id
         pose.pose.position.x = x
         pose.pose.position.y = y
         pose.pose.position.z = 0.0
