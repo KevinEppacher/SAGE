@@ -49,7 +49,7 @@ def generate_launch_description():
         executable='pose_offset_cacher',
         name="pose_offset_cacher",
         output='screen',
-        namespace='evaluator',
+        namespace=namespace,
         emulate_tty=True,
         # arguments=['--ros-args', '--log-level', 'debug'],
         parameters=[
@@ -67,7 +67,7 @@ def generate_launch_description():
         output='screen',
         respawn=True,
         respawn_delay=2.0,
-        namespace='evaluator',
+        namespace=namespace,
         # arguments=['--ros-args', '--log-level', log_level],
         parameters=[
             {
@@ -83,7 +83,7 @@ def generate_launch_description():
         executable='semantic_pcl_loader',
         name="semantic_pcl_loader",
         output='screen',
-        namespace='evaluator',
+        namespace=namespace,
         emulate_tty=True,
         # arguments=['--ros-args', '--log-level', 'debug'],
         parameters=[
@@ -99,7 +99,7 @@ def generate_launch_description():
         package='evaluator_costmap',
         executable='evaluator_costmap_node',
         name='global_costmap',
-        namespace='evaluator',
+        namespace=namespace,
         output='screen',
         emulate_tty=True,
         parameters=[
@@ -140,7 +140,7 @@ def generate_launch_description():
         executable='lifecycle_manager',
         name='lifecycle_manager',
         output='screen',
-        # namespace='evaluator',
+        namespace=namespace,
         parameters=[{
             'autostart': True,
             'node_names': lifecycle_nodes,
