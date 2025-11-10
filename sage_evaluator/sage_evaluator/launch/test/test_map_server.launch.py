@@ -36,10 +36,10 @@ def generate_launch_description():
 
     #---------------------- Paths ------------------------------#
 
-    nav2_params_path = os.path.join(
+    evaluator_map_config_path = os.path.join(
         get_package_share_directory('sage_evaluator'),
         'config',
-        'carter_nav2_params.yaml'
+        'evaluator_map.yaml'
     )
 
     #---------------------- Nodes ------------------------------#
@@ -60,8 +60,7 @@ def generate_launch_description():
         ]
     )
 
-
-    map_server_node =Node(
+    map_server_node = LifecycleNode(
         package='nav2_map_server',
         executable='map_server',
         name='map_server',
@@ -75,19 +74,65 @@ def generate_launch_description():
                 'use_sim_time': use_sim_time,
                 'yaml_filename': dm.map()
             },
-            nav2_params_path
+            evaluator_map_config_path
         ]        
     )
-    
+
+    semantic_pcl_loader_node = Node(
+        package="sage_evaluator",
+        executable='semantic_pcl_loader',
+        name="semantic_pcl_loader",
+        output='screen',
+        namespace='evaluator',
+        emulate_tty=True,
+        # arguments=['--ros-args', '--log-level', 'debug'],
+        parameters=[
+            {
+                'use_sim_time': use_sim_time,
+                'ply_path': dm.pointcloud(),
+                'json_path': dm.semantic_pcl_classes(),
+            }
+        ]
+    )
+
+    global_costmap_node = LifecycleNode(
+        package='evaluator_costmap',
+        executable='evaluator_costmap_node',
+        name='global_costmap',
+        namespace='evaluator',
+        output='screen',
+        emulate_tty=True,
+        parameters=[
+            {
+                'use_sim_time': LaunchConfiguration('use_sim_time'),
+            },
+            evaluator_map_config_path,
+        ]
+    )
+
+    # planner_server_node = LifecycleNode(
+    #     package='nav2_planner',
+    #     executable='planner_server',
+    #     name='planner_server',
+    #     output='screen',
+    #     emulate_tty=True,
+    #     namespace='evaluator',
+    #     respawn=True,
+    #     respawn_delay=2.0,
+    #     parameters=[
+    #         {'use_sim_time': True},
+    #         explorer_config
+    #     ],
+    # )
 
     #---------------------- Launches ------------------------------#
 
     #---------------------- Lifecycle Manager ------------------------------#
 
     lifecycle_nodes = [
-        # 'costmap/costmap',
-        # 'planner_server'
         '/evaluator/map_server',
+        '/evaluator/global_costmap',
+        # '/evaluator/planner_server',
     ]
 
     lcm = Node(
@@ -95,7 +140,7 @@ def generate_launch_description():
         executable='lifecycle_manager',
         name='lifecycle_manager',
         output='screen',
-        namespace='evaluator',
+        # namespace='evaluator',
         parameters=[{
             'autostart': True,
             'node_names': lifecycle_nodes,
@@ -129,4 +174,7 @@ def generate_launch_description():
     ld.add_action(map_server_node)
     ld.add_action(delayed_lcm)
     ld.add_action(pose_offset_cacher_node)
+    ld.add_action(semantic_pcl_loader_node)
+    ld.add_action(global_costmap_node)
+    # ld.add_action(planner_server_node)
     return ld

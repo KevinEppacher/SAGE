@@ -86,5 +86,5 @@ def generate_launch_description():
     ld.add_action(sim_time_arg)
     ld.add_action(slam_toolbox_node)
     # ld.add_action(rviz_node)
-    ld.add_action(delayed_nav2_stack)
+    # ld.add_action(delayed_nav2_stack)
     return ld

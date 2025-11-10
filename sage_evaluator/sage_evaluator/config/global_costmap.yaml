@@ -1,5 +1,5 @@
-costmap:
-  costmap:
+evaluator:
+  global_costmap:
     ros__parameters:
       global_frame: robot_original_pose_at_scan
       robot_base_frame: base_link
