@@ -23,17 +23,15 @@ def generate_launch_description():
 
     # Define LifecycleNode for the global costmap
     global_costmap_node = LifecycleNode(
-        package='nav2_costmap_2d',
-        executable='nav2_costmap_2d',
+        package='evaluator_costmap',
+        executable='evaluator_costmap_node',
         name='global_costmap',
-        namespace='global_costmap',
+        namespace='evaluator',
         output='screen',
         emulate_tty=True,
         parameters=[
             {
                 'use_sim_time': LaunchConfiguration('use_sim_time'),
-                # 'map_topic': '/evaluator/map',
-                # 'static_layer.map_topic': '/evaluator/map'
             },
             default_params,
         ]
