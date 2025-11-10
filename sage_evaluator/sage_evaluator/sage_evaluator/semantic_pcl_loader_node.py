@@ -65,6 +65,9 @@ class SemanticPCLLoaderNode(Node):
         )
         self.get_logger().info("Ready for user prompts to filter semantic map.")
 
+        # Publish all semantic class markers once at startup
+        self._publish_all_class_markers()
+
     # ---------------- Timer Callback ----------------
     def timer_callback(self):
         """Continuously publish current pointcloud (filtered or full)."""
@@ -74,6 +77,77 @@ class SemanticPCLLoaderNode(Node):
         else:
             # After first prompt, publish the filtered map
             self._publish_pc(self.current_points, self.current_colors)
+
+    # ---------------- Initial Markers for All Classes (Clustered) ----------------
+    def _publish_all_class_markers(self):
+        """Publish one marker per cluster per semantic class, with same color as pointcloud."""
+        if self.class_ids is None or len(self.class_ids) == 0:
+            self.get_logger().warn("No class IDs available for marker publishing.")
+            return
+
+        marker_array = MarkerArray()
+        marker_id = 0
+        unique_classes = np.unique(self.class_ids)
+
+        for class_id in unique_classes:
+            pts = self.points[self.class_ids == class_id]
+            cols = self.colors[self.class_ids == class_id]
+            if len(pts) == 0:
+                continue
+
+            class_name = self.class_map.get(str(int(class_id)), f"class_{class_id}")
+            centroids = self._cluster(pts)
+
+            if len(centroids) == 0:
+                # fallback if clustering fails
+                centroids = [np.mean(pts, axis=0)]
+
+            for i, centroid in enumerate(centroids):
+                # color based on mean of cluster
+                cluster_mask = np.linalg.norm(pts - centroid, axis=1) < self.eps * 2.0
+                cluster_colors = cols[cluster_mask] if np.any(cluster_mask) else cols
+                mean_color = np.clip(np.mean(cluster_colors, axis=0), 0.0, 1.0)
+
+                # Sphere marker
+                sphere = Marker()
+                sphere.header.frame_id = self.frame_id
+                sphere.header.stamp = self.get_clock().now().to_msg()
+                sphere.ns = class_name
+                sphere.id = marker_id
+                sphere.type = Marker.SPHERE
+                sphere.action = Marker.ADD
+                sphere.pose.position.x = float(centroid[0])
+                sphere.pose.position.y = float(centroid[1])
+                sphere.pose.position.z = float(centroid[2])
+                sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.25
+                sphere.color = ColorRGBA(
+                    r=float(mean_color[0]),
+                    g=float(mean_color[1]),
+                    b=float(mean_color[2]),
+                    a=0.9
+                )
+                marker_array.markers.append(sphere)
+                marker_id += 1
+
+                # Label marker
+                text = Marker()
+                text.header.frame_id = self.frame_id
+                text.header.stamp = sphere.header.stamp
+                text.ns = "semantic_labels"
+                text.id = marker_id
+                text.type = Marker.TEXT_VIEW_FACING
+                text.action = Marker.ADD
+                text.pose.position.x = float(centroid[0])
+                text.pose.position.y = float(centroid[1])
+                text.pose.position.z = float(centroid[2]) + 0.3
+                text.scale.z = 0.35
+                text.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
+                text.text = class_name
+                marker_array.markers.append(text)
+                marker_id += 1
+
+        self.marker_pub.publish(marker_array)
+        self.get_logger().info(f"Published {marker_id // 2} clustered semantic markers across {len(unique_classes)} classes.")
 
     # ---------------- File I/O ----------------
     def _load_ply(self, path):
@@ -95,29 +169,60 @@ class SemanticPCLLoaderNode(Node):
 
     # ---------------- Prompt Handler ----------------
     def handle_prompt(self, msg):
-        """Callback for incoming SemanticPrompt messages."""
-        class_name = msg.text_query.strip().lower()
-        self.get_logger().info(f"Received prompt: '{class_name}'")
+        """Callback for incoming SemanticPrompt messages (supports multi-class input)."""
+        raw_query = msg.text_query.strip().lower()
         self.prompt_received = True
 
-        if class_name in ("all", "reset", "everything"):
+        # Split by commas or spaces, remove duplicates
+        requested_classes = [c.strip() for c in raw_query.replace(",", " ").split() if c.strip()]
+        self.get_logger().info(f"Received prompt for classes: {requested_classes}")
+
+        # Handle reset / all
+        if any(c in ("all", "reset", "everything") for c in requested_classes):
             self.get_logger().info("Resetting to full semantic map...")
             self.current_points = np.copy(self.points_full)
             self.current_colors = np.copy(self.colors_full)
             self.marker_pub.publish(MarkerArray())
             return
 
-        if class_name not in self.inv_class_map:
-            self.get_logger().warn(f"Class '{class_name}' not found in semantic map.")
+        valid_classes = []
+        all_pts, all_cols = [], []
+
+        for class_name in requested_classes:
+            if class_name not in self.inv_class_map:
+                self.get_logger().warn(f"Class '{class_name}' not found in semantic map.")
+                continue
+
+            pts, cols = self._filter_class(class_name)
+            if len(pts) > 0:
+                all_pts.append(pts)
+                all_cols.append(cols)
+                valid_classes.append(class_name)
+
+        if not all_pts:
+            self.get_logger().warn("No valid classes found in prompt.")
             return
 
-        pts, cols = self._filter_class(class_name)
-        centroids = self._cluster(pts)
-        self.current_points = pts
-        self.current_colors = cols
-        self._publish_markers(centroids)
+        # Concatenate points and colors of all classes
+        self.current_points = np.concatenate(all_pts, axis=0)
+        self.current_colors = np.concatenate(all_cols, axis=0)
+
+        # Delete all existing markers first
+        delete_all = Marker()
+        delete_all.action = Marker.DELETEALL
+        self.marker_pub.publish(MarkerArray(markers=[delete_all]))
+
+        # Then publish new markers
+        all_centroids = []
+        for class_name in valid_classes:
+            pts, _ = self._filter_class(class_name)
+            if len(pts) > 0:
+                all_centroids.extend(self._cluster(pts))
+        self._publish_markers(np.array(all_centroids))
+
         self.get_logger().info(
-            f"Updated current map: {len(pts)} '{class_name}' points, {len(centroids)} centroids."
+            f"Updated map for {len(valid_classes)} classes: {', '.join(valid_classes)} "
+            f"→ {len(self.current_points)} points, {len(all_centroids)} centroids."
         )
 
     # ---------------- Processing ----------------
