@@ -680,8 +680,6 @@ Visualization Manager:
               Value: true
             right_wheel_link:
               Value: true
-            robot_original_pose_at_scan:
-              Value: true
           Marker Scale: 1
           Name: TF
           Show Arrows: true
@@ -709,8 +707,6 @@ Visualization Manager:
                         {}
                     right_wheel_link:
                       {}
-              robot_original_pose_at_scan:
-                {}
           Update Interval: 0
           Value: true
         - Alpha: 0.20000000298023224
@@ -980,16 +976,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 6.9910688400268555
+      Distance: 5.413883686065674
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 5.309174537658691
-        Y: -2.9699666500091553
-        Z: 2.373868942260742
+        X: 1.2392431497573853
+        Y: -1.4209885597229004
+        Z: 2.374626636505127
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
@@ -998,7 +994,7 @@ Visualization Manager:
       Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 4.733624458312988
+      Yaw: 3.138622760772705
     Saved: ~
 Window Geometry:
   Displays:
