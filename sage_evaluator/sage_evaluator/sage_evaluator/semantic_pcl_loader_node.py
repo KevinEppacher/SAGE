@@ -9,6 +9,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import PointCloud2, PointField
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import Header, ColorRGBA
+from geometry_msgs.msg import PoseArray, Pose, Point, Quaternion
 import sensor_msgs_py.point_cloud2 as pc2
 
 from multimodal_query_msgs.msg import SemanticPrompt
@@ -23,9 +24,10 @@ class SemanticPCLLoaderNode(Node):
         self.declare_parameter("dbscan_eps", 0.4)
         self.declare_parameter("dbscan_min_samples", 30)
         self.declare_parameter("frame_id", "robot_original_pose_at_scan")
-        self.declare_parameter("user_prompt_topic", "/user_prompt")
-        self.declare_parameter("publish_rate", 0.5)  # Hz, 0.5 = every 2 seconds
+        self.declare_parameter("user_prompt_topic", "/evaluator/prompt")
+        self.declare_parameter("publish_rate", 0.5)
 
+        # ---------------- Parameter values ----------------
         self.ply_path = self.get_parameter("ply_path").value
         self.json_path = self.get_parameter("json_path").value
         self.frame_id = self.get_parameter("frame_id").value
@@ -38,6 +40,9 @@ class SemanticPCLLoaderNode(Node):
         self.pc_pub = self.create_publisher(PointCloud2, "filtered_semantic_pc", 1)
         self.marker_pub = self.create_publisher(MarkerArray, "semantic_centroids", 1)
 
+        # NEW: Centroid PoseArray publisher for evaluator node
+        self.centroid_pub = self.create_publisher(PoseArray, "semantic_centroid_targets", 1)
+
         # ---------------- Load data ----------------
         self.get_logger().info(f"Loading semantic map from {self.ply_path}")
         self.points, self.colors, self.class_ids = self._load_ply(self.ply_path)
@@ -48,35 +53,51 @@ class SemanticPCLLoaderNode(Node):
             self.get_logger().error("Empty semantic map. Aborting.")
             return
 
-        # Store original full data
         self.points_full = np.copy(self.points)
         self.colors_full = np.copy(self.colors)
         self.current_points = np.copy(self.points)
         self.current_colors = np.copy(self.colors)
+        self.current_centroids = np.empty((0, 3))  # <-- cache for PoseArray publishing
 
         self.prompt_received = False
 
-        # ---------------- Timer for continuous publishing ----------------
+        # ---------------- Timers ----------------
         self.timer = self.create_timer(1.0 / self.publish_rate, self.timer_callback)
+        self.prompt_sub = self.create_subscription(SemanticPrompt, user_prompt_topic, self.handle_prompt, 10)
 
-        # ---------------- Subscribe for prompts ----------------
-        self.prompt_sub = self.create_subscription(
-            SemanticPrompt, user_prompt_topic, self.handle_prompt, 10
-        )
         self.get_logger().info("Ready for user prompts to filter semantic map.")
-
-        # Publish all semantic class markers once at startup
         self._publish_all_class_markers()
 
     # ---------------- Timer Callback ----------------
     def timer_callback(self):
-        """Continuously publish current pointcloud (filtered or full)."""
+        """Continuously publish current pointcloud and centroid targets."""
         if not self.prompt_received:
-            # Before any prompt, publish the full map
             self._publish_pc(self.points_full, self.colors_full)
         else:
-            # After first prompt, publish the filtered map
             self._publish_pc(self.current_points, self.current_colors)
+
+        # Always publish current centroids as PoseArray for evaluator
+        if len(self.current_centroids) > 0:
+            self._publish_centroid_targets(self.current_centroids)
+
+    # ---------------- Publish Centroid Targets ----------------
+    def _publish_centroid_targets(self, centroids):
+        """Publish current cluster centroids as PoseArray."""
+        msg = PoseArray()
+        msg.header = Header()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = self.frame_id
+
+        # Identity quaternion since we only care about positions
+        q_identity = Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+
+        for c in centroids:
+            pose = Pose()
+            pose.position = Point(x=float(c[0]), y=float(c[1]), z=float(c[2]))
+            pose.orientation = q_identity
+            msg.poses.append(pose)
+
+        self.centroid_pub.publish(msg)
 
     # ---------------- Initial Markers for All Classes (Clustered) ----------------
     def _publish_all_class_markers(self):
@@ -169,24 +190,22 @@ class SemanticPCLLoaderNode(Node):
 
     # ---------------- Prompt Handler ----------------
     def handle_prompt(self, msg):
-        """Callback for incoming SemanticPrompt messages (supports multi-class input)."""
         raw_query = msg.text_query.strip().lower()
         self.prompt_received = True
 
-        # Split by commas or spaces, remove duplicates
         requested_classes = [c.strip() for c in raw_query.replace(",", " ").split() if c.strip()]
         self.get_logger().info(f"Received prompt for classes: {requested_classes}")
 
-        # Handle reset / all
         if any(c in ("all", "reset", "everything") for c in requested_classes):
             self.get_logger().info("Resetting to full semantic map...")
             self.current_points = np.copy(self.points_full)
             self.current_colors = np.copy(self.colors_full)
+            self.current_centroids = np.empty((0, 3))
             self.marker_pub.publish(MarkerArray())
             return
 
         valid_classes = []
-        all_pts, all_cols = [], []
+        all_pts, all_cols, all_centroids = [], [], []
 
         for class_name in requested_classes:
             if class_name not in self.inv_class_map:
@@ -198,31 +217,29 @@ class SemanticPCLLoaderNode(Node):
                 all_pts.append(pts)
                 all_cols.append(cols)
                 valid_classes.append(class_name)
+                centroids = self._cluster(pts)
+                if len(centroids) > 0:
+                    all_centroids.extend(centroids)
 
         if not all_pts:
             self.get_logger().warn("No valid classes found in prompt.")
             return
 
-        # Concatenate points and colors of all classes
         self.current_points = np.concatenate(all_pts, axis=0)
         self.current_colors = np.concatenate(all_cols, axis=0)
+        self.current_centroids = np.array(all_centroids)
 
-        # Delete all existing markers first
+        # Delete all old markers
         delete_all = Marker()
         delete_all.action = Marker.DELETEALL
         self.marker_pub.publish(MarkerArray(markers=[delete_all]))
 
-        # Then publish new markers
-        all_centroids = []
-        for class_name in valid_classes:
-            pts, _ = self._filter_class(class_name)
-            if len(pts) > 0:
-                all_centroids.extend(self._cluster(pts))
-        self._publish_markers(np.array(all_centroids))
+        # Publish cluster markers and centroids
+        self._publish_markers(self.current_centroids)
+        self._publish_centroid_targets(self.current_centroids)
 
         self.get_logger().info(
-            f"Updated map for {len(valid_classes)} classes: {', '.join(valid_classes)} "
-            f"→ {len(self.current_points)} points, {len(all_centroids)} centroids."
+            f"Updated {len(valid_classes)} classes → {len(self.current_centroids)} centroids published as targets."
         )
 
     # ---------------- Processing ----------------

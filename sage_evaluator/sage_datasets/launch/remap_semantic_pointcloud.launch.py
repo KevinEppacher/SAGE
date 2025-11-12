@@ -88,15 +88,15 @@ def generate_launch_description():
 
     scene_arg = DeclareLaunchArgument(
         'scene',
-        # default_value='00800-TEEsavR23oF',
-        default_value='00809-Qpor2mEya8F',
+        default_value='00800-TEEsavR23oF',
+        # default_value='00809-Qpor2mEya8F',
         description='Scene ID for the evaluation'
     )
 
     version_arg = DeclareLaunchArgument(
         'version',
-        # default_value='v1.7',
-        default_value='v1.3',
+        default_value='v1.7',
+        # default_value='v1.3',
         description='Version for the evaluation'
     )
 

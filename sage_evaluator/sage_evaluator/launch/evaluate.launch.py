@@ -1,14 +1,82 @@
 from launch import LaunchDescription
 from launch_ros.actions import LifecycleNode, Node
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, DeclareLaunchArgument, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, DeclareLaunchArgument, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from sage_datasets.utils import DatasetManager
 import os
 
+SCENE = "00800-TEEsavR23oF"
+VERSION = "v1.7"
+PROMPT_SET = "train"
+EPISODE_ID = "001"
+
+def launch_setup(context, *args, **kwargs):
+    """Function to evaluate LaunchConfiguration and create nodes"""
+    
+    # Get the evaluated values
+    use_sim_time = LaunchConfiguration('use_sim_time').perform(context)
+    namespace = LaunchConfiguration('namespace').perform(context)
+    scene = LaunchConfiguration('scene').perform(context)
+    version = LaunchConfiguration('version').perform(context)
+    episode_id = LaunchConfiguration('episode_id').perform(context)
+    prompt_set = LaunchConfiguration('prompt_set').perform(context)
+
+    #---------------------- Paths ------------------------------#
+
+    evaluator_config_path = os.path.join(
+        get_package_share_directory('sage_evaluator'),
+        'config',
+        'evaluator_map.yaml'
+    )
+
+    #---------------------- Nodes ------------------------------#
+
+    evaluate_node = Node(
+        package="sage_evaluator",
+        executable='evaluate',
+        name="evaluate",
+        namespace=namespace,
+        output='screen',
+        emulate_tty=True,
+        parameters=[
+            {
+                'use_sim_time': use_sim_time == 'true',
+                'scene': scene,
+                'version': version,
+                'prompt_set': prompt_set,
+                'episode_id': episode_id
+            },
+            evaluator_config_path
+        ]
+    )
+
+    start_evaluation_map_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(
+            get_package_share_directory('sage_evaluator'),
+            'launch',
+            'start_evaluation_map.launch.py'
+        )),
+        launch_arguments={
+            'use_sim_time': use_sim_time,
+            'namespace': namespace,
+            'scene': scene,
+            'version': version
+        }.items()
+    )
+
+    #---------------------- Delayed Launches ------------------------------#
+    
+    return [
+        start_evaluation_map_launch,
+        evaluate_node
+    ]
 
 def generate_launch_description():
+
+    #---------------------- Arguments ------------------------------#
 
     console_format = SetEnvironmentVariable(
         'RCUTILS_CONSOLE_OUTPUT_FORMAT', '{message}'
@@ -19,39 +87,49 @@ def generate_launch_description():
         description='Flag to enable use_sim_time'
     )
 
-    # Get the launch configuration for use_sim_time
-    use_sim_time = LaunchConfiguration('use_sim_time')
-
-    # detection_config = os.path.join(
-    #     get_package_share_directory("sage_commander"),
-    #     'config',
-    #     'detection_config.yaml'
-    # )
-
-    bt_launch_path = os.path.join(
-        get_package_share_directory("sage_behaviour_tree"),
-        'launch',
-        'sage_behavior_tree.launch.py'
+    namespace_arg = DeclareLaunchArgument(
+        'namespace',
+        default_value='evaluator',
+        description='Namespace for evaluator Nav2 stack'
     )
 
-    bt_xml_path = os.path.join(
-        get_package_share_directory("sage_behaviour_tree"),
-        'bt_xml',
-        'multiple_search_evaluator.xml'
+    scene_arg = DeclareLaunchArgument(
+        'scene',
+        default_value=SCENE,
+        description='Scene ID for the evaluation'
     )
 
-    sage_bt_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(bt_launch_path),
-        launch_arguments={
-            'use_sim_time': use_sim_time,
-            'bt_xml_path': bt_xml_path,
-            'launch_groot': 'true',
-        }.items()
+    version_arg = DeclareLaunchArgument(
+        'version',
+        default_value=VERSION,
+        description='Version for the evaluation'
     )
 
+    prompt_set_arg = DeclareLaunchArgument(
+        'prompt_set',
+        default_value=PROMPT_SET,
+        description='Prompt set for the evaluation'
+    )
+
+    episode_id_arg = DeclareLaunchArgument(
+        'episode_id',
+        default_value=EPISODE_ID,
+        description='Episode ID for the evaluation'
+    )
+
+    #---------------------- Launch Description ------------------------------#
 
     ld = LaunchDescription()
+    # Output only the message to console
     ld.add_action(console_format)
-    ld.add_action(sim_time_arg) 
-    ld.add_action(sage_bt_launch)
+    # Arguments
+    ld.add_action(sim_time_arg)
+    ld.add_action(namespace_arg)
+    ld.add_action(scene_arg)
+    ld.add_action(version_arg)
+    ld.add_action(prompt_set_arg)
+    ld.add_action(episode_id_arg)
+    # Use OpaqueFunction to defer evaluation
+    ld.add_action(OpaqueFunction(function=launch_setup))
+    
     return ld
