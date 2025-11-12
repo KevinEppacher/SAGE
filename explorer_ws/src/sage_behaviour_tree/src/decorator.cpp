@@ -74,7 +74,6 @@ BT::NodeStatus KeepRunningUntilObjectFound::tick()
     return childStatus;
 }
 
-
 // ============================ ForEachEvaluationPrompt ============================ //
 
 ForEachEvaluationPrompt::ForEachEvaluationPrompt(const std::string &name,
@@ -126,7 +125,23 @@ BT::NodeStatus ForEachEvaluationPrompt::tick()
     }
 
     std::string currentPrompt = promptTexts[currentIndex];
-    std::string saveFile = baseSavePath + currentPrompt + ".png";
+
+    // normalize class folder name (no spaces or commas)
+    std::string classFolder = currentPrompt;
+    std::replace(classFolder.begin(), classFolder.end(), ' ', '_');
+    std::replace(classFolder.begin(), classFolder.end(), ',', '_');
+
+    // build canonical detection path
+    std::string detectionDir = baseSavePath + "detections/" + classFolder + "/";
+    if (!std::filesystem::exists(detectionDir))
+        std::filesystem::create_directories(detectionDir);
+
+    // image name pattern
+    char filename[64];
+    snprintf(filename, sizeof(filename), "detection_%04zu.png", currentIndex + 1);
+    std::string saveFile = detectionDir + filename;
+
+    // export BT ports
     setOutput("target_object", currentPrompt);
     setOutput("save_image_path", saveFile);
 
@@ -135,21 +150,31 @@ BT::NodeStatus ForEachEvaluationPrompt::tick()
     if (childStatus == BT::NodeStatus::RUNNING)
     {
         RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 3000,
-                             ORANGE "[%s] Processing prompt '%s'..." RESET,
-                             name().c_str(), currentPrompt.c_str());
+                            ORANGE "[%s] Processing prompt '%s'..." RESET,
+                            name().c_str(), currentPrompt.c_str());
         return BT::NodeStatus::RUNNING;
     }
 
+    // report back to dashboard
     std_msgs::msg::String msg;
     msg.data = "[ForEachEvaluationPrompt] Object '" + currentPrompt +
-               "' finished with status: " +
-               (childStatus == BT::NodeStatus::SUCCESS ? "SUCCESS" : "FAILURE");
+            "' finished with status: " +
+            (childStatus == BT::NodeStatus::SUCCESS ? "SUCCESS" : "FAILURE");
     statusPublisher->publish(msg);
+
+    // optional: write quick metadata JSON stub
+    std::ofstream metaFile(detectionDir + "detection_meta.json", std::ios::app);
+    if (metaFile)
+    {
+        metaFile << "{ \"object\": \"" << currentPrompt
+                << "\", \"status\": \"" << (childStatus == BT::NodeStatus::SUCCESS ? "SUCCESS" : "FAILURE")
+                << "\", \"image\": \"" << filename << "\" }\n";
+    }
 
     RCLCPP_INFO(node->get_logger(),
                 (childStatus == BT::NodeStatus::SUCCESS
-                     ? GREEN "[%s] Prompt '%s' → SUCCESS" RESET
-                     : RED "[%s] Prompt '%s' → FAILURE" RESET),
+                    ? GREEN "[%s] Prompt '%s' → SUCCESS" RESET
+                    : RED "[%s] Prompt '%s' → FAILURE" RESET),
                 name().c_str(), currentPrompt.c_str());
 
     currentIndex++;

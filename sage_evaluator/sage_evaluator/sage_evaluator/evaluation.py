@@ -7,14 +7,14 @@ from multimodal_query_msgs.msg import SemanticPrompt, SemanticPromptArray
 from geometry_msgs.msg import Point
 from std_msgs.msg import String, Header
 import time
+import json
 from datetime import datetime
+import os
 
 from sage_evaluator.metrics import Metrics
+from sage_datasets.utils import DatasetManager
 
 
-# --------------------------------------------------------------------------- #
-# Evaluation Dashboard Node
-# --------------------------------------------------------------------------- #
 class EvaluationDashboard(Node):
     def __init__(self):
         super().__init__('evaluation_dashboard')
@@ -22,30 +22,74 @@ class EvaluationDashboard(Node):
         qos = QoSProfile(depth=1)
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
+        # --- Declare ROS parameters ---
+        self.declare_parameter("scene", "00800-TEEsavR23oF")
+        self.declare_parameter("version", "v1.7")
+        self.declare_parameter("episode_id", "001")
+        self.declare_parameter("phase", "START")
+        self.declare_parameter("prompt_set", "train")  # train | eval | zero_shot
+
+        # --- Retrieve parameters ---
+        self.scene = self.get_parameter("scene").value
+        self.version = self.get_parameter("version").value
+        self.episode_id = self.get_parameter("episode_id").value
+        self.phase = self.get_parameter("phase").value
+        self.prompt_set = self.get_parameter("prompt_set").value
+
         # --- ROS interfaces ---
         self.event_pub = self.create_publisher(EvaluationEvent, '/evaluation/event', qos)
         self.status_sub = self.create_subscription(
             String, '/evaluation/iteration_status', self.status_callback, 10
         )
 
-        # --- Experiment configuration ---
-        self.scene = "00809-Qpor2mEya8F"
-        self.experiment_id = 'EXP_001'
-        self.episode_id = 'E01'
-        self.phase = 'START'
-        self.prompt_texts = ['bed', 'chair', 'bath tub', 'toilet']
+        self.pcl_prompt_pub = self.create_publisher(SemanticPrompt, '/evaluator/prompt', 10)
+
+        # --- Load dataset + prompts ---
+        dataset = DatasetManager(self.scene, self.version, self.episode_id)
+        prompts_data = dataset.prompts()
+        if self.prompt_set not in prompts_data:
+            raise KeyError(f"Prompt set '{self.prompt_set}' not found in prompts.json")
+        self.prompt_texts = prompts_data[self.prompt_set]
+        self.get_logger().info(f"Loaded {len(self.prompt_texts)} '{self.prompt_set}' prompts for {self.scene}/{self.episode_id}")
+
+        # --- Stable episode directory ---
+        self.episode_dir = dataset.episode_dir()
+        os.makedirs(self.episode_dir, exist_ok=True)
+
+        # --- Save run summary ---
+        self.save_run_summary()
 
         # --- Internal state ---
         self.start_time = time.time()
         self.prompt_index = 0
         self.published = False
-
-        # --- Metrics instance ---
         self.metrics = Metrics(self)
+        self.image_counter = 0  # keeps incremental naming for saved detections
 
         # --- Timer ---
         self.timer = self.create_timer(2.0, self.publish_event_once)
         self.get_logger().info("🧭 Evaluation Dashboard initialized. Waiting for BT feedback...")
+
+    # ======================================================
+    def save_run_summary(self):
+        """Create or update a run_summary.json inside the episode folder."""
+        summary_path = os.path.join(self.episode_dir, "run_summary.json")
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+        summary_data = {
+            "scene": self.scene,
+            "version": self.version,
+            "episode_id": self.episode_id,
+            "prompt_set": self.prompt_set,
+            "phase": self.phase,
+            "start_time": timestamp,
+            "num_prompts": len(getattr(self, "prompt_texts", [])),
+        }
+
+        with open(summary_path, "w") as f:
+            json.dump(summary_data, f, indent=4)
+
+        self.get_logger().info(f"🗂️  Saved run summary → {summary_path}")
 
     # ======================================================
     def publish_event_once(self):
@@ -64,7 +108,6 @@ class EvaluationDashboard(Node):
         event = EvaluationEvent()
         event.phase = self.phase
         event.scene = self.scene
-        event.experiment_id = self.experiment_id
         event.episode_id = self.episode_id
         event.prompt_list = prompt_array
         event.elapsed_time = 0.0
@@ -72,17 +115,28 @@ class EvaluationDashboard(Node):
         event.reason = "init"
         event.goal_pose = Point()
         event.start_pose = Point()
-
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-        event.save_path = f"/app/src/sage_evaluator/sage_evaluator/data/{self.scene}/{timestamp}/"
+        event.save_path = self.episode_dir  # stable path
 
         self.event_pub.publish(event)
         self.published = True
         self.start_time = time.time()
 
+        # Immediately publish first prompt to /evaluate
+        if self.prompt_texts:
+            first_prompt = self.prompt_texts[0]
+            self.publish_pcl_prompt(first_prompt)
+
         self.get_logger().info(
-            f"📤 Published EvaluationEvent: {len(self.prompt_texts)} prompts → {[p.text_query for p in prompt_array.prompt_list]}"
+            f"📤 Published EvaluationEvent ({self.prompt_set}): {[p.text_query for p in prompt_array.prompt_list]}"
         )
+
+    # ======================================================
+    def publish_pcl_prompt(self, prompt_text: str):
+        """Publish a single SemanticPrompt to /evaluate for the PCL loader."""
+        msg = SemanticPrompt()
+        msg.text_query = prompt_text
+        self.pcl_prompt_pub.publish(msg)
+        self.get_logger().info(f"🟢 Sent PCL prompt → /evaluate: '{prompt_text}'")
 
     # ======================================================
     def status_callback(self, msg: String):
@@ -90,7 +144,6 @@ class EvaluationDashboard(Node):
         timestamp = datetime.now().strftime("%H:%M:%S")
         text = msg.data.strip()
 
-        # Parse message
         parts = text.split("'")
         current_prompt = parts[1] if len(parts) > 1 else "unknown"
         status = next((key for key in ["SUCCESS", "FAILURE", "TIMEOUT"] if key in text), "UNKNOWN")
@@ -114,6 +167,9 @@ class EvaluationDashboard(Node):
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         )
 
-        # On success or completion → summarize metrics
+        # Publish next PCL prompt when switching targets
+        if self.prompt_index < len(self.prompt_texts):
+            self.publish_pcl_prompt(self.prompt_texts[self.prompt_index])
+
         if status in ["SUCCESS", "FAILURE", "TIMEOUT"] and next_prompt == "— none (complete) —":
             self.metrics.summarize()

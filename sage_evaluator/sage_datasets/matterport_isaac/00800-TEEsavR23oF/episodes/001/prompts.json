@@ -1,4 +1,23 @@
 {
-  "train": ["bed", "chair", "table", "sofa", "toilet", "desk", "dresser", "night_stand", "bookshelf", "bathtub"],
-  "eval": ["bed, sofa", "chair, armchair", "table", "sofa", "toilet", "desk", "dresser", "night_stand", "bookshelf", "bathtub"]
+  "train": [
+    "bed",
+    "chair",
+    "table",
+    "sofa",
+    "toilet"
+  ],
+  "eval": [
+    "bed, blanket, pillow, sheet, nightstand",
+    "chair, armchair, stool, couch",
+    "table, desk, worktop, kitchen countertop item",
+    "sofa, couch, armchair",
+    "toilet, sink, bath, bathtub"
+  ],
+  "zero_shot": [
+    "somewhere to sleep",
+    "something to sit on",
+    "a flat surface to work or eat on",
+    "a soft place to relax",
+    "a place to use in the bathroom"
+  ]
 }

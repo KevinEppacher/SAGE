@@ -57,6 +57,7 @@ def launch_setup(context, *args, **kwargs):
             {
                 'use_sim_time': use_sim_time == 'true',
                 'yaml_filename': dm.map()
+                # 'yaml_filename': "/app/map.yaml"
             },
             evaluator_map_config_path
         ]        
