@@ -11,7 +11,7 @@ import os
 SCENE = "00800-TEEsavR23oF"
 VERSION = "v1.7"
 PROMPT_SET = "train"
-EPISODE_ID = "001"
+EPISODE_ID = "003"
 
 def launch_setup(context, *args, **kwargs):
     """Function to evaluate LaunchConfiguration and create nodes"""
@@ -68,10 +68,15 @@ def launch_setup(context, *args, **kwargs):
     )
 
     #---------------------- Delayed Launches ------------------------------#
+
+    delayed_evaluate_node = TimerAction(
+        period=15.0,
+        actions=[evaluate_node]
+    )
     
     return [
         start_evaluation_map_launch,
-        evaluate_node
+        delayed_evaluate_node
     ]
 
 def generate_launch_description():

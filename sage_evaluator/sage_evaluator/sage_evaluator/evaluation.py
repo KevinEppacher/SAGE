@@ -136,7 +136,7 @@ class EvaluationDashboard(Node):
         msg = SemanticPrompt()
         msg.text_query = prompt_text
         self.pcl_prompt_pub.publish(msg)
-        self.get_logger().info(f"🟢 Sent PCL prompt → /evaluate: '{prompt_text}'")
+        self.get_logger().info(f" Sent PCL prompt → /evaluate: '{prompt_text}'")
 
     # ======================================================
     def status_callback(self, msg: String):

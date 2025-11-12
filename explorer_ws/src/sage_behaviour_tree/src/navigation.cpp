@@ -72,8 +72,8 @@ BT::NodeStatus Spin::onStart()
 
     // --- Full turn check ---
     bool fullTurnNeeded =
-        std::fabs(turnLeftAngle) > 120.0 * M_PI / 180.0 &&
-        std::fabs(turnRightAngle) > 120.0 * M_PI / 180.0;
+        std::fabs(turnLeftAngle) > 160.0 * M_PI / 180.0 &&
+        std::fabs(turnRightAngle) > 160.0 * M_PI / 180.0;
 
     if (fullTurnNeeded)
     {
