@@ -1,0 +1,4 @@
+{
+  "train": ["bed", "chair", "table", "sofa", "toilet", "desk", "dresser", "night_stand", "bookshelf", "bathtub"],
+  "eval": ["bed, sofa", "chair, armchair", "table", "sofa", "toilet", "desk", "dresser", "night_stand", "bookshelf", "bathtub"]
+}
