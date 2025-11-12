@@ -23,7 +23,7 @@ class SemanticPCLLoaderNode(Node):
         self.declare_parameter("dbscan_eps", 0.4)
         self.declare_parameter("dbscan_min_samples", 30)
         self.declare_parameter("frame_id", "robot_original_pose_at_scan")
-        self.declare_parameter("user_prompt_topic", "/evaluator/user_prompt")
+        self.declare_parameter("user_prompt_topic", "/user_prompt")
         self.declare_parameter("publish_rate", 0.5)  # Hz, 0.5 = every 2 seconds
 
         self.ply_path = self.get_parameter("ply_path").value
