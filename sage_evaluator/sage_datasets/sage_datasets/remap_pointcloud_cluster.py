@@ -12,11 +12,12 @@ import open3d as o3d
 from sklearn.cluster import DBSCAN
 import tf2_ros, tf2_geometry_msgs
 import json, os, time
+from visualization_msgs.msg import Marker, MarkerArray
+from std_msgs.msg import ColorRGBA
 
 # ANSI color codes for clarity in console
 GREEN = "\033[92m"
 RESET = "\033[0m"
-
 
 class SemanticRelabelerNode(Node):
     """Interactive relabeling node for semantic point clouds."""
@@ -58,14 +59,19 @@ class SemanticRelabelerNode(Node):
         self.get_logger().info(f"Clustered per class → {n_clusters} clusters.")
         self.active_cluster = None
 
+        # -------- Compute and print color table --------
+        self.class_colors = self.compute_class_colors()
+        self.print_class_colors()
+
         # ---------------- ROS interfaces ----------------
         self.clicked_sub = self.create_subscription(PointStamped, "/clicked_point", self.handle_click, 10)
         self.prompt_sub = self.create_subscription(SemanticPrompt, "/user_prompt", self.handle_prompt, 10)
         self.pc_pub = self.create_publisher(PointCloud2, "semantic_cloud", 1)
+        self.marker_pub = self.create_publisher(MarkerArray, "semantic_labels", 1)
 
         # ---------------- Continuous publishing ----------------
         self.publish_cloud()
-        self.timer = self.create_timer(1.0, self.publish_cloud)  # publish every second
+        self.timer = self.create_timer(0.5, self.publish_cloud)  # publish every half second
 
         self.get_logger().info(
             "Semantic cloud ready on topic: /semantic_cloud\n"
@@ -90,6 +96,27 @@ class SemanticRelabelerNode(Node):
     def save_json(self):
         with open(self.json_path, "w") as f:
             json.dump(self.class_map, f, indent=2)
+
+    # -----------------------------------------------------
+    # Compute per-class color map
+    # -----------------------------------------------------
+    def compute_class_colors(self):
+        """Compute mean RGB color per class from loaded point cloud."""
+        class_colors = {}
+        for cid in np.unique(self.class_ids):
+            mask = self.class_ids == cid
+            if np.any(mask):
+                mean_color = np.mean(self.colors[mask], axis=0)
+                class_colors[int(cid)] = np.clip(mean_color, 0.0, 1.0)
+        return class_colors
+
+    def print_class_colors(self):
+        """Pretty-print the class → color mapping."""
+        self.get_logger().info("Detected class colors:")
+        for cid, color in self.class_colors.items():
+            cname = self.class_map.get(str(cid), f"class_{cid}")
+            r, g, b = (color * 255).astype(int)
+            self.get_logger().info(f"  {cname:20s} (id {cid:3d}) → RGB({r:3d}, {g:3d}, {b:3d})")
 
     # -----------------------------------------------------
     # Cluster within each class
@@ -135,6 +162,7 @@ class SemanticRelabelerNode(Node):
         current_id = int(np.bincount(self.class_ids[mask]).argmax())
         current_label = self.class_map.get(str(current_id), str(current_id))
         self.active_cluster = cluster_id
+        self.publish_markers()
 
         self.get_logger().info(
             f"\nClicked cluster {cluster_id} "
@@ -162,32 +190,56 @@ class SemanticRelabelerNode(Node):
             new_id = max(map(int, self.class_map.keys())) + 1
             self.class_map[str(new_id)] = new_name
             self.inv_class_map[new_name] = new_id
-            self.get_logger().info(f"Added new class '{new_name}' with id {new_id}.")
+            rng = np.random.default_rng(seed=new_id)
+            new_color = rng.random(3)
+            self.class_colors[new_id] = new_color
+            self.get_logger().info(f"Added new class '{new_name}' (id {new_id}) with color {new_color.round(2)}")
         else:
             new_id = self.inv_class_map[new_name]
 
         mask = self.cluster_labels == self.active_cluster
+        target_color = self.get_class_color(new_id)
+
         self.class_ids[mask] = new_id
-        self.colors[mask] = [1.0, 0.0, 0.0]  # visual feedback
+        self.colors[mask] = target_color
 
         self.save_json()
         self.save_ply()
 
+        # Reload and re-publish
+        time.sleep(0.1)
+        self.points, self.colors, self.class_ids = self.load_ply(self.ply_path)
+        self.cluster_labels = self.compute_clusters_per_class()
+        self.publish_cloud()
+        self.publish_markers()
+
         self.get_logger().info(
             f"Relabeled cluster {self.active_cluster} → '{new_name}' "
-            f"({np.sum(mask)} pts)"
+            f"({np.sum(mask)} pts), color={target_color.round(2)}"
         )
+
         self.active_cluster = None
 
     # -----------------------------------------------------
-    # Continuous publishing + save
+    # Color lookup
+    # -----------------------------------------------------
+    def get_class_color(self, class_id: int) -> np.ndarray:
+        """Lookup color from precomputed table (or assign if new)."""
+        if class_id in self.class_colors:
+            return self.class_colors[class_id]
+        rng = np.random.default_rng(seed=int(class_id))
+        color = rng.random(3)
+        self.class_colors[class_id] = color
+        return color
+
+    # -----------------------------------------------------
+    # Cloud + marker publishing
     # -----------------------------------------------------
     def publish_cloud(self):
         if len(self.points) == 0:
             self.get_logger().warn("No points to publish.")
             return
 
-        # Build structured numpy array
         rgb_uint32 = (
             (np.clip(self.colors[:, 0], 0, 1) * 255).astype(np.uint32) << 16 |
             (np.clip(self.colors[:, 1], 0, 1) * 255).astype(np.uint32) << 8 |
@@ -223,11 +275,9 @@ class SemanticRelabelerNode(Node):
         msg.row_step = msg.point_step * msg.width
 
         self.pc_pub.publish(msg)
-        self.get_logger().debug(f"Published {msg.width} points.")
-
+        self.publish_markers()
 
     def save_ply(self):
-        """Overwrite same PLY file instead of creating new versions."""
         pcd_new = o3d.t.geometry.PointCloud()
         key = "positions"
         pcd_new.point[key] = o3d.core.Tensor(self.points, o3d.core.Dtype.Float32)
@@ -236,6 +286,64 @@ class SemanticRelabelerNode(Node):
         o3d.t.io.write_point_cloud(self.ply_path, pcd_new)
         self.get_logger().info(f"Overwritten {self.ply_path} with updated labels.")
 
+    def publish_markers(self):
+        if self.cluster_labels is None or len(self.cluster_labels) == 0:
+            return
+
+        marker_array = MarkerArray()
+        now = self.get_clock().now().to_msg()
+        marker_id = 0
+
+        for cluster_id in np.unique(self.cluster_labels):
+            if cluster_id == -1:
+                continue
+
+            mask = self.cluster_labels == cluster_id
+            cluster_points = self.points[mask]
+            if len(cluster_points) == 0:
+                continue
+
+            centroid = np.mean(cluster_points, axis=0)
+            class_id = int(np.bincount(self.class_ids[mask]).argmax())
+            class_name = self.class_map.get(str(class_id), f"class_{class_id}")
+            mean_color = self.get_class_color(class_id)
+
+            sphere = Marker()
+            sphere.header.frame_id = self.frame_id
+            sphere.header.stamp = now
+            sphere.ns = "semantic_clusters"
+            sphere.id = marker_id
+            sphere.type = Marker.SPHERE
+            sphere.action = Marker.ADD
+            sphere.pose.position.x = float(centroid[0])
+            sphere.pose.position.y = float(centroid[1])
+            sphere.pose.position.z = float(centroid[2])
+            sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.2
+            sphere.color = ColorRGBA(r=float(mean_color[0]),
+                                     g=float(mean_color[1]),
+                                     b=float(mean_color[2]),
+                                     a=0.6)
+            marker_array.markers.append(sphere)
+            marker_id += 1
+
+            text = Marker()
+            text.header.frame_id = self.frame_id
+            text.header.stamp = now
+            text.ns = "semantic_text"
+            text.id = marker_id
+            text.type = Marker.TEXT_VIEW_FACING
+            text.action = Marker.ADD
+            text.pose.position.x = float(centroid[0])
+            text.pose.position.y = float(centroid[1])
+            text.pose.position.z = float(centroid[2]) + 0.25
+            text.scale.z = 0.25
+            text.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
+            text.text = class_name
+            marker_array.markers.append(text)
+            marker_id += 1
+
+        self.marker_pub.publish(marker_array)
+        self.get_logger().info(f"Published {marker_id // 2} cluster markers.")
 
 def main(args=None):
     rclpy.init(args=args)
