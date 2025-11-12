@@ -244,7 +244,6 @@ class SemanticPCLLoaderNode(Node):
         labels = DBSCAN(eps=self.eps, min_samples=self.min_samples).fit(pts).labels_
         centroids = [pts[labels == lbl].mean(axis=0) for lbl in np.unique(labels) if lbl != -1]
         return np.array(centroids)
-
     # ---------------- ROS Publishing ----------------
     def _publish_pc(self, pts, cols):
         if len(pts) == 0:

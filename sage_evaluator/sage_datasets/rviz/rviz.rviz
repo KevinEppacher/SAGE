@@ -94,6 +94,19 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /clicked_point
       Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: MarkerArray
+      Namespaces:
+        semantic_clusters: true
+        semantic_text: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /evaluator/semantic_labels
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -140,25 +153,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 11.663822174072266
+      Distance: 14.631097793579102
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 2.083704948425293
-        Y: -4.647628307342529
-        Z: 2.1043641567230225
+        X: 0.2719639837741852
+        Y: 0.29982492327690125
+        Z: 0.3039957582950592
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5453982353210449
+      Pitch: 0.6703981161117554
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 0.6653996706008911
+      Yaw: 0.6253997087478638
     Saved: ~
 Window Geometry:
   Displays:
