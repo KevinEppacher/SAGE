@@ -48,6 +48,6 @@ evaluator:
       planner_plugins: ["GridBased"]
       GridBased:
         plugin: "nav2_navfn_planner/NavfnPlanner"
-        tolerance: 1.0
+        tolerance: 10.0
         use_astar: false
-        allow_unknown: true
+        allow_unknown: false
