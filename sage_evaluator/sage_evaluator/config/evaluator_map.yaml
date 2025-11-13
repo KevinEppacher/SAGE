@@ -48,10 +48,6 @@ evaluator:
       planner_plugins: ["GridBased"]
       GridBased:
         plugin: "nav2_navfn_planner/NavfnPlanner"
-        tolerance: 0.5
+        tolerance: 1.0
         use_astar: false
-        allow_unknown: false
-        # Optionally: set costmap topics manually if needed
-        costmap_topic: /evaluator/global_costmap/costmap
-        global_frame: robot_original_pose_at_scan
-        robot_base_frame: base_link
+        allow_unknown: true

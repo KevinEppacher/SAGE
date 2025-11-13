@@ -2,8 +2,7 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
-from geometry_msgs.msg import PoseStamped
-from visualization_msgs.msg import MarkerArray
+from geometry_msgs.msg import PoseStamped, PoseArray
 from nav_msgs.msg import Path
 from nav2_msgs.action import ComputePathToPose
 import tf2_ros
@@ -11,9 +10,6 @@ import numpy as np
 from math import sqrt
 
 
-# --------------------------------------------------------------------------- #
-# Metrics class for SR / SPL tracking (Nav2 ActionClient version)
-# --------------------------------------------------------------------------- #
 class Metrics:
     def __init__(self, node: Node):
         self.node = node
@@ -23,7 +19,8 @@ class Metrics:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, node)
 
         # Action client for global planner (Nav2)
-        self.path_client = ActionClient(node, ComputePathToPose, "/compute_path_to_pose")
+        # Use namespaced planner if you prefer: "/evaluator/compute_path_to_pose"
+        self.path_client = ActionClient(node, ComputePathToPose, "/evaluator/compute_path_to_pose")
 
         # Parameters
         self.success_radius = 0.5  # m
@@ -31,12 +28,17 @@ class Metrics:
         self.robot_frame = "base_link"
 
         # Internal state
-        self.centroids = []
+        self.centroids = []   # list of (x, y)
         self.start_pose = None
-        self.paths = []  # (success, geo_dist, euclid)
+        self.paths = []       # list of dicts: {success, geo_dist, euclid}
 
         # Subscriptions and publishers
-        node.create_subscription(MarkerArray, "/semantic_centroids", self._centroids_cb, 10)
+        node.create_subscription(
+            PoseArray,
+            "/evaluator/semantic_centroid_targets",
+            self._centroids_cb,
+            10
+        )
         self.path_pub = node.create_publisher(Path, "/evaluation/nearest_path", 10)
 
         # Periodic metric updates
@@ -45,9 +47,14 @@ class Metrics:
         self.node.get_logger().info("Metrics evaluator initialized using /compute_path_to_pose.")
 
     # ---------------------------------------------------------------
-    def _centroids_cb(self, msg: MarkerArray):
-        self.centroids = [(m.pose.position.x, m.pose.position.y) for m in msg.markers]
-        self.node.get_logger().info(f"Received {len(self.centroids)} centroids for evaluation.")
+    def _centroids_cb(self, msg: PoseArray):
+        self.centroids = [(p.position.x, p.position.y) for p in msg.poses]
+        if self.centroids:
+            self.node.get_logger().info(
+                f"Received {len(self.centroids)} centroid targets for evaluation."
+            )
+        else:
+            self.node.get_logger().warn("Received empty centroid PoseArray for evaluation.")
 
     # ---------------------------------------------------------------
     def _get_robot_pose(self):
@@ -70,11 +77,11 @@ class Metrics:
             self.node.get_logger().info(f"Start pose set at {self.start_pose}")
             return
 
-        # --- Compute geodesic distance to every centroid ---
         best_goal = None
         best_length = float("inf")
         best_path = None
 
+        # Compute geodesic distance to every centroid
         for c in self.centroids:
             geo_length, path_msg = self._compute_path(pose, c)
             if geo_length is not None and geo_length < best_length:
@@ -86,11 +93,11 @@ class Metrics:
             self.node.get_logger().warn("No valid geodesic path to any centroid.")
             return
 
-        # --- Publish best path ---
+        # Publish best path
         if best_path:
             self.path_pub.publish(best_path)
 
-        # --- Compute Euclidean distance to that goal ---
+        # Euclidean distance to that goal
         euclid_dist = np.linalg.norm(np.array(best_goal) - pose)
         success = euclid_dist < self.success_radius
 
@@ -100,12 +107,14 @@ class Metrics:
             f"{'✅ success' if success else '⏳ pending'}"
         )
 
-        # --- Store metrics ---
-        self.paths.append({
-            "success": success,
-            "geo_dist": best_length,
-            "euclid": euclid_dist
-        })
+        # Store metrics sample
+        self.paths.append(
+            {
+                "success": success,
+                "geo_dist": best_length,
+                "euclid": euclid_dist,
+            }
+        )
 
     # ---------------------------------------------------------------
     def _compute_path(self, start, goal):
@@ -161,19 +170,24 @@ class Metrics:
         for i in range(1, len(poses)):
             p1 = poses[i - 1].pose.position
             p2 = poses[i].pose.position
-            length += sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2)
+            length += sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2)
         return length
 
     # ---------------------------------------------------------------
     def summarize(self):
+        """Compute SR and SPL over all evaluated samples."""
         if not self.paths:
+            self.node.get_logger().warn("No path samples recorded, SR/SPL = 0.")
             return 0.0, 0.0
 
-        sr = sum(p["success"] for p in self.paths) / len(self.paths)
+        sr = sum(1 for p in self.paths if p["success"]) / len(self.paths)
+
         spl_values = [
             p["geo_dist"] / max(p["geo_dist"], p["euclid"])
-            for p in self.paths if p["success"]
+            for p in self.paths
+            if p["success"]
         ]
-        spl = np.mean(spl_values) if spl_values else 0.0
-        self.node.get_logger().info(f"📈 SR: {sr:.2f}, SPL: {spl:.2f}")
+        spl = float(np.mean(spl_values)) if spl_values else 0.0
+
+        self.node.get_logger().info(f"📈 SR: {sr:.3f}, SPL: {spl:.3f}")
         return sr, spl

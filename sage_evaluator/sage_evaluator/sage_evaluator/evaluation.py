@@ -4,7 +4,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from evaluator_msgs.msg import EvaluationEvent
 from multimodal_query_msgs.msg import SemanticPrompt, SemanticPromptArray
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, PoseArray
 from std_msgs.msg import String, Header
 import time
 import json
@@ -50,7 +50,9 @@ class EvaluationDashboard(Node):
         if self.prompt_set not in prompts_data:
             raise KeyError(f"Prompt set '{self.prompt_set}' not found in prompts.json")
         self.prompt_texts = prompts_data[self.prompt_set]
-        self.get_logger().info(f"Loaded {len(self.prompt_texts)} '{self.prompt_set}' prompts for {self.scene}/{self.episode_id}")
+        self.get_logger().info(
+            f"Loaded {len(self.prompt_texts)} '{self.prompt_set}' prompts for {self.scene}/{self.episode_id}"
+        )
 
         # --- Stable episode directory ---
         self.episode_dir = dataset.episode_dir()
@@ -62,17 +64,42 @@ class EvaluationDashboard(Node):
         # --- Internal state ---
         self.start_time = time.time()
         self.prompt_index = 0
-        self.published = False
+        self.published_event = False
+        self.centroids_ready = False
+        self.centroid_wait_logged = False
         self.metrics = Metrics(self)
-        self.image_counter = 0  # keeps incremental naming for saved detections
+        self.image_counter = 0
 
-        # --- Timer ---
-        self.timer = self.create_timer(2.0, self.publish_event_once)
-        self.get_logger().info("🧭 Evaluation Dashboard initialized. Waiting for BT feedback...")
+        # Subscribe to centroid targets (for handshake)
+        self.centroid_sub = self.create_subscription(
+            PoseArray,
+            '/evaluator/semantic_centroid_targets',
+            self.centroid_callback,
+            10
+        )
+
+        # --- Timers ---
+        # Periodically check readiness and publish EvaluationEvent
+        self.event_timer = self.create_timer(2.0, self.publish_event_once)
+        # Continuously publish current prompt until centroids are ready
+        self.prompt_timer = self.create_timer(1.0, self.republish_prompt)
+
+        self.get_logger().info("🧭 Evaluation Dashboard initialized. Waiting for centroids & BT feedback...")
+
+    # ======================================================
+    def centroid_callback(self, msg: PoseArray):
+        """Handshake: Once valid centroids arrive, allow evaluation to start."""
+        if msg.poses:
+            if not self.centroids_ready:
+                self.get_logger().info(
+                    f"✅ Received {len(msg.poses)} centroid targets → starting evaluation pipeline."
+                )
+            self.centroids_ready = True
+        else:
+            self.get_logger().warn("Received empty PoseArray on /evaluator/semantic_centroid_targets.")
 
     # ======================================================
     def save_run_summary(self):
-        """Create or update a run_summary.json inside the episode folder."""
         summary_path = os.path.join(self.episode_dir, "run_summary.json")
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -92,10 +119,35 @@ class EvaluationDashboard(Node):
         self.get_logger().info(f"🗂️  Saved run summary → {summary_path}")
 
     # ======================================================
-    def publish_event_once(self):
-        if self.published:
+    def republish_prompt(self):
+        """Continuously publish current prompt until centroids arrive."""
+        if self.centroids_ready or not self.prompt_texts:
             return
 
+        current_prompt = self.prompt_texts[self.prompt_index]
+        msg = SemanticPrompt()
+        msg.text_query = current_prompt
+        self.pcl_prompt_pub.publish(msg)
+
+        if not self.centroid_wait_logged:
+            self.get_logger().info(
+                f"📡 Waiting for centroids... Re-publishing prompt '{current_prompt}' → /evaluator/prompt"
+            )
+            self.centroid_wait_logged = True
+        else:
+            # Print a simple throttled heartbeat
+            self.get_logger().debug(f"Re-publishing '{current_prompt}' while waiting for centroids.")
+
+    # ======================================================
+    def publish_event_once(self):
+        """Publish EvaluationEvent only once, after centroids are available."""
+        if self.published_event or not self.centroids_ready:
+            return
+
+        # Stop prompt republishing once centroids are ready
+        self.prompt_timer.cancel()
+
+        # Construct prompt array
         prompt_array = SemanticPromptArray()
         prompt_array.header = Header()
         prompt_array.header.stamp = self.get_clock().now().to_msg()
@@ -115,28 +167,15 @@ class EvaluationDashboard(Node):
         event.reason = "init"
         event.goal_pose = Point()
         event.start_pose = Point()
-        event.save_path = self.episode_dir  # stable path
+        event.save_path = self.episode_dir
 
         self.event_pub.publish(event)
-        self.published = True
+        self.published_event = True
         self.start_time = time.time()
 
-        # Immediately publish first prompt to /evaluate
-        if self.prompt_texts:
-            first_prompt = self.prompt_texts[0]
-            self.publish_pcl_prompt(first_prompt)
-
         self.get_logger().info(
-            f"📤 Published EvaluationEvent ({self.prompt_set}): {[p.text_query for p in prompt_array.prompt_list]}"
+            f"📤 Published EvaluationEvent ({self.prompt_set}) with {len(self.prompt_texts)} prompts."
         )
-
-    # ======================================================
-    def publish_pcl_prompt(self, prompt_text: str):
-        """Publish a single SemanticPrompt to /evaluate for the PCL loader."""
-        msg = SemanticPrompt()
-        msg.text_query = prompt_text
-        self.pcl_prompt_pub.publish(msg)
-        self.get_logger().info(f" Sent PCL prompt → /evaluate: '{prompt_text}'")
 
     # ======================================================
     def status_callback(self, msg: String):
@@ -167,9 +206,21 @@ class EvaluationDashboard(Node):
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         )
 
-        # Publish next PCL prompt when switching targets
+        # Publish next prompt once BT requests new evaluation
         if self.prompt_index < len(self.prompt_texts):
-            self.publish_pcl_prompt(self.prompt_texts[self.prompt_index])
+            self.centroids_ready = False  # reset handshake for next object
+            self.centroid_wait_logged = False
+            self.prompt_timer.reset()  # resume continuous publishing
+            self.publish_prompt_now(self.prompt_texts[self.prompt_index])
 
+        # Final metrics after all prompts
         if status in ["SUCCESS", "FAILURE", "TIMEOUT"] and next_prompt == "— none (complete) —":
             self.metrics.summarize()
+
+    # ======================================================
+    def publish_prompt_now(self, prompt_text: str):
+        """Publish a single SemanticPrompt message immediately."""
+        msg = SemanticPrompt()
+        msg.text_query = prompt_text
+        self.pcl_prompt_pub.publish(msg)
+        self.get_logger().info(f"📡 Sent prompt → /evaluator/prompt: '{prompt_text}'")
