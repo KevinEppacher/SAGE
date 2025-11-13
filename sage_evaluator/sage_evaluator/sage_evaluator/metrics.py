@@ -20,7 +20,7 @@ class Metrics:
 
         # Action client for global planner (Nav2)
         # Use namespaced planner if you prefer: "/evaluator/compute_path_to_pose"
-        self.path_client = ActionClient(node, ComputePathToPose, "/evaluator/compute_path_to_pose")
+        # self.path_client = ActionClient(node, ComputePathToPose, "/evaluator/compute_path_to_pose")
 
         # Parameters
         self.success_radius = 0.5  # m
@@ -39,7 +39,7 @@ class Metrics:
             self._centroids_cb,
             10
         )
-        self.path_pub = node.create_publisher(Path, "/evaluation/nearest_path", 10)
+        self.path_pub = node.create_publisher(Path, "/evaluator/shortest_path", 10)
 
         # Periodic metric updates
         node.create_timer(2.0, self._update)
@@ -49,12 +49,12 @@ class Metrics:
     # ---------------------------------------------------------------
     def _centroids_cb(self, msg: PoseArray):
         self.centroids = [(p.position.x, p.position.y) for p in msg.poses]
-        if self.centroids:
-            self.node.get_logger().info(
-                f"Received {len(self.centroids)} centroid targets for evaluation."
-            )
-        else:
-            self.node.get_logger().warn("Received empty centroid PoseArray for evaluation.")
+        # if self.centroids:
+        #     self.node.get_logger().info(
+        #         f"Received {len(self.centroids)} centroid targets for evaluation."
+        #     )
+        # else:
+        #     self.node.get_logger().warn("Received empty centroid PoseArray for evaluation.")
 
     # ---------------------------------------------------------------
     def _get_robot_pose(self):
@@ -71,50 +71,50 @@ class Metrics:
         if pose is None or not self.centroids:
             return
 
-        # Initialize start pose once
-        if self.start_pose is None:
-            self.start_pose = pose
-            self.node.get_logger().info(f"Start pose set at {self.start_pose}")
-            return
+        # # Initialize start pose once
+        # if self.start_pose is None:
+        #     self.start_pose = pose
+        #     self.node.get_logger().info(f"Start pose set at {self.start_pose}")
+        #     return
 
-        best_goal = None
-        best_length = float("inf")
-        best_path = None
+        # best_goal = None
+        # best_length = float("inf")
+        # best_path = None
 
-        # Compute geodesic distance to every centroid
-        for c in self.centroids:
-            geo_length, path_msg = self._compute_path(pose, c)
-            if geo_length is not None and geo_length < best_length:
-                best_length = geo_length
-                best_goal = c
-                best_path = path_msg
+        # # Compute geodesic distance to every centroid
+        # for c in self.centroids:
+        #     geo_length, path_msg = self._compute_path(pose, c)
+        #     if geo_length is not None and geo_length < best_length:
+        #         best_length = geo_length
+        #         best_goal = c
+        #         best_path = path_msg
 
-        if best_goal is None:
-            self.node.get_logger().warn("No valid geodesic path to any centroid.")
-            return
+        # if best_goal is None:
+        #     self.node.get_logger().warn("No valid geodesic path to any centroid.")
+        #     return
 
-        # Publish best path
-        if best_path:
-            self.path_pub.publish(best_path)
+        # # Publish best path
+        # if best_path:
+        #     self.path_pub.publish(best_path)
 
-        # Euclidean distance to that goal
-        euclid_dist = np.linalg.norm(np.array(best_goal) - pose)
-        success = euclid_dist < self.success_radius
+        # # Euclidean distance to that goal
+        # euclid_dist = np.linalg.norm(np.array(best_goal) - pose)
+        # success = euclid_dist < self.success_radius
 
-        self.node.get_logger().info(
-            f"Nearest goal (geodesic) at {best_goal} | "
-            f"geo={best_length:.2f} m | euclid={euclid_dist:.2f} m → "
-            f"{'✅ success' if success else '⏳ pending'}"
-        )
+        # self.node.get_logger().info(
+        #     f"Nearest goal (geodesic) at {best_goal} | "
+        #     f"geo={best_length:.2f} m | euclid={euclid_dist:.2f} m → "
+        #     f"{'✅ success' if success else '⏳ pending'}"
+        # )
 
-        # Store metrics sample
-        self.paths.append(
-            {
-                "success": success,
-                "geo_dist": best_length,
-                "euclid": euclid_dist,
-            }
-        )
+        # # Store metrics sample
+        # self.paths.append(
+        #     {
+        #         "success": success,
+        #         "geo_dist": best_length,
+        #         "euclid": euclid_dist,
+        #     }
+        # )
 
     # ---------------------------------------------------------------
     def _compute_path(self, start, goal):

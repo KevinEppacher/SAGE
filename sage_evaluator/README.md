@@ -106,3 +106,5 @@ sankey_data.json
   ]
 }
 ```
+
+ros2 topic pub --once /evaluator/prompt multimodal_query_msgs/msg/SemanticPrompt "{text_query: chair}"
