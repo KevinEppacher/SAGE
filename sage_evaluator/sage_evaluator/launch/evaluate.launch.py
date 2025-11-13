@@ -66,17 +66,10 @@ def launch_setup(context, *args, **kwargs):
             'version': version
         }.items()
     )
-
-    #---------------------- Delayed Launches ------------------------------#
-
-    delayed_evaluate_node = TimerAction(
-        period=15.0,
-        actions=[evaluate_node]
-    )
     
     return [
         start_evaluation_map_launch,
-        delayed_evaluate_node
+        evaluate_node
     ]
 
 def generate_launch_description():
