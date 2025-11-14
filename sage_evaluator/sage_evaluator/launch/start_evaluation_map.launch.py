@@ -79,6 +79,36 @@ def launch_setup(context, *args, **kwargs):
         ]
     )
 
+    navigable_target_projector_node = Node(
+        package="sage_evaluator",
+        executable='navigable_target_projector',
+        name="navigable_target_projector",
+        output='screen',
+        namespace=namespace,
+        emulate_tty=True,
+        parameters=[
+            {
+                'use_sim_time': use_sim_time == 'true',
+            },
+            evaluator_map_config_path
+        ]
+    )
+
+    nearest_target_planner = Node(
+        package="sage_evaluator",
+        executable='nearest_target_planner',
+        name="nearest_target_planner",
+        output='screen',
+        namespace=namespace,
+        emulate_tty=True,
+        parameters=[
+            {
+                'use_sim_time': use_sim_time == 'true',
+            },
+            evaluator_map_config_path
+        ]
+    )
+
     planner_server_node = LifecycleNode(
         package='nav2_planner',
         executable='planner_server',
@@ -128,6 +158,8 @@ def launch_setup(context, *args, **kwargs):
         pose_offset_cacher_node,
         semantic_pcl_loader_node,
         planner_server_node,
+        navigable_target_projector_node,
+        nearest_target_planner,
         delayed_lcm
     ]
 

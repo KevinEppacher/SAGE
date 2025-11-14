@@ -21,6 +21,7 @@ class NavigableTargetProjector(Node):
         self.declare_parameter("radial_samples", 6)
         self.declare_parameter("line_step", 0.05)
         self.declare_parameter("search_radius", 2.5)
+        self.declare_parameter("debug_info", False)
 
         self.robot_radius = self.get_parameter("robot_radius").value
         self.cost_threshold = self.get_parameter("cost_threshold").value
@@ -29,11 +30,12 @@ class NavigableTargetProjector(Node):
         self.radial_samples = self.get_parameter("radial_samples").value
         self.line_step = self.get_parameter("line_step").value
         self.search_radius = self.get_parameter("search_radius").value
+        self.debug = self.get_parameter("debug_info").value
 
         # ---------------- Subscribers / Publishers ----------------
         self.create_subscription(PoseArray, "/evaluator/semantic_centroid_targets", self._centroid_cb, 10)
         self.create_subscription(OccupancyGrid, "/evaluator/global_costmap/costmap", self._costmap_cb, 10)
-        self.pub = self.create_publisher(PoseArray, "/evaluator/navigable_targets", 10)
+        self.pub = self.create_publisher(PoseArray, "navigable_targets", 10)
 
         # ---------------- Internal State ----------------
         self.map_data = None
@@ -42,7 +44,7 @@ class NavigableTargetProjector(Node):
         self.map_resolution = None
         self.map_origin = None
 
-        self.get_logger().info("📡 NavigableTargetProjector initialized with structured sampling.")
+        self.get_logger().info("NavigableTargetProjector initialized with structured sampling.")
 
     # ------------------------------------------------------------------
     def _costmap_cb(self, msg: OccupancyGrid):
@@ -69,10 +71,14 @@ class NavigableTargetProjector(Node):
                 pose.position.x, pose.position.y = reachable
                 pose.orientation = Quaternion(w=1.0)
                 reachable_targets.poses.append(pose)
+            else:
+                if self.debug:
+                    self.get_logger().info(f" No reachable approach found for target at ({target[0]:.2f}, {target[1]:.2f})")
 
         if reachable_targets.poses:
             self.pub.publish(reachable_targets)
-            self.get_logger().info(f" Published {len(reachable_targets.poses)} reachable targets.")
+            if self.debug:
+                self.get_logger().info(f" Published {len(reachable_targets.poses)} reachable targets.")
 
     # ------------------------------------------------------------------
     def find_reachable_point(self, target):
