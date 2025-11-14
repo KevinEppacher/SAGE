@@ -8,7 +8,7 @@ Each scene folder is a *self-contained evaluation environment*, including simula
 ## Filestructure
 
 ```bash
-datasets/
+sage_datasets/
 └─ matterport_isaac/
    └─ {scene_name}/
         ├─ assets/
@@ -30,26 +30,24 @@ datasets/
         │   └─ current -> v1.1/
         │
         ├─ episodes/
-        │   ├─ 0001_{timestamp}/
+        │   ├─ 001/
         │   │   ├─ bag/
-        │   │   ├─ trajectory.json
+        │   │   ├─ robot_start_pose.json
         │   │   ├─ prompts.txt
         │   │   ├─ metrics.csv
         │   │   ├─ run_summary.json
         │   │   ├─ detections/
         │   │   │   ├─ chair/
         │   │   │   │   ├─ detection_0001.png
-        │   │   │   │   ├─ detection_meta.json
-        │   │   │   │   └─ detection_cam_pose.json
+        │   │   │   │   ├─ trajectory.json
+        │   │   │   │   ├─ spl.json
+        │   │   │   │   └─ sr.json
         │   │   │   ├─ table/
         │   │   │   │   ├─ detection_0001.png
-        │   │   │   │   └─ detection_meta.json
-        │   │   │   │   └─ detection_cam_pose.json
+        │   │   │   │   ├─ trajectory.json
+        │   │   │   │   ├─ spl.json
+        │   │   │   │   └─ sr.json
         │   │   │   └─ ...
-        │   │   └─ bt_trace/
-        │   │       ├─ raw_log.json
-        │   │       ├─ aggregated.json
-        │   │       └─ sankey_data.json
         │   └─ summary.csv
         │
         ├─ results/
