@@ -71,3 +71,13 @@ evaluator:
       radial_samples: 6
       line_step: 0.05
       search_radius: 2.5
+
+evaluator:
+  trajectory_recorder:
+    ros__parameters:
+      record_frequency: 1.0
+      map_frame: "robot_original_pose_at_scan"
+      robot_frame: "base_link"
+      evaluation_event_sub: "/evaluator/dashboard/event"
+      iteration_status_sub: "/evaluator/dashboard/iteration_status"
+      path_event_pub: "path_event"

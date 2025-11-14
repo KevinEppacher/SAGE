@@ -1,49 +1,50 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.10)
 project(evaluator_msgs)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+# Set CMake policies to suppress warnings (keep OLD for ROS2 Humble compatibility)
+if(POLICY CMP0148)
+  cmake_policy(SET CMP0148 OLD)
+endif()
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
   set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
 
 install(
-	DIRECTORY msg
-	DESTINATION share/${PROJECT_NAME}
+    DIRECTORY msg
+    DESTINATION share/${PROJECT_NAME}
 )
 
-# Neccesary for the message generation
+# Necessary for the message generation
 find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(multimodal_query_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(multimodal_query_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 
 # Generate the messages
 rosidl_generate_interfaces(${PROJECT_NAME}
     "msg/EvaluationSummary.msg"
     "msg/EvaluationEvent.msg"
-    "msg/EvaluationEpisode.msg"
-    DEPENDENCIES std_msgs
-    DEPENDENCIES sensor_msgs
-    DEPENDENCIES multimodal_query_msgs
-    DEPENDENCIES geometry_msgs
+    "msg/EvaluationResult.msg"
+    "msg/EvaluationPathEvent.msg"
+    DEPENDENCIES 
+      std_msgs
+      sensor_msgs
+      geometry_msgs
+      multimodal_query_msgs
+      nav_msgs
 )
 
 ament_package()
