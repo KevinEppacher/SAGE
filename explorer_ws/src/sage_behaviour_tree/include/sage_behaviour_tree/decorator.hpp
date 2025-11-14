@@ -61,6 +61,7 @@ private:
 
     // Comms config/state
     bool commReady{false};
+    bool debug_flag{false};
     std::string evaluation_event_topic_{"/evaluation/event"};
     std::string iteration_status_topic_{"/evaluation/iteration_status"};
 };

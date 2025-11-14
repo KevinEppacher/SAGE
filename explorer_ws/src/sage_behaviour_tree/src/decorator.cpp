@@ -76,31 +76,34 @@ BT::NodeStatus KeepRunningUntilObjectFound::tick()
 
 // ============================ ForEachEvaluationPrompt ============================ //
 
-ForEachEvaluationPrompt::ForEachEvaluationPrompt(const std::string &name,
-                                                 const BT::NodeConfig &config,
-                                                 const rclcpp::Node::SharedPtr &nodePtr)
+ForEachEvaluationPrompt::ForEachEvaluationPrompt(
+    const std::string &name,
+    const BT::NodeConfig &config,
+    const rclcpp::Node::SharedPtr &nodePtr)
     : BT::DecoratorNode(name, config),
       node(nodePtr)
 {
+    // Declare parameters if needed
+    node->declare_parameter("for_each_evaluation_prompt.evaluation_event_topic",
+                            "/evaluator/dashboard/event");
+    node->declare_parameter("for_each_evaluation_prompt.iteration_status_topic",
+                            "/evaluator/dashboard/iteration_status");
+    node->declare_parameter("for_each_evaluation_prompt.debug", false);
+
+    evaluation_event_topic_ =
+        node->get_parameter("for_each_evaluation_prompt.evaluation_event_topic").as_string();
+    iteration_status_topic_ =
+        node->get_parameter("for_each_evaluation_prompt.iteration_status_topic").as_string();
+    debug_flag =
+        node->get_parameter("for_each_evaluation_prompt.debug").as_bool();
 }
+
 
 BT::PortsList ForEachEvaluationPrompt::providedPorts()
 {
     return {
-        // --- Output ports ---
         BT::OutputPort<std::string>("target_object"),
-        BT::OutputPort<std::string>("save_image_path"),
-
-        // --- Input ports ---
-        BT::InputPort<std::string>(
-            "evaluation_event_topic",
-            "/evaluation/event",
-            "Topic to subscribe for EvaluationEvent"),
-
-        BT::InputPort<std::string>(
-            "iteration_status_topic",
-            "/evaluation/iteration_status",
-            "Topic to publish iteration status")
+        BT::OutputPort<std::string>("save_image_path")
     };
 }
 
@@ -223,27 +226,39 @@ void ForEachEvaluationPrompt::callbackEvent(const EvaluationEvent::SharedPtr msg
 
 void ForEachEvaluationPrompt::initCommsFromPorts()
 {
-    if (commReady)
-        return;
+    if (commReady) return;
 
-    (void)getInput<std::string>("evaluation_event_topic", evaluation_event_topic_);
-    (void)getInput<std::string>("iteration_status_topic", iteration_status_topic_);
+    // Subscriber must match dashboard publisher QoS
+    rclcpp::QoS event_qos(1);
+    event_qos.transient_local();
+    event_qos.reliable();
 
-    rclcpp::QoS qos(1);
-    qos.transient_local();
     subscriber = node->create_subscription<EvaluationEvent>(
-        evaluation_event_topic_, qos,
-        std::bind(&ForEachEvaluationPrompt::callbackEvent, this, std::placeholders::_1));
+        evaluation_event_topic_,
+        event_qos,
+        std::bind(&ForEachEvaluationPrompt::callbackEvent, this, std::placeholders::_1)
+    );
+
+    // Publisher: normal volatile reliable
+    rclcpp::QoS status_qos(10);
+    status_qos.reliable();
 
     statusPublisher = node->create_publisher<std_msgs::msg::String>(
-        iteration_status_topic_, 10);
+        iteration_status_topic_,
+        status_qos
+    );
 
-    RCLCPP_INFO(node->get_logger(),
-                ORANGE "[%s] Using topics: event='%s', status='%s'" RESET,
-                name().c_str(), evaluation_event_topic_.c_str(), iteration_status_topic_.c_str());
+    if (debug_flag)
+    {
+        RCLCPP_INFO(
+            node->get_logger(),
+            "[%s] Using topics: event='%s', status='%s'",
+            name().c_str(), evaluation_event_topic_.c_str(), iteration_status_topic_.c_str());
+    }
 
     commReady = true;
 }
+
 
 // ============================ ApproachPoseAdjustor ============================ //
 

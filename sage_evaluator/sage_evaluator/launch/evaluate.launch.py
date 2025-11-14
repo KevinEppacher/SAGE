@@ -36,8 +36,8 @@ def launch_setup(context, *args, **kwargs):
 
     evaluate_node = Node(
         package="sage_evaluator",
-        executable='evaluate',
-        name="evaluate",
+        executable='evaluator_dashboard',
+        name="evaluator_dashboard",
         namespace=namespace,
         output='screen',
         emulate_tty=True,
@@ -52,6 +52,23 @@ def launch_setup(context, *args, **kwargs):
             evaluator_config_path
         ]
     )
+
+    trajectory_recorder_node = Node(
+        package="sage_evaluator",
+        executable='trajectory_recorder',
+        name="trajectory_recorder",
+        namespace=namespace,
+        output='screen',
+        emulate_tty=True,
+        parameters=[
+            {
+                'use_sim_time': use_sim_time == 'true',
+            },
+            evaluator_config_path
+        ]
+    )
+
+    #---------------------- Launch Files ------------------------------#
 
     start_evaluation_map_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(
@@ -68,8 +85,9 @@ def launch_setup(context, *args, **kwargs):
     )
     
     return [
+        evaluate_node,
         start_evaluation_map_launch,
-        evaluate_node
+        trajectory_recorder_node,
     ]
 
 def generate_launch_description():

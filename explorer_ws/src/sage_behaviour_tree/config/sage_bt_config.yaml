@@ -13,3 +13,8 @@ sage_behaviour_tree:
         debug_markers: true       # bool: enable debug markers in RViz
       spin_node:
         spin_timeout: 60.0        # double: timeout for spin action in seconds
+
+      for_each_evaluation_prompt:
+        evaluation_event_topic: "/evaluator/dashboard/event"
+        iteration_status_topic: "/evaluator/dashboard/iteration_status"
+        debug: false

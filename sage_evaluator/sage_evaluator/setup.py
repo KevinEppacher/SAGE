@@ -28,13 +28,18 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'evaluate = sage_evaluator.evaluation_node:main',
+            # Core evaluator nodes
+            'evaluator_dashboard = sage_evaluator.evaluator_dashboard_node:main',
+            'trajectory_recorder = sage_evaluator.trajectory_recorder_node:main',
+            'dataset_writer = sage_evaluator.dataset_writer_node:main',
+            # Semantic global mapping nodes
             'semantic_pcl_loader = sage_evaluator.semantic_pcl_loader_node:main',
             'pose_offset_cacher = sage_evaluator.pose_offset_cacher_node:main',
-            'test_nav2_path_action = sage_evaluator.test.test_nav2_path_action:main',
             'initial_pose_publisher = sage_evaluator.initial_pose_publisher:main',
             'nearest_target_planner = sage_evaluator.nearest_target_planner_node:main',
             'navigable_target_projector = sage_evaluator.navigable_target_projector_node:main',
+            # Tests
+            'test_nav2_path_action = sage_evaluator.test.test_nav2_path_action:main',
         ],
     },
 )

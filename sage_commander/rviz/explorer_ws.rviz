@@ -468,7 +468,10 @@ Visualization Manager:
           Enabled: true
           Name: MarkerArray
           Namespaces:
-            {}
+            debug_lines: true
+            debug_text: true
+            graph_nodes: true
+            visited_nodes: true
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -548,7 +551,6 @@ Visualization Manager:
             light: true
             oven and stove: true
             room plant: true
-            semantic_centroids: true
             semantic_labels: true
             sink: true
             sofa: true
@@ -717,6 +719,34 @@ Visualization Manager:
             History Policy: Keep Last
             Reliability Policy: Reliable
             Value: /evaluator/navigable_targets
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
+          Color: 25; 255; 0
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Lines
+          Line Width: 0.029999999329447746
+          Name: Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /evaluator/live_path
           Value: true
       Enabled: true
       Name: evaluation
@@ -1074,25 +1104,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 10.92940616607666
+      Distance: 7.70170783996582
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 2.5674924850463867
-        Y: -0.2701210677623749
-        Z: 0.43843257427215576
+        X: 0.84356290102005
+        Y: -0.08736971020698547
+        Z: 0.43877774477005005
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5647963285446167
+      Pitch: 1.5597963333129883
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 5.231844425201416
+      Yaw: 5.191845417022705
     Saved: ~
 Window Geometry:
   Displays:
