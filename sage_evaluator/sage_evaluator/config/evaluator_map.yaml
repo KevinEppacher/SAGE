@@ -50,7 +50,7 @@ evaluator:
         plugin: "nav2_navfn_planner/NavfnPlanner"
         tolerance: 10.0
         use_astar: false
-        allow_unknown: false
+        allow_unknown: true
 
 evaluator:
   nearest_path_planner:
