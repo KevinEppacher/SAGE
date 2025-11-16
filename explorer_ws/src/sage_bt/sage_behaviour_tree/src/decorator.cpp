@@ -650,7 +650,9 @@ BT::PortsList SageBtOrchestrator::providedPorts()
 {
     return {
         BT::OutputPort<std::string>("target_object"),
-        BT::OutputPort<std::string>("image_path")
+        BT::OutputPort<std::string>("image_path"),
+        BT::InputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>(
+            "detected_graph_node", "Best detected GraphNode")
     };
 }
 
@@ -758,41 +760,110 @@ void SageBtOrchestrator::handleAccepted(
 
 void SageBtOrchestrator::executeGoal(const std::shared_ptr<GoalHandle> goal_handle)
 {
+    auto goal = goal_handle->get_goal();
     auto result = std::make_shared<ExecutePrompt::Result>();
-    rclcpp::Rate loop_rate(10); // 10 Hz BT tick rate
 
-    // Set BT ports
+    // Store inputs from goal
+    currentPrompt   = goal->prompt;
+    currentSavePath = goal->save_directory;
+    double timeoutSec = goal->timeout * 60.0;
+
+    // Prepare BT outputs
     setOutput("target_object", currentPrompt);
     setOutput("image_path", currentSavePath);
 
     RCLCPP_INFO(node->get_logger(),
-        ORANGE "[%s] Executing BT subtree for prompt '%s'..." RESET,
-        name().c_str(), currentPrompt.c_str());
+        ORANGE "[%s] Executing BT subtree for prompt '%s' (timeout %.1f min = %.0fs)..." RESET,
+        this->name().c_str(), currentPrompt.c_str(), goal->timeout, timeoutSec);
 
+    // --- Main execution loop ---
+    rclcpp::Rate loop_rate(10); // 10 Hz
     BT::NodeStatus status = BT::NodeStatus::RUNNING;
+    rclcpp::Time start_time = node->now();
 
     while (rclcpp::ok() && status == BT::NodeStatus::RUNNING)
     {
+        // ---- Handle cancel ----
+        if (goal_handle->is_canceling())   // <<=== this is the critical line
+        {
+            RCLCPP_WARN(node->get_logger(),
+                YELLOW "[%s] Goal canceled by client. Halting BT subtree..." RESET,
+                this->name().c_str());
+
+            // Halt all running children in BT
+            this->haltChild();
+
+            result->result = false;
+            result->confidence_score = 0.0f;
+            goal_handle->canceled(result);
+            activeGoal = false;
+            return;
+        }
+
+        // ---- Handle timeout ----
+        double elapsed = (node->now() - start_time).seconds();
+        if (timeoutSec > 0.0 && elapsed > timeoutSec)
+        {
+            RCLCPP_ERROR(node->get_logger(),
+                RED "[%s] TIMEOUT reached after %.2fs (limit %.2fs) → aborting." RESET,
+                this->name().c_str(), elapsed, timeoutSec);
+
+            this->haltChild();
+
+            result->result = false;
+            result->confidence_score = 0.0f;
+            goal_handle->abort(result);
+            activeGoal = false;
+            return;
+        }
+
+        // ---- Tick BT ----
         status = child_node_->executeTick();
+
+        // ---- Feedback ----
+        ExecutePrompt::Feedback feedback;
+        feedback.active_node = this->name();
+        feedback.status = (status == BT::NodeStatus::RUNNING);
+        feedback.log = "Ticking subtree...";
+        goal_handle->publish_feedback(std::make_shared<ExecutePrompt::Feedback>(feedback));
+
         loop_rate.sleep();
     }
 
+    // ---- Finalize ----
     bool success = (status == BT::NodeStatus::SUCCESS);
     result->result = success;
-    result->confidence_score = success ? 1.0f : 0.0f;
 
+    // Try to get detected_graph_node to extract confidence
+    std::shared_ptr<graph_node_msgs::msg::GraphNode> detected_node;
+    if (getInput("detected_graph_node", detected_node) && detected_node)
+    {
+        result->confidence_score = static_cast<float>(detected_node->score);
+        RCLCPP_INFO(node->get_logger(),
+            GREEN "[%s] Retrieved confidence score from detected GraphNode: %.3f" RESET,
+            this->name().c_str(), result->confidence_score);
+    }
+    else
+    {
+        result->confidence_score = success ? 1.0f : 0.0f;
+        RCLCPP_WARN(node->get_logger(),
+            YELLOW "[%s] No detected_graph_node found → using default confidence %.2f" RESET,
+            this->name().c_str(), result->confidence_score);
+    }
+
+    // Send result
     if (success)
     {
         RCLCPP_INFO(node->get_logger(),
             GREEN "[%s] BT finished SUCCESS for '%s'." RESET,
-            name().c_str(), currentPrompt.c_str());
+            this->name().c_str(), currentPrompt.c_str());
         goal_handle->succeed(result);
     }
     else
     {
         RCLCPP_ERROR(node->get_logger(),
             RED "[%s] BT finished FAILURE for '%s'." RESET,
-            name().c_str(), currentPrompt.c_str());
+            this->name().c_str(), currentPrompt.c_str());
         goal_handle->abort(result);
     }
 
