@@ -9,9 +9,12 @@
 #include "sage_behaviour_tree/robot.hpp"
 #include <nav2_costmap_2d/cost_values.hpp>
 #include <sage_bt_msgs/srv/startup_check.hpp>
+#include <sage_bt_msgs/action/execute_prompt.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <tf2/utils.h>
 #include <fstream>
+
+using ExecutePrompt = sage_bt_msgs::action::ExecutePrompt;
 
 // ============================ KeepRunningUntilObjectFound ============================ //
 
@@ -146,13 +149,15 @@ private:
 class SageBtOrchestrator : public BT::DecoratorNode
 {
 public:
+    using ExecutePrompt = sage_bt_msgs::action::ExecutePrompt;
+    using GoalHandle = rclcpp_action::ServerGoalHandle<ExecutePrompt>;
+
     SageBtOrchestrator(
         const std::string &name,
         const BT::NodeConfig &config,
         const rclcpp::Node::SharedPtr &node);
 
     static BT::PortsList providedPorts();
-
     BT::NodeStatus tick() override;
 
 private:
@@ -160,20 +165,34 @@ private:
                               const rclcpp::ParameterValue &default_value);
     void loadParameters();
 
-    // Service callback
+    // StartupCheck service
     void onStartupRequest(
         const std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Request>,
         std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Response> resp);
+
+    // Action server callbacks
+    rclcpp_action::GoalResponse handleGoal(
+        const rclcpp_action::GoalUUID &uuid,
+        std::shared_ptr<const ExecutePrompt::Goal> goal);
+
+    rclcpp_action::CancelResponse handleCancel(
+        const std::shared_ptr<GoalHandle> goal_handle);
+
+    void handleAccepted(const std::shared_ptr<GoalHandle> goal_handle);
+    void executeGoal(const std::shared_ptr<GoalHandle> goal_handle);
 
 private:
     rclcpp::Node::SharedPtr node;
 
     rclcpp::Service<sage_bt_msgs::srv::StartupCheck>::SharedPtr startupService;
+    rclcpp_action::Server<ExecutePrompt>::SharedPtr actionServer;
 
     bool startupDone = false;
+    bool activeGoal = false;
 
-    // parameters
     std::vector<std::string> required_topics;
     std::vector<std::string> required_services;
-    bool check_nav2_servers = false;
+
+    std::string currentPrompt;
+    std::string currentSavePath;
 };
