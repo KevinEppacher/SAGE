@@ -32,6 +32,7 @@ find_package(std_srvs REQUIRED)
 find_package(multimodal_query_msgs REQUIRED)
 find_package(evaluator_msgs REQUIRED)
 find_package(nav2_costmap_2d REQUIRED)
+find_package(sage_bt_msgs REQUIRED)
 
 ############################################################
 # Include Directories
@@ -75,6 +76,7 @@ ament_target_dependencies(sage_bt_node
     multimodal_query_msgs
     evaluator_msgs
     nav2_costmap_2d
+    sage_bt_msgs
 )
 
 # Use C++17 standard

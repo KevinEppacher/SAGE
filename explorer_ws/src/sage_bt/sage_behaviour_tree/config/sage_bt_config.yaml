@@ -18,3 +18,16 @@ sage_behaviour_tree:
         evaluation_event_topic: "/evaluator/dashboard/event"
         iteration_status_topic: "/evaluator/dashboard/iteration_status"
         debug: false
+      sage_bt:
+        startup:
+          required_topics:
+            - /rgb/throttled
+            - /depth/throttled
+            - /camera_info
+            - /cmd_vel
+            - /map
+            - /exploration_map
+            - /value_map/value_map
+          required_services:
+            - /exploration_map/clear
+            - /value_map/clear

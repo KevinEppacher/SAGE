@@ -1,0 +1,18 @@
+# Goal
+string prompt
+string experiment_id
+string save_directory
+double timeout
+---
+# Result
+bool result
+float32 confidence_score
+nav_msgs/Path accumulated_path
+sensor_msgs/Image image
+geometry_msgs/Pose start_pose
+geometry_msgs/Pose end_pose
+---
+# Feedback
+string active_node
+bool status
+string log

@@ -31,7 +31,7 @@ def generate_launch_description():
         'bt_xml',
         # 'test',
         # 'test_detection.xml'
-        'multiple_search_evaluator.xml'
+        'sage_bt_orchestrator.xml'
     )
 
     bt_xml_arg = DeclareLaunchArgument(
