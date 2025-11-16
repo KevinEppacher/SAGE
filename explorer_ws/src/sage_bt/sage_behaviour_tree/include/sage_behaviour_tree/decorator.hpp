@@ -11,6 +11,7 @@
 #include <sage_bt_msgs/srv/startup_check.hpp>
 #include <sage_bt_msgs/action/execute_prompt.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
+#include <std_srvs/srv/empty.hpp>
 #include <tf2/utils.h>
 #include <fstream>
 
@@ -181,8 +182,16 @@ private:
     void handleAccepted(const std::shared_ptr<GoalHandle> goal_handle);
     void executeGoal(const std::shared_ptr<GoalHandle> goal_handle);
 
+    rclcpp::Service<std_srvs::srv::Empty>::SharedPtr forceExitService;
+    std::atomic<bool> forceExitRequested = false;
+
+    void onForceExit(
+        const std::shared_ptr<std_srvs::srv::Empty::Request>,
+        std::shared_ptr<std_srvs::srv::Empty::Response>);
+
 private:
     rclcpp::Node::SharedPtr node;
+    std::unique_ptr<Robot> robot;
 
     rclcpp::Service<sage_bt_msgs::srv::StartupCheck>::SharedPtr startupService;
     rclcpp_action::Server<ExecutePrompt>::SharedPtr actionServer;

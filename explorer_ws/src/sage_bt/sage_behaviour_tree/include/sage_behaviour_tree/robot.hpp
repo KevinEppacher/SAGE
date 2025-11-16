@@ -11,6 +11,7 @@
 #include <graph_node_msgs/msg/graph_node.hpp>
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <tf2/utils.hpp>
+#include <nav_msgs/msg/path.hpp>
 
 using namespace std::chrono_literals;
 
@@ -35,6 +36,11 @@ public:
                              const std::string& goalTopic = "/goal_pose",
                              const std::string& frame = "map");
     bool isHalted();
+    void recordCurrentPose();
+    nav_msgs::msg::Path getAccumulatedPath(const std::string& reference_frame_id = "map") const;
+    geometry_msgs::msg::Pose getStartPose() const { return startPose; }
+    geometry_msgs::msg::Pose getEndPose() const { return endPose; }
+    void resetPath();
 
     std::shared_ptr<nav_msgs::msg::OccupancyGrid> getGlobalCostmap();
 
@@ -59,4 +65,9 @@ private:
     bool spinDone{false};
     bool halted{false};
     rclcpp::Time haltedTime{};
+
+    std::vector<geometry_msgs::msg::PoseStamped> pathHistory;
+    geometry_msgs::msg::Pose startPose;
+    geometry_msgs::msg::Pose endPose;
+    bool startPoseSet{false};
 };

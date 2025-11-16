@@ -249,3 +249,39 @@ bool Robot::spinRelativeTo(const std::string& frame, double targetYawAbs, double
 
     return spin(delta, durationSec);
 }
+
+void Robot::recordCurrentPose()
+{
+    geometry_msgs::msg::Pose current;
+    if (!getPose(current)) return;
+
+    geometry_msgs::msg::PoseStamped stamped;
+    stamped.header.frame_id = "map";
+    stamped.header.stamp = node->now();
+    stamped.pose = current;
+
+    // store start pose once
+    if (!startPoseSet)
+    {
+        startPose = current;
+        startPoseSet = true;
+    }
+
+    pathHistory.push_back(stamped);
+    endPose = current;
+}
+
+nav_msgs::msg::Path Robot::getAccumulatedPath(const std::string& reference_frame_id) const
+{
+    nav_msgs::msg::Path path;
+    path.header.frame_id = reference_frame_id;
+    path.header.stamp = node->now();
+    path.poses = pathHistory;
+    return path;
+}
+
+void Robot::resetPath()
+{
+    pathHistory.clear();
+    startPoseSet = false;
+}

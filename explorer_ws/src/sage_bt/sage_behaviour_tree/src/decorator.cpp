@@ -625,6 +625,19 @@ SageBtOrchestrator::SageBtOrchestrator(
         "startup_check",
         std::bind(&SageBtOrchestrator::onStartupRequest, this, std::placeholders::_1, std::placeholders::_2));
 
+    RCLCPP_INFO(node->get_logger(),
+        CYAN "[%s] StartupCheck service 'startup_check' active." RESET,
+        this->name().c_str());
+
+    forceExitService = node->create_service<std_srvs::srv::Empty>(
+        "force_exit",
+        std::bind(&SageBtOrchestrator::onForceExit, this,
+                std::placeholders::_1, std::placeholders::_2));
+
+    RCLCPP_INFO(node->get_logger(),
+        CYAN "[%s] ForceExit service 'force_exit' active." RESET,
+        this->name().c_str());
+
     // Create action server for ExecutePrompt
     actionServer = rclcpp_action::create_server<ExecutePrompt>(
         node,
@@ -636,6 +649,8 @@ SageBtOrchestrator::SageBtOrchestrator(
     RCLCPP_INFO(node->get_logger(),
             CYAN "[%s] SageBtOrchestrator READY → Action server '/execute_prompt' active." RESET,
             this->name().c_str());
+
+    robot = std::make_unique<Robot>(node);
 }
 
 void SageBtOrchestrator::declareIfNotDeclared(
@@ -763,64 +778,67 @@ void SageBtOrchestrator::executeGoal(const std::shared_ptr<GoalHandle> goal_hand
     auto goal = goal_handle->get_goal();
     auto result = std::make_shared<ExecutePrompt::Result>();
 
-    // Store inputs from goal
     currentPrompt   = goal->prompt;
     currentSavePath = goal->save_directory;
     double timeoutSec = goal->timeout * 60.0;
 
-    // Prepare BT outputs
     setOutput("target_object", currentPrompt);
     setOutput("image_path", currentSavePath);
 
-    RCLCPP_INFO(node->get_logger(),
-        ORANGE "[%s] Executing BT subtree for prompt '%s' (timeout %.1f min = %.0fs)..." RESET,
-        this->name().c_str(), currentPrompt.c_str(), goal->timeout, timeoutSec);
-
-    // --- Main execution loop ---
-    rclcpp::Rate loop_rate(10); // 10 Hz
+    rclcpp::Rate loop_rate(10);
     BT::NodeStatus status = BT::NodeStatus::RUNNING;
     rclcpp::Time start_time = node->now();
+    bool goalCompleted = false;   // <== NEW GUARD FLAG
+
+    robot->resetPath();
+    robot->recordCurrentPose();
 
     while (rclcpp::ok() && status == BT::NodeStatus::RUNNING)
     {
-        // ---- Handle cancel ----
-        if (goal_handle->is_canceling())   // <<=== this is the critical line
+
+        // Early termination: BT forced to stop (e.g., via /force_exit)
+        if (!activeGoal)
         {
             RCLCPP_WARN(node->get_logger(),
-                YELLOW "[%s] Goal canceled by client. Halting BT subtree..." RESET,
+                ORANGE "[%s] Detected ForceExit or external stop → ending ExecutePrompt thread safely." RESET,
                 this->name().c_str());
+            return;
+        }
 
-            // Halt all running children in BT
+        if (goal_handle->is_canceling())
+        {
+            RCLCPP_WARN(node->get_logger(),
+                        YELLOW "[%s] Goal canceled by client. Halting BT subtree..." RESET,
+                        this->name().c_str());
             this->haltChild();
 
             result->result = false;
             result->confidence_score = 0.0f;
             goal_handle->canceled(result);
             activeGoal = false;
+            goalCompleted = true;     // <== prevent later publishing
             return;
         }
 
-        // ---- Handle timeout ----
         double elapsed = (node->now() - start_time).seconds();
         if (timeoutSec > 0.0 && elapsed > timeoutSec)
         {
             RCLCPP_ERROR(node->get_logger(),
-                RED "[%s] TIMEOUT reached after %.2fs (limit %.2fs) → aborting." RESET,
-                this->name().c_str(), elapsed, timeoutSec);
-
+                         RED "[%s] TIMEOUT after %.2fs → aborting goal." RESET,
+                         this->name().c_str(), elapsed);
             this->haltChild();
 
             result->result = false;
             result->confidence_score = 0.0f;
             goal_handle->abort(result);
             activeGoal = false;
+            goalCompleted = true;
             return;
         }
 
-        // ---- Tick BT ----
         status = child_node_->executeTick();
+        robot->recordCurrentPose();
 
-        // ---- Feedback ----
         ExecutePrompt::Feedback feedback;
         feedback.active_node = this->name();
         feedback.status = (status == BT::NodeStatus::RUNNING);
@@ -830,42 +848,25 @@ void SageBtOrchestrator::executeGoal(const std::shared_ptr<GoalHandle> goal_hand
         loop_rate.sleep();
     }
 
-    // ---- Finalize ----
+    if (goalCompleted) return;  // safeguard
+
     bool success = (status == BT::NodeStatus::SUCCESS);
     result->result = success;
 
-    // Try to get detected_graph_node to extract confidence
     std::shared_ptr<graph_node_msgs::msg::GraphNode> detected_node;
     if (getInput("detected_graph_node", detected_node) && detected_node)
-    {
         result->confidence_score = static_cast<float>(detected_node->score);
-        RCLCPP_INFO(node->get_logger(),
-            GREEN "[%s] Retrieved confidence score from detected GraphNode: %.3f" RESET,
-            this->name().c_str(), result->confidence_score);
-    }
     else
-    {
         result->confidence_score = success ? 1.0f : 0.0f;
-        RCLCPP_WARN(node->get_logger(),
-            YELLOW "[%s] No detected_graph_node found → using default confidence %.2f" RESET,
-            this->name().c_str(), result->confidence_score);
-    }
 
-    // Send result
+    result->start_pose = robot->getStartPose();
+    result->end_pose   = robot->getEndPose();
+    result->accumulated_path = robot->getAccumulatedPath();
+
     if (success)
-    {
-        RCLCPP_INFO(node->get_logger(),
-            GREEN "[%s] BT finished SUCCESS for '%s'." RESET,
-            this->name().c_str(), currentPrompt.c_str());
         goal_handle->succeed(result);
-    }
     else
-    {
-        RCLCPP_ERROR(node->get_logger(),
-            RED "[%s] BT finished FAILURE for '%s'." RESET,
-            this->name().c_str(), currentPrompt.c_str());
         goal_handle->abort(result);
-    }
 
     activeGoal = false;
 }
@@ -886,6 +887,20 @@ BT::NodeStatus SageBtOrchestrator::tick()
             this->name().c_str());
         return BT::NodeStatus::RUNNING;
     }
+
+    // Handle ForceExit request
+    if (forceExitRequested)
+    {
+        RCLCPP_WARN(node->get_logger(),
+            ORANGE "[%s] ForceExit triggered → halting child and returning SUCCESS." RESET,
+            this->name().c_str());
+
+        this->haltChild();
+        forceExitRequested = false;
+        activeGoal = false;  // optional if you want to stop ticking the subtree
+        return BT::NodeStatus::SUCCESS;
+    }
+
 
     // Only tick subtree if an action goal is active
     if (!activeGoal)
@@ -917,4 +932,15 @@ BT::NodeStatus SageBtOrchestrator::tick()
     }
 
     return status;
+}
+
+void SageBtOrchestrator::onForceExit(
+    const std::shared_ptr<std_srvs::srv::Empty::Request>,
+    std::shared_ptr<std_srvs::srv::Empty::Response>)
+{
+    RCLCPP_WARN(node->get_logger(),
+        ORANGE "[%s] ForceExit called → BT will return SUCCESS on next tick." RESET,
+        this->name().c_str());
+
+    forceExitRequested = true;
 }
