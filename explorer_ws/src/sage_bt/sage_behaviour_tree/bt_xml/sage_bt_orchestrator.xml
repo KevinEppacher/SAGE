@@ -2,7 +2,8 @@
 <root BTCPP_format="4"
       main_tree_to_execute="SAGE_MultiObject">
   <BehaviorTree ID="SAGE_MultiObject">
-    <SageBtOrchestrator image_path="{image_path}"
+    <SageBtOrchestrator detected_graph_node="{detected_graph_node}"
+                        image_path="{image_path}"
                         target_object="{target_object}">
       <SubTree ID="SAGE_SingleObject"
                object=""
@@ -152,6 +153,8 @@
       <input_port name="spinDuration"/>
     </Action>
     <Decorator ID="SageBtOrchestrator">
+      <input_port name="detected_graph_node"
+                  type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Best detected GraphNode</input_port>
       <output_port name="image_path"
                    type="std::string"/>
       <output_port name="target_object"
