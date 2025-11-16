@@ -38,6 +38,7 @@ setup(
             'initial_pose_publisher = sage_evaluator.initial_pose_publisher:main',
             'nearest_target_planner = sage_evaluator.nearest_target_planner_node:main',
             'navigable_target_projector = sage_evaluator.navigable_target_projector_node:main',
+            'shortest_path_service = sage_evaluator.shortest_path_service:main',
             # Tests
             'test_nav2_path_action = sage_evaluator.test.test_nav2_path_action:main',
         ],

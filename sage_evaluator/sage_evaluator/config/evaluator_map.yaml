@@ -81,3 +81,11 @@ evaluator:
       evaluation_event_sub: "/evaluator/dashboard/event"
       iteration_status_sub: "/evaluator/dashboard/iteration_status"
       path_event_pub: "path_event"
+
+evaluator:
+  shortest_path_service:
+    ros__parameters:
+      evaluate_prompt_pub: "/evaluator/prompt"
+      shortest_path_sub: "/evaluator/shortest_path"
+      timeout_sec: 30.0
+      debug_info: true
