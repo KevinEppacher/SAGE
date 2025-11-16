@@ -2,7 +2,8 @@
 <root BTCPP_format="4"
       main_tree_to_execute="SAGE_MultiObject">
   <BehaviorTree ID="SAGE_MultiObject">
-    <SageBtOrchestrator>
+    <SageBtOrchestrator image_path="{image_path}"
+                        target_object="{target_object}">
       <SubTree ID="SAGE_SingleObject"
                object=""
                _autoremap="true"/>
@@ -150,7 +151,12 @@
       <input_port name="detected_graph_node"/>
       <input_port name="spinDuration"/>
     </Action>
-    <Decorator ID="SageBtOrchestrator"/>
+    <Decorator ID="SageBtOrchestrator">
+      <output_port name="image_path"
+                   type="std::string"/>
+      <output_port name="target_object"
+                   type="std::string"/>
+    </Decorator>
     <Action ID="SaveImageAction"
             editable="true">
       <input_port name="imageTopic"/>

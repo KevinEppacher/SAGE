@@ -2,7 +2,7 @@
 string prompt
 string experiment_id
 string save_directory
-double timeout
+float64 timeout
 ---
 # Result
 bool result

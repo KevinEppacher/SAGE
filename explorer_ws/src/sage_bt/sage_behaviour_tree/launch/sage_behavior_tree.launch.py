@@ -7,6 +7,15 @@ from ament_index_python.packages import get_package_share_directory
 from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, DeclareLaunchArgument, ExecuteProcess
 import os
 
+'''
+ros2 service call /sage_behaviour_tree/startup_check sage_bt_msgs/srv/StartupCheck
+
+ros2 action send_goal /sage_behaviour_tree/execute_prompt sage_bt_msgs/action/ExecutePrompt \
+"{prompt: 'bed', experiment_id: 'EVAL01', save_directory: '/app/test.png', timeout: 60.0}" \
+--feedback
+
+'''
+
 groot2_executable = "/usr/local/bin/Groot2.AppImage"
 
 def generate_launch_description():
