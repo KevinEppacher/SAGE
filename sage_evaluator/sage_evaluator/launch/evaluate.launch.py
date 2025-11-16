@@ -68,6 +68,21 @@ def launch_setup(context, *args, **kwargs):
         ]
     )
 
+    dataset_writer_node = Node(
+        package="sage_evaluator",
+        executable='dataset_writer',
+        name="dataset_writer",
+        namespace=namespace,
+        output='screen',
+        emulate_tty=True,
+        parameters=[
+            {
+                'use_sim_time': use_sim_time == 'true',
+            },
+            evaluator_config_path
+        ]
+    )
+
     #---------------------- Launch Files ------------------------------#
 
     start_evaluation_map_launch = IncludeLaunchDescription(
@@ -88,6 +103,7 @@ def launch_setup(context, *args, **kwargs):
         evaluate_node,
         start_evaluation_map_launch,
         trajectory_recorder_node,
+        dataset_writer_node
     ]
 
 def generate_launch_description():

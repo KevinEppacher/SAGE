@@ -8,6 +8,7 @@
 #include "evaluator_msgs/msg/evaluation_event.hpp"
 #include "sage_behaviour_tree/robot.hpp"
 #include <nav2_costmap_2d/cost_values.hpp>
+#include <sage_bt_msgs/srv/startup_check.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <tf2/utils.h>
 #include <fstream>
@@ -138,4 +139,41 @@ private:
                         const graph_node_msgs::msg::GraphNode &target,
                         const graph_node_msgs::msg::GraphNode *reachable,
                         const std::string &ns);
+};
+
+// ============================ SageBtOrchestrator ============================ //
+
+class SageBtOrchestrator : public BT::DecoratorNode
+{
+public:
+    SageBtOrchestrator(
+        const std::string &name,
+        const BT::NodeConfig &config,
+        const rclcpp::Node::SharedPtr &node);
+
+    static BT::PortsList providedPorts();
+
+    BT::NodeStatus tick() override;
+
+private:
+    void declareIfNotDeclared(const std::string &param_name,
+                              const rclcpp::ParameterValue &default_value);
+    void loadParameters();
+
+    // Service callback
+    void onStartupRequest(
+        const std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Request>,
+        std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Response> resp);
+
+private:
+    rclcpp::Node::SharedPtr node;
+
+    rclcpp::Service<sage_bt_msgs::srv::StartupCheck>::SharedPtr startupService;
+
+    bool startupDone = false;
+
+    // parameters
+    std::vector<std::string> required_topics;
+    std::vector<std::string> required_services;
+    bool check_nav2_servers = false;
 };

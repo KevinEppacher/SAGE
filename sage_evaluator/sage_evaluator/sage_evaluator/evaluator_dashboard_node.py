@@ -9,7 +9,6 @@ from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 
 from sage_datasets.utils import DatasetManager
 
-
 class EvaluatorDashboard(Node):
     def __init__(self):
         super().__init__("evaluator_dashboard")
@@ -28,6 +27,7 @@ class EvaluatorDashboard(Node):
         # Dataset loading
         dataset = DatasetManager(self.scene, self.version, self.episode_id)
         self.episode_dir = dataset.episode_dir()
+        self.get_logger().info(f"Episode directory: {self.episode_dir}")
         prompts_data = dataset.prompts()
 
         if self.prompt_set not in prompts_data:

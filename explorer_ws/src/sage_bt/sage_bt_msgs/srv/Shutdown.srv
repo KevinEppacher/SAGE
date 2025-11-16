@@ -1,0 +1,10 @@
+# ============================
+# Shutdown.srv
+# ============================
+# Request
+bool success
+string summary_log
+---
+# Response
+bool ok
+string report

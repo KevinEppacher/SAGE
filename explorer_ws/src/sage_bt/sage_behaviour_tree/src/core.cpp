@@ -41,6 +41,7 @@ void SageBehaviorTreeNode::create_behavior_tree()
     factory.registerNodeType<PublishSemanticPrompt>("PublishSemanticPrompt", shared_from_this());
     factory.registerNodeType<ForEachEvaluationPrompt>("ForEachEvaluationPrompt", shared_from_this());
     factory.registerNodeType<ApproachPoseAdjustor>("ApproachPoseAdjustor", shared_from_this());
+    factory.registerNodeType<SageBtOrchestrator>("SageBtOrchestrator", shared_from_this());
 
     // === NEW: export TreeNodesModel to XML for Groot 2 ===
     try

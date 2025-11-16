@@ -205,8 +205,6 @@ void ForEachEvaluationPrompt::callbackEvent(const EvaluationEvent::SharedPtr msg
                 name().c_str(), msg->save_path.c_str());
     RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Episode: %s" RESET,
                 name().c_str(), msg->episode_id.c_str());
-    RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Phase: %s" RESET,
-                name().c_str(), msg->phase.c_str());
     RCLCPP_INFO(node->get_logger(),
                 ORANGE "[%s] Prompts in this run:" RESET,
                 name().c_str());
@@ -608,4 +606,138 @@ void ApproachPoseAdjustor::publishMarkers(const geometry_msgs::msg::Pose &robotP
     }
 
     markerPub->publish(arr);
+}
+
+// ============================ SageBtOrchestrator ============================ //
+
+SageBtOrchestrator::SageBtOrchestrator(
+    const std::string &name,
+    const BT::NodeConfig &config,
+    const rclcpp::Node::SharedPtr &nodePtr)
+    : BT::DecoratorNode(name, config),
+      node(nodePtr)
+{
+    // Declare parameters if needed
+    declareIfNotDeclared("sage_bt.startup.required_topics", rclcpp::ParameterValue(std::vector<std::string>{}));
+    declareIfNotDeclared("sage_bt.startup.required_services", rclcpp::ParameterValue(std::vector<std::string>{}));
+
+    loadParameters();
+
+    // Create the service (NO CLIENT — orchestrator is the server)
+    startupService = node->create_service<sage_bt_msgs::srv::StartupCheck>(
+        "startup_check",
+        std::bind(&SageBtOrchestrator::onStartupRequest,
+                  this,
+                  std::placeholders::_1,
+                  std::placeholders::_2));
+
+    RCLCPP_INFO(node->get_logger(),
+                "[%s] SageBtOrchestrator READY – waiting for StartupCheck callback on service 'startup_check'.",
+                name.c_str());
+}
+
+void SageBtOrchestrator::declareIfNotDeclared(
+    const std::string &param_name,
+    const rclcpp::ParameterValue &default_value)
+{
+    if (!node->has_parameter(param_name))
+        node->declare_parameter(param_name, default_value);
+}
+
+void SageBtOrchestrator::loadParameters()
+{
+    required_topics = node->get_parameter("sage_bt.startup.required_topics").as_string_array();
+    required_services = node->get_parameter("sage_bt.startup.required_services").as_string_array();
+}
+
+BT::PortsList SageBtOrchestrator::providedPorts()
+{
+    return {};
+}
+
+void SageBtOrchestrator::onStartupRequest(
+    const std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Request>,
+    std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Response> resp)
+{
+    std::stringstream report;
+    bool all_ok = true;
+
+    // TOPICS
+    for (const auto &t : required_topics)
+    {
+        if (node->get_topic_names_and_types().count(t) == 0)
+        {
+            all_ok = false;
+            report << "Missing topic: " << t << "\n";
+        }
+    }
+
+    // SERVICES
+    for (const auto &s : required_services)
+    {
+        if (node->get_service_names_and_types().count(s) == 0)
+        {
+            all_ok = false;
+            report << "Missing service: " << s << "\n";
+        }
+    }
+
+    resp->ready = all_ok;
+    resp->report = report.str();
+
+    if (all_ok)
+    {
+        startupDone = true;
+
+        RCLCPP_INFO(node->get_logger(),
+            GREEN "[%s] StartupCheck SUCCESS → System ready." RESET,
+            name().c_str());
+    }
+    else
+    {
+        RCLCPP_WARN(node->get_logger(),
+            RED "[%s] StartupCheck FAILED:" RESET "\n%s",
+            name().c_str(),
+            resp->report.c_str());
+    }
+}
+
+// ========= TICK ========= //
+
+BT::NodeStatus SageBtOrchestrator::tick()
+{
+    static rclcpp::Clock clock(RCL_STEADY_TIME);
+
+    if (!startupDone)
+    {
+        RCLCPP_INFO_THROTTLE(node->get_logger(), clock, 2000,
+            ORANGE "[%s] Waiting for StartupCheck... (RUNNING)" RESET,
+            name().c_str());
+
+        return BT::NodeStatus::RUNNING;
+    }
+
+    // Child is ready to execute
+    BT::NodeStatus status = child_node_->executeTick();
+
+    if (status == BT::NodeStatus::SUCCESS)
+    {
+        RCLCPP_INFO(node->get_logger(),
+            GREEN "[%s] Child subtree → SUCCESS." RESET,
+            name().c_str());
+    }
+    else if (status == BT::NodeStatus::FAILURE)
+    {
+        RCLCPP_ERROR(node->get_logger(),
+            RED "[%s] Child subtree → FAILURE." RESET,
+            name().c_str());
+    }
+    else if (status == BT::NodeStatus::RUNNING)
+    {
+        RCLCPP_INFO_THROTTLE(node->get_logger(), clock, 2000,
+            ORANGE "[%s] Child subtree running..." RESET,
+            name().c_str());
+    }
+
+    return status;
 }
