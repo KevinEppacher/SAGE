@@ -9,6 +9,17 @@ from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 
 from sage_datasets.utils import DatasetManager
 
+'''
+for object in searching_objects
+    evaluation_prompt = load_prompt("eval")
+    prompt = load_prompt("train")
+    publish_prompt(evaluation_prompt)
+    shortest_path = service_call_shortest_path(prompt)
+    success, confidence, actual_path, start_pose, end_pose = call_sage_bt_action(prompt)
+    sr, spl = compute_metrics(shortest_path, actual_path, success)
+    save_results(success, confidence, sr, spl, start_pose, end_pose)
+'''
+
 class EvaluatorDashboard(Node):
     def __init__(self):
         super().__init__("evaluator_dashboard")

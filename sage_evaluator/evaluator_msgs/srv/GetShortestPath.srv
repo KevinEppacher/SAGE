@@ -1,0 +1,6 @@
+# Request
+string query        # e.g. "bed"
+---
+bool success
+float32 path_length
+nav_msgs/Path path

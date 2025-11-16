@@ -109,6 +109,21 @@ def launch_setup(context, *args, **kwargs):
         ]
     )
 
+    shortest_path_service_node = Node(
+        package="sage_evaluator",
+        executable='shortest_path_service',
+        name="shortest_path_service",
+        output='screen',
+        namespace=namespace,
+        emulate_tty=True,
+        parameters=[
+            {
+                'use_sim_time': use_sim_time == 'true',
+            },
+            evaluator_map_config_path
+        ]
+    )
+
     planner_server_node = LifecycleNode(
         package='nav2_planner',
         executable='planner_server',
@@ -160,7 +175,8 @@ def launch_setup(context, *args, **kwargs):
         planner_server_node,
         navigable_target_projector_node,
         nearest_target_planner,
-        delayed_lcm
+        delayed_lcm,
+        shortest_path_service_node
     ]
 
 def generate_launch_description():

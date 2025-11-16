@@ -14,6 +14,7 @@ ros2 action send_goal /sage_behaviour_tree/execute_prompt sage_bt_msgs/action/Ex
 "{prompt: 'bed', experiment_id: 'EVAL01', save_directory: '/app/test.png', timeout: 60.0}" \
 --feedback
 
+ros2 service call /sage_behaviour_tree/force_exit std_srvs/srv/Empty
 '''
 
 groot2_executable = "/usr/local/bin/Groot2.AppImage"
