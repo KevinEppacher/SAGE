@@ -36,49 +36,27 @@ public:
     void onHalted() override;
 
 private:
-    // Internal helpers
-    double shortestReturn(double angle);
-    void cosineCallback(const std_msgs::msg::Float32::SharedPtr msg);
-    double findLikeliestYaw() const;
-    void publishCosineProfile();
-
-    // Marker publishing
-    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr markerPub;
-    std::string markerFrame{"map"};
-    int markerId{0};
-
-    // Yaw tracking (update per sample)
-    double currentYaw{0.0};
-
-    // Helper
-    void publishDirectionMarker(double yaw, float cosineVal);
-
-    // Core ROS & behaviour objects
+    // ROS
     rclcpp::Node::SharedPtr node;
     std::shared_ptr<Robot> robot;
-    rclcpp_action::ResultCode navResult{};
 
-    // Spin configuration
+    // Inputs
     double turnLeftAngle{0.0};
     double turnRightAngle{0.0};
-    double spinDuration{15.0};
-    double spinTimeout{30.0};
-    double originYaw{0.0};   // yaw at onStart()
-    int phase{0};
-    bool done{false};
-    std::deque<double> sweepTargetsAbs;   // absolute yaws in 'map'
-    const double yaw_epsilon = 0.03;      // ~1.7 deg; treat as reached
+    double spinDuration{10.0};
 
-    // Time tracking
+    // Internal yaw state
+    double originYaw{0.0};
+    double leftTarget{0.0};
+    double rightTarget{0.0};
+
+    // Timing
     rclcpp::Clock steadyClock{RCL_STEADY_TIME};
     rclcpp::Time startTimeSteady;
+    double spinTimeout{30.0};
 
-    // Cosine similarity behaviour
-    bool returnToLikeliest{false};
-    std::string cosineTopic{"/value_map/cosine_similarity"};
-    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr cosineSub;
-    std::vector<std::pair<double, float>> cosineSamples;
-    float lastCosine{0.0f};
+    // Phases: 1=left, 2=origin, 3=right
+    int phase{0};
 };
 
 // ============================ GoToGraphNode ============================ //
@@ -139,3 +117,65 @@ private:
     double spinDuration{5.0};
     bool started{false};
 };
+
+
+// -------------------- End of navigation.hpp -------------------- //
+
+// class Spin : public BT::StatefulActionNode
+// {
+// public:
+//     Spin(const std::string &name,
+//          const BT::NodeConfiguration &config,
+//          rclcpp::Node::SharedPtr node);
+
+//     static BT::PortsList providedPorts();
+
+//     BT::NodeStatus onStart() override;
+//     BT::NodeStatus onRunning() override;
+//     void onHalted() override;
+
+// private:
+//     // Internal helpers
+//     double shortestReturn(double angle);
+//     void cosineCallback(const std_msgs::msg::Float32::SharedPtr msg);
+//     double findLikeliestYaw() const;
+//     void publishCosineProfile();
+
+//     // Marker publishing
+//     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr markerPub;
+//     std::string markerFrame{"map"};
+//     int markerId{0};
+
+//     // Yaw tracking (update per sample)
+//     double currentYaw{0.0};
+
+//     // Helper
+//     void publishDirectionMarker(double yaw, float cosineVal);
+
+//     // Core ROS & behaviour objects
+//     rclcpp::Node::SharedPtr node;
+//     std::shared_ptr<Robot> robot;
+//     rclcpp_action::ResultCode navResult{};
+
+//     // Spin configuration
+//     double turnLeftAngle{0.0};
+//     double turnRightAngle{0.0};
+//     double spinDuration{15.0};
+//     double spinTimeout{30.0};
+//     double originYaw{0.0};   // yaw at onStart()
+//     int phase{0};
+//     bool done{false};
+//     std::deque<double> sweepTargetsAbs;   // absolute yaws in 'map'
+//     const double yaw_epsilon = 0.03;      // ~1.7 deg; treat as reached
+
+//     // Time tracking
+//     rclcpp::Clock steadyClock{RCL_STEADY_TIME};
+//     rclcpp::Time startTimeSteady;
+
+//     // Cosine similarity behaviour
+//     bool returnToLikeliest{false};
+//     std::string cosineTopic{"/value_map/cosine_similarity"};
+//     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr cosineSub;
+//     std::vector<std::pair<double, float>> cosineSamples;
+//     float lastCosine{0.0f};
+// };

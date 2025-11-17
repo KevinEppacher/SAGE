@@ -1,0 +1,9 @@
+# ============================
+# StartupCheck.srv
+# ============================
+# Request
+
+---
+# Response
+bool ready
+string report

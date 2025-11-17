@@ -1,6 +1,7 @@
 sage_behaviour_tree:
   sage_bt_node:
     ros__parameters:
+      bt_tick_rate_ms: 1000.0
       approach_pose_adjustor:
         allow_unknown: true       # bool: helps exploration and frontier regions
         angular_step_deg: 5.0     # double: good balance

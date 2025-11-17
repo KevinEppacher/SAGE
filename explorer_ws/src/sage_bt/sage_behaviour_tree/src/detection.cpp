@@ -74,7 +74,7 @@ BT::NodeStatus IsDetected::tick()
 
     if (!bestNode)
     {
-        RCLCPP_WARN(nodePtr->get_logger(),
+        RCLCPP_WARN_THROTTLE(nodePtr->get_logger(), *nodePtr->get_clock(), 2000,
                     RED "[%s] No detections in message. Returning FAILURE" RESET,
                     name().c_str());
         aboveThreshold = false;
@@ -101,16 +101,22 @@ BT::NodeStatus IsDetected::tick()
 
         if (elapsed >= timeThreshold)
         {
-            RCLCPP_INFO(nodePtr->get_logger(),
-                        GREEN "[%s] Detection stable for %.2fs (score %.2f ≥ %.2f) → SUCCESS" RESET,
-                        name().c_str(), elapsed, maxScore, threshold);
+            if (timeThreshold > 0.0)
+            {
+                RCLCPP_INFO(nodePtr->get_logger(),
+                            GREEN "[%s] Detection stable for %.2fs (score %.2f ≥ %.2f) → SUCCESS" RESET,
+                            name().c_str(), elapsed, maxScore, threshold);
+            }
             return BT::NodeStatus::SUCCESS;
         }
         else
         {
-            RCLCPP_INFO_THROTTLE(nodePtr->get_logger(), *nodePtr->get_clock(), 1000,
-                                 ORANGE "[%s] Detection ongoing %.2fs / %.2fs (score %.2f)" RESET,
-                                 name().c_str(), elapsed, timeThreshold, maxScore);
+            if (timeThreshold > 0.0)
+            {
+                RCLCPP_INFO_THROTTLE(nodePtr->get_logger(), *nodePtr->get_clock(), 1000,
+                                    ORANGE "[%s] Detection ongoing %.2fs / %.2fs (score %.2f)" RESET,
+                                    name().c_str(), elapsed, timeThreshold, maxScore);
+            }
             return BT::NodeStatus::FAILURE;
         }
     }
@@ -118,9 +124,12 @@ BT::NodeStatus IsDetected::tick()
     {
         if (aboveThreshold)
         {
-            RCLCPP_WARN(nodePtr->get_logger(),
-                        RED "[%s] Detection lost (%.2f < %.2f). Resetting timer." RESET,
-                        name().c_str(), maxScore, threshold);
+            if (timeThreshold > 0.0)
+            {
+                RCLCPP_WARN(nodePtr->get_logger(),
+                            RED "[%s] Detection dropped below %.2f (%.2f < %.2f). Resetting timer." RESET,
+                            name().c_str(), threshold, maxScore, threshold);
+            }
         }
         aboveThreshold = false;
         return BT::NodeStatus::FAILURE;

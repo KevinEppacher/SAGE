@@ -3,72 +3,52 @@
       main_tree_to_execute="SAGE_SingleObject">
   <BehaviorTree ID="SAGE_SingleObject">
     <Sequence>
+      <PublishSemanticPrompt topic="/user_prompt"
+                             text_query="{text_query}"/>
       <SetBlackboard value="false"
                      output_key="object_found"/>
-      <SetBlackboard value="true"
-                     output_key="any_exploration_nodes"/>
-      <CallEmptyService service_name="/exploration_map/clear"/>
-      <CallEmptyService service_name="/value_map/clear"/>
-      <PublishSemanticPrompt text_query="bed"
-                             topic="/user_prompt"/>
-      <KeepRunningUntilObjectFound object_found="{object_found}"
-                                   any_exploration_nodes="{any_exploration_nodes}">
+      <KeepRunningUntilObjectFound any_exploration_nodes="true"
+                                   object_found="{object_found}">
         <ReactiveFallback>
           <Sequence name="Detection sequence">
             <IsDetected name="Target object detected?"
-                        detection_threshold="0.85"
-                        detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
-                        graph_nodes="{detected_graph_node}"/>
-            <GoToGraphNode name="Go to likiest GraphNode"
-                           graph_nodes="{likiest_explorer_node}"
-                           approach_radius="2"
-                           goal_topic="/goal_pose"
-                           robot_frame="base_link"
-                           map_frame="map"
-                           timeout="10"/>
-            <RealignToObject detected_graph_node="{detected_graph_node}"
-                             spinDuration="5.0"/>
-            <SaveImageAction imageTopic="/yoloe/overlay"
-                             savePath="/app/image.png"/>
+                        graph_nodes="{detected_graph_node}"
+                        detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
+                        time_threshold="1.000000"
+                        detection_threshold="0.85"/>
+            <ApproachPoseAdjustor search_radius="2.500000"
+                                  reachable_graph_node="{reachable_graph_node}"
+                                  graph_node="{detected_graph_node}">
+              <GoToGraphNode name="Go to likiest GraphNode"
+                             graph_node="{reachable_graph_node}"/>
+            </ApproachPoseAdjustor>
+            <RealignToObject spinDuration="5.0"
+                             detected_graph_node="{detected_graph_node}"/>
+            <SaveImageAction savePath="{image_path}"
+                             imageTopic="/yoloe/overlay"/>
             <SetBlackboard value="true"
                            output_key="object_found"/>
           </Sequence>
           <Sequence name="Exploration sequence">
-            <SetParameterNode target_node="/value_map/value_map"
-                              parameter_name="semantic_map.decay_factor"
-                              value="1"/>
             <SeekoutGraphNodes name="Observe all possible GraphNodes"
-                               graph_node_topic="/exploration_graph_nodes/graph_nodes"
+                               max_yaw="{turn_left_angle}"
+                               min_yaw="{turn_right_angle}"
+                               max_yaw_default="0.523"
+                               min_yaw_default="-0.523"
+                               sight_horizon="10"
                                robot_frame="base_link"
                                map_frame="map"
-                               sight_horizon="10"
-                               min_yaw_default="-0.523"
-                               max_yaw_default="0.523"
-                               min_yaw="{min_yaw}"
-                               max_yaw="{max_yaw}"/>
-            <Spin turnLeftAngle="{max_yaw}"
-                  turnRightAngle="{min_yaw}"
-                  spinDuration="5"/>
-            <SetParameterNode target_node="/value_map/value_map"
-                              parameter_name="semantic_map.decay_factor"
-                              value="0.999"/>
-            <ReactiveSequence>
-              <Fallback>
-                <IsDetected name="Already explored all available GraphNodes?"
-                            detection_threshold="0.0"
-                            detection_graph_node_topic="/exploration_graph_nodes/graph_nodes"
-                            graph_nodes="{likiest_explorer_node}"/>
-                <SetBlackboard value="false"
-                               output_key="any_exploration_nodes"/>
-              </Fallback>
-              <GoToGraphNode name="Go to likiest GraphNode"
-                             graph_nodes="{likiest_explorer_node}"
-                             approach_radius="0.5"
-                             goal_topic="/goal_pose"
-                             robot_frame="base_link"
-                             map_frame="map"
-                             timeout="10"/>
-            </ReactiveSequence>
+                               graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"/>
+            <Spin spin_duration="10.000000"
+                  turn_right_angle="{turn_right_angle}"
+                  turn_left_angle="{turn_left_angle}"/>
+            <IsDetected name="Already explored all available GraphNodes?"
+                        graph_nodes="{likiest_explorer_node}"
+                        detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                        time_threshold="0"
+                        detection_threshold="0.0"/>
+            <GoToGraphNode name="Go to likiest GraphNode"
+                           graph_node="{likiest_explorer_node}"/>
           </Sequence>
         </ReactiveFallback>
       </KeepRunningUntilObjectFound>
@@ -77,80 +57,93 @@
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
-    <Action ID="CallEmptyService">
-      <input_port name="service_name"
-                  default="/clear_exploration_map"/>
-    </Action>
+    <Decorator ID="ApproachPoseAdjustor">
+      <input_port name="search_radius"
+                  default="2.500000"
+                  type="double">Maximum approach distance (m)</input_port>
+      <output_port name="reachable_graph_node"
+                   type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Adjusted reachable node</output_port>
+      <input_port name="graph_node"
+                  type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Input target node</input_port>
+    </Decorator>
     <Action ID="GoToGraphNode">
-      <input_port name="graph_nodes"/>
-      <input_port name="approach_radius"/>
-      <input_port name="goal_topic"/>
-      <input_port name="robot_frame"/>
-      <input_port name="map_frame"/>
-      <input_port name="timeout"
-                  default="60.0"/>
+      <input_port name="graph_node"
+                  type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Target GraphNode</input_port>
     </Action>
     <Condition ID="IsDetected">
-      <input_port name="detection_threshold"
-                  default="0.8"/>
-      <input_port name="detection_graph_node_topic"
-                  default="/detection_graph_nodes/graph_nodes"/>
       <output_port name="graph_nodes"
-                   default="latest_nodes"/>
+                   type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Best detected GraphNode</output_port>
+      <input_port name="detection_graph_node_topic"
+                  default="/detection_graph_nodes/graph_nodes"
+                  type="std::string">GraphNodeArray topic</input_port>
+      <input_port name="time_threshold"
+                  default="1.000000"
+                  type="double">Seconds the detection must persist</input_port>
+      <input_port name="detection_threshold"
+                  default="0.800000"
+                  type="double">Minimum detection score threshold</input_port>
     </Condition>
     <Decorator ID="KeepRunningUntilObjectFound">
-      <input_port name="object_found"
-                  default="false"/>
       <input_port name="any_exploration_nodes"
-                  default="true"/>
+                  default="true"
+                  type="bool">True if frontiers or exploration nodes remain</input_port>
+      <input_port name="object_found"
+                  default="false"
+                  type="bool">True if target object was detected</input_port>
     </Decorator>
     <Action ID="PublishSemanticPrompt">
-      <input_port name="text_query"/>
       <input_port name="topic"
-                  default="/user_prompt"/>
+                  default="/user_prompt"
+                  type="std::string">Topic to publish the SemanticPrompt message on</input_port>
+      <input_port name="text_query"
+                  type="std::string">Text query to publish as SemanticPrompt</input_port>
     </Action>
     <Action ID="RealignToObject">
-      <input_port name="detected_graph_node"/>
       <input_port name="spinDuration"
-                  default="5.0"/>
+                  default="5.000000"
+                  type="double">Spin duration seconds</input_port>
+      <input_port name="detected_graph_node"
+                  type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Detected node</input_port>
     </Action>
     <Action ID="SaveImageAction">
-      <input_port name="imageTopic"
-                  default="/yoloe/overlay"/>
       <input_port name="savePath"
-                  default="/tmp/overlay.jpg"/>
+                  default="/tmp/overlay.jpg"
+                  type="std::string">Output image path</input_port>
+      <input_port name="imageTopic"
+                  default="/yoloe/overlay"
+                  type="std::string">Image topic to subscribe</input_port>
     </Action>
     <Action ID="SeekoutGraphNodes">
-      <input_port name="graph_node_topic"
-                  default="/fused/exploration_graph_nodes/graph_nodes"/>
-      <input_port name="robot_frame"
-                  default="base_link"/>
-      <input_port name="map_frame"
-                  default="map"/>
-      <input_port name="sight_horizon"
-                  default="10.0"/>
-      <input_port name="min_yaw_default"
-                  default="-0.523"/>
+      <output_port name="max_yaw"
+                   type="double"/>
+      <output_port name="min_yaw"
+                   type="double"/>
       <input_port name="max_yaw_default"
-                  default="0.523"/>
-      <output_port name="min_yaw"/>
-      <output_port name="max_yaw"/>
-    </Action>
-    <Action ID="SetParameterNode">
-      <input_port name="target_node"
-                  default="/value_map"/>
-      <input_port name="parameter_name"
-                  default="decay_factor"/>
-      <input_port name="value"
-                  default="1.0"/>
+                  default="1.570796"
+                  type="double">Default max yaw (rad)</input_port>
+      <input_port name="min_yaw_default"
+                  default="-1.570796"
+                  type="double">Default min yaw (rad)</input_port>
+      <input_port name="sight_horizon"
+                  default="10.000000"
+                  type="double">Horizon distance (m)</input_port>
+      <input_port name="robot_frame"
+                  type="std::string">base_link</input_port>
+      <input_port name="map_frame"
+                  type="std::string">map</input_port>
+      <input_port name="graph_node_topic"
+                  type="std::string">/fused/exploration_graph_nodes/graph_nodes</input_port>
     </Action>
     <Action ID="Spin">
-      <input_port name="turnLeftAngle"
-                  default="3.14159"/>
-      <input_port name="turnRightAngle"
-                  default="-3.14159"/>
-      <input_port name="spinDuration"
-                  default="10.0"/>
+      <input_port name="spin_duration"
+                  default="10.000000"
+                  type="double">Duration per spin</input_port>
+      <input_port name="turn_right_angle"
+                  default="0.000000"
+                  type="double">CW angle (radians)</input_port>
+      <input_port name="turn_left_angle"
+                  default="0.000000"
+                  type="double">CCW angle (radians)</input_port>
     </Action>
   </TreeNodesModel>
 
