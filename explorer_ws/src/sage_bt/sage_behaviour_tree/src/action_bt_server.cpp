@@ -27,6 +27,41 @@ SageBtActionNode::SageBtActionNode()
     tree_xml_file_   = get_parameter("tree_xml_file").as_string();
     bt_tick_rate_ms_ = get_parameter("bt_tick_rate_ms").as_double();
 
+    // --- Declare startup requirements ---
+    declare_if_not_declared("startup.required_topics",
+        rclcpp::ParameterValue(std::vector<std::string>{}));
+    declare_if_not_declared("startup.required_services",
+        rclcpp::ParameterValue(std::vector<std::string>{}));
+
+    required_topics_   = get_parameter("startup.required_topics").as_string_array();
+    required_services_ = get_parameter("startup.required_services").as_string_array();
+
+    // Log parameters
+    RCLCPP_INFO(get_logger(), "Behavior Tree XML file: %s", tree_xml_file_.c_str());
+    RCLCPP_INFO(get_logger(), "BT tick rate (ms): %.1f", bt_tick_rate_ms_);
+    RCLCPP_INFO(get_logger(), "Location file: %s", location_file_.c_str());
+    RCLCPP_INFO(get_logger(), "Required topics for startup check:");
+    for (const auto& topic : required_topics_)
+        RCLCPP_INFO(get_logger(), "  - %s", topic.c_str());
+    RCLCPP_INFO(get_logger(), "Required services for startup check:");
+    for (const auto& service : required_services_)
+        RCLCPP_INFO(get_logger(), "  - %s", service.c_str());
+
+    // --- StartupCheck service ---
+    startup_service_ = create_service<sage_bt_msgs::srv::StartupCheck>(
+        "startup_check",
+        std::bind(&SageBtActionNode::on_startup_request, this,
+                  std::placeholders::_1, std::placeholders::_2));
+
+    RCLCPP_INFO(get_logger(), "StartupCheck service '/startup_check' active");
+}
+
+void SageBtActionNode::declare_if_not_declared(
+    const std::string& name,
+    const rclcpp::ParameterValue& value)
+{
+    if (!has_parameter(name))
+        declare_parameter(name, value);
 }
 
 void SageBtActionNode::setup_action_server()
@@ -50,6 +85,14 @@ rclcpp_action::GoalResponse SageBtActionNode::handle_goal(
     const rclcpp_action::GoalUUID&,
     std::shared_ptr<const ExecutePrompt::Goal> goal)
 {
+    if (!startup_ready_)
+    {
+        RCLCPP_WARN(get_logger(),
+            "Rejecting goal '%s' → StartupCheck not passed yet.",
+            goal->prompt.c_str());
+        return rclcpp_action::GoalResponse::REJECT;
+    }
+
     RCLCPP_INFO(get_logger(), "Received goal: %s", goal->prompt.c_str());
     return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
 }
@@ -120,15 +163,6 @@ void SageBtActionNode::create_behavior_tree(const std::shared_ptr<GoalHandle> go
 
     BT::printTreeRecursively(tree_.rootNode());
 
-    // // Create or update Groot2Publisher safely
-    // if (!groot_initialized_) {
-    //     publisher_ptr_ = std::make_unique<BT::Groot2Publisher>(tree_, 1668);
-    //     groot_initialized_ = true;
-    //     RCLCPP_INFO(get_logger(), "Initialized Groot2Publisher on port 1668");
-    // } else {
-    //     publisher_ptr_->setTree(tree_);
-    //     RCLCPP_INFO(get_logger(), "Reusing existing Groot2Publisher instance");
-    // }
     // before creating new Groot publisher
     if (publisher_ptr_) 
     {
@@ -199,4 +233,64 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
         goal_handle->abort(result);
         RCLCPP_WARN(get_logger(), "BT execution FAILURE");
     }
+}
+
+void SageBtActionNode::on_startup_request(
+    const std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Request>,
+    std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Response> response)
+{
+    std::stringstream report;
+    bool all_ok = check_required_interfaces(report);
+
+    response->ready = all_ok;
+    response->report = report.str();
+
+    if (all_ok)
+    {
+        startup_ready_ = true;
+        RCLCPP_INFO(get_logger(),
+            "[StartupCheck] SUCCESS: all required topics/services found.\n%s",
+            response->report.c_str());
+    }
+    else
+    {
+        RCLCPP_WARN(get_logger(),
+            "[StartupCheck] FAILED:\n%s", response->report.c_str());
+    }
+}
+
+bool SageBtActionNode::check_required_interfaces(std::stringstream& report)
+{
+    bool all_ok = true;
+
+    auto available_topics = get_topic_names_and_types();
+    auto available_services = get_service_names_and_types();
+
+    for (const auto& topic : required_topics_)
+    {
+        if (available_topics.count(topic) == 0)
+        {
+            all_ok = false;
+            report << "Missing topic: " << topic << "\n";
+        }
+        else
+        {
+            report << "✓ Found topic: " << topic << "\n";
+        }
+    }
+
+    for (const auto& srv : required_services_)
+    {
+        if (available_services.count(srv) == 0)
+        {
+            all_ok = false;
+            report << "Missing service: " << srv << "\n";
+        }
+        else
+        {
+            report << "✓ Found service: " << srv << "\n";
+        }
+    }
+
+    return all_ok;
 }
