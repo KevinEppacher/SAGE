@@ -54,6 +54,7 @@ SageBtActionNode::SageBtActionNode()
                   std::placeholders::_1, std::placeholders::_2));
 
     RCLCPP_INFO(get_logger(), "StartupCheck service '/startup_check' active");
+
 }
 
 void SageBtActionNode::declare_if_not_declared(
@@ -107,8 +108,10 @@ rclcpp_action::CancelResponse SageBtActionNode::handle_cancel(
 void SageBtActionNode::handle_accepted(
     const std::shared_ptr<GoalHandle> goal_handle)
 {
-    // run BT asynchronously
-    std::thread{&SageBtActionNode::execute_bt, this, goal_handle}.detach();
+    auto self = shared_from_this();
+    std::thread([this, self, goal_handle]() {
+        this->execute_bt(goal_handle);
+    }).detach();
 }
 
 // ============================================================================
@@ -200,30 +203,38 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
     auto feedback = std::make_shared<ExecutePrompt::Feedback>();
     auto result   = std::make_shared<ExecutePrompt::Result>();
 
+    // if (!robot_)
+    // {
+    //     rclcpp::sleep_for(100ms);
+    //     robot_ = std::make_unique<Robot>(shared_from_this());
+    // }
+
     RCLCPP_INFO(get_logger(),
         "Starting Behavior Tree execution with prompt: %s (timeout: %.1f min)",
         goal->prompt.c_str(), goal->timeout);
 
-    // ----------------------------------------------------
-    // Initialize blackboard
-    // ----------------------------------------------------
+    if (!robot_)
+        robot_ = std::make_unique<Robot>(shared_from_this());
+
+    robot_->resetPath();          // start a fresh path recording
+    robot_->recordCurrentPose();  // record initial pose
+
     blackboard_ = BT::Blackboard::create();
     blackboard_->set("text_query", goal->prompt);
     blackboard_->set("image_path", goal->save_directory);
     blackboard_->set<std::shared_ptr<graph_node_msgs::msg::GraphNode>>(
         "detected_graph_node", std::make_shared<graph_node_msgs::msg::GraphNode>());
 
-    // Build tree
     create_behavior_tree(goal_handle);
 
     BT::NodeStatus status = BT::NodeStatus::RUNNING;
     rclcpp::Rate rate(1000.0 / bt_tick_rate_ms_);
 
     // ----------------------------------------------------
-    // Use STEADY clock for wall-time timeout
+    // Timeout (steady clock)
     // ----------------------------------------------------
     rclcpp::Clock steady_clock(RCL_STEADY_TIME);
-    const double timeout_sec = goal->timeout * 60.0;  // convert minutes → seconds
+    const double timeout_sec = goal->timeout * 60.0;
     const rclcpp::Time start_time = steady_clock.now();
 
     // ----------------------------------------------------
@@ -231,7 +242,6 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
     // ----------------------------------------------------
     while (rclcpp::ok() && status == BT::NodeStatus::RUNNING)
     {
-        // Compute elapsed wall time
         const double elapsed = (steady_clock.now() - start_time).seconds();
 
         if (timeout_sec > 0.0 && elapsed >= timeout_sec)
@@ -243,24 +253,22 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
             break;
         }
 
-        // Handle client cancel
+        // Client cancel
         if (goal_handle->is_canceling())
         {
             RCLCPP_WARN(get_logger(), "Goal canceled by client");
+            result->result = false;
+            result->confidence_score = 0.0f;
             if (rclcpp::ok() && goal_handle->is_active())
-            {
-                result->result = false;
-                result->confidence_score = 0.0f;
                 goal_handle->canceled(result);
-            }
             tree_.haltTree();
             return;
         }
 
-        // Tick tree
+        // Tick BT once and record current pose
         status = tree_.tickOnce();
+        robot_->recordCurrentPose();
 
-        // Feedback
         feedback->active_node = "BT_Tick";
         feedback->status = (status == BT::NodeStatus::RUNNING);
         feedback->log = "Ticking behavior tree...";
@@ -294,7 +302,21 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
     }
 
     // ----------------------------------------------------
-    // Final result publication
+    // Add robot trajectory data to the result
+    // ----------------------------------------------------
+    result->start_pose = robot_->getStartPose();
+    result->end_pose   = robot_->getEndPose();
+    result->accumulated_path = robot_->getAccumulatedPath();
+
+    // ----------------------------------------------------
+    // Compute and store total execution time
+    // ----------------------------------------------------
+    const double total_elapsed_sec = (steady_clock.now() - start_time).seconds();
+    result->total_time = static_cast<float>(total_elapsed_sec);
+    RCLCPP_INFO(get_logger(), "Total BT execution time: %.2f seconds", total_elapsed_sec);
+
+    // ----------------------------------------------------
+    // Publish final result
     // ----------------------------------------------------
     result->result = (status == BT::NodeStatus::SUCCESS);
 
@@ -312,7 +334,6 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
         }
     }
 }
-
 
 void SageBtActionNode::on_startup_request(
     const std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Request>,

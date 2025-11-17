@@ -13,8 +13,9 @@
             "miDebuggerPath": "/usr/bin/gdb",
             "cwd": "${workspaceFolder}",
 
-            "program": "/app/install/sage_behaviour_tree/lib/sage_behaviour_tree/sage_bt_node",  // Replace with your node path
-            
+            // "program": "/app/install/sage_behaviour_tree/lib/sage_behaviour_tree/sage_bt_node",  // Replace with your node path
+            "program": "/app/install/sage_behaviour_tree/lib/sage_behaviour_tree/sage_bt_action_node",  // Replace with your node path            
+
             "externalConsole": false,
             "setupCommands": [
                 {
