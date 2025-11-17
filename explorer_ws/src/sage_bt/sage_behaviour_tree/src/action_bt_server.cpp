@@ -203,37 +203,79 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
     RCLCPP_INFO(get_logger(), "Starting Behavior Tree execution with prompt: %s",
                 goal->prompt.c_str());
 
+    // ----------------------------------------------------
+    // Initialize blackboard and inject starting variables
+    // ----------------------------------------------------
     blackboard_ = BT::Blackboard::create();
     blackboard_->set("text_query", goal->prompt);
     blackboard_->set("image_path", goal->save_directory);
     blackboard_->set<std::shared_ptr<graph_node_msgs::msg::GraphNode>>(
         "detected_graph_node", std::make_shared<graph_node_msgs::msg::GraphNode>());
 
-    create_behavior_tree(goal_handle);   // use blackboard_ directly inside
+    create_behavior_tree(goal_handle);
+
     BT::NodeStatus status = run_behavior_tree(goal_handle);
 
+    // ----------------------------------------------------
+    // Handle cancel request during execution
+    // ----------------------------------------------------
     if (goal_handle->is_canceling())
     {
-        result->result = false;
-        goal_handle->canceled(result);
-        RCLCPP_WARN(get_logger(), "Goal canceled");
+        RCLCPP_WARN(get_logger(), "Goal canceled during BT execution");
+        if (rclcpp::ok() && goal_handle->is_active())
+            goal_handle->canceled(result);
         return;
     }
 
-    result->result = (status == BT::NodeStatus::SUCCESS);
-    result->confidence_score = 1.0f;
+    // ----------------------------------------------------
+    // Retrieve detected GraphNode from blackboard
+    // ----------------------------------------------------
+    std::shared_ptr<graph_node_msgs::msg::GraphNode> detected_node;
+    bool has_detected_node = blackboard_->get("detected_graph_node", detected_node);
 
-    if (status == BT::NodeStatus::SUCCESS)
+    if (has_detected_node && detected_node)
     {
-        goal_handle->succeed(result);
-        RCLCPP_INFO(get_logger(), "BT execution SUCCESS");
+        RCLCPP_INFO(get_logger(),
+            "Retrieved detected_graph_node → id=%d, score=%.2f, pos(%.2f, %.2f, %.2f), visited=%s",
+            detected_node->id,
+            detected_node->score,
+            detected_node->position.x,
+            detected_node->position.y,
+            detected_node->position.z,
+            detected_node->is_visited ? "true" : "false");
+
+        result->confidence_score = static_cast<float>(detected_node->score);
+
+        // optional: you can embed its position as start/end pose
+        result->end_pose.position = detected_node->position;
     }
     else
     {
-        goal_handle->abort(result);
-        RCLCPP_WARN(get_logger(), "BT execution FAILURE");
+        RCLCPP_WARN(get_logger(),
+            "No detected_graph_node found on blackboard → default confidence=0.0");
+        result->confidence_score = 0.0f;
+    }
+
+    // ----------------------------------------------------
+    // Publish result depending on BT outcome
+    // ----------------------------------------------------
+    result->result = (status == BT::NodeStatus::SUCCESS);
+
+    if (rclcpp::ok() && goal_handle->is_active())
+    {
+        if (status == BT::NodeStatus::SUCCESS)
+        {
+            goal_handle->succeed(result);
+            RCLCPP_INFO(get_logger(), "BT execution SUCCESS");
+        }
+        else
+        {
+            goal_handle->abort(result);
+            RCLCPP_WARN(get_logger(), "BT execution FAILURE");
+        }
     }
 }
+
 
 void SageBtActionNode::on_startup_request(
     const std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Request>,
