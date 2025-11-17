@@ -200,11 +200,12 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
     auto feedback = std::make_shared<ExecutePrompt::Feedback>();
     auto result   = std::make_shared<ExecutePrompt::Result>();
 
-    RCLCPP_INFO(get_logger(), "Starting Behavior Tree execution with prompt: %s",
-                goal->prompt.c_str());
+    RCLCPP_INFO(get_logger(),
+        "Starting Behavior Tree execution with prompt: %s (timeout: %.1f min)",
+        goal->prompt.c_str(), goal->timeout);
 
     // ----------------------------------------------------
-    // Initialize blackboard and inject starting variables
+    // Initialize blackboard
     // ----------------------------------------------------
     blackboard_ = BT::Blackboard::create();
     blackboard_->set("text_query", goal->prompt);
@@ -212,28 +213,67 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
     blackboard_->set<std::shared_ptr<graph_node_msgs::msg::GraphNode>>(
         "detected_graph_node", std::make_shared<graph_node_msgs::msg::GraphNode>());
 
+    // Build tree
     create_behavior_tree(goal_handle);
 
-    BT::NodeStatus status = run_behavior_tree(goal_handle);
+    BT::NodeStatus status = BT::NodeStatus::RUNNING;
+    rclcpp::Rate rate(1000.0 / bt_tick_rate_ms_);
 
     // ----------------------------------------------------
-    // Handle cancel request during execution
+    // Use STEADY clock for wall-time timeout
     // ----------------------------------------------------
-    if (goal_handle->is_canceling())
+    rclcpp::Clock steady_clock(RCL_STEADY_TIME);
+    const double timeout_sec = goal->timeout * 60.0;  // convert minutes → seconds
+    const rclcpp::Time start_time = steady_clock.now();
+
+    // ----------------------------------------------------
+    // Main execution loop
+    // ----------------------------------------------------
+    while (rclcpp::ok() && status == BT::NodeStatus::RUNNING)
     {
-        RCLCPP_WARN(get_logger(), "Goal canceled during BT execution");
-        if (rclcpp::ok() && goal_handle->is_active())
-            goal_handle->canceled(result);
-        return;
+        // Compute elapsed wall time
+        const double elapsed = (steady_clock.now() - start_time).seconds();
+
+        if (timeout_sec > 0.0 && elapsed >= timeout_sec)
+        {
+            RCLCPP_ERROR(get_logger(),
+                "BT execution TIMEOUT after %.1f sec (limit %.1f sec)",
+                elapsed, timeout_sec);
+            status = BT::NodeStatus::FAILURE;
+            break;
+        }
+
+        // Handle client cancel
+        if (goal_handle->is_canceling())
+        {
+            RCLCPP_WARN(get_logger(), "Goal canceled by client");
+            if (rclcpp::ok() && goal_handle->is_active())
+            {
+                result->result = false;
+                result->confidence_score = 0.0f;
+                goal_handle->canceled(result);
+            }
+            tree_.haltTree();
+            return;
+        }
+
+        // Tick tree
+        status = tree_.tickOnce();
+
+        // Feedback
+        feedback->active_node = "BT_Tick";
+        feedback->status = (status == BT::NodeStatus::RUNNING);
+        feedback->log = "Ticking behavior tree...";
+        goal_handle->publish_feedback(feedback);
+
+        rate.sleep();
     }
 
     // ----------------------------------------------------
-    // Retrieve detected GraphNode from blackboard
+    // Retrieve detected node info from blackboard
     // ----------------------------------------------------
     std::shared_ptr<graph_node_msgs::msg::GraphNode> detected_node;
-    bool has_detected_node = blackboard_->get("detected_graph_node", detected_node);
-
-    if (has_detected_node && detected_node)
+    if (blackboard_->get("detected_graph_node", detected_node) && detected_node)
     {
         RCLCPP_INFO(get_logger(),
             "Retrieved detected_graph_node → id=%d, score=%.2f, pos(%.2f, %.2f, %.2f), visited=%s",
@@ -245,19 +285,16 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
             detected_node->is_visited ? "true" : "false");
 
         result->confidence_score = static_cast<float>(detected_node->score);
-
-        // optional: you can embed its position as start/end pose
         result->end_pose.position = detected_node->position;
     }
     else
     {
-        RCLCPP_WARN(get_logger(),
-            "No detected_graph_node found on blackboard → default confidence=0.0");
         result->confidence_score = 0.0f;
+        RCLCPP_WARN(get_logger(), "No detected_graph_node found → confidence=0.0");
     }
 
     // ----------------------------------------------------
-    // Publish result depending on BT outcome
+    // Final result publication
     // ----------------------------------------------------
     result->result = (status == BT::NodeStatus::SUCCESS);
 
@@ -271,7 +308,7 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
         else
         {
             goal_handle->abort(result);
-            RCLCPP_WARN(get_logger(), "BT execution FAILURE");
+            RCLCPP_WARN(get_logger(), "BT execution FAILURE or TIMEOUT");
         }
     }
 }
