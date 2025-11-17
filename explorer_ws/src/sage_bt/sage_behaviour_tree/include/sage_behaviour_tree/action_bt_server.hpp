@@ -4,6 +4,7 @@
 #include "behaviortree_cpp/loggers/groot2_publisher.h"
 #include <sage_bt_msgs/srv/startup_check.hpp>
 #include <sage_bt_msgs/action/execute_prompt.hpp>
+#include "sage_behaviour_tree/robot.hpp"
 
 // ============================================================================
 // SageBtActionNode
@@ -17,6 +18,7 @@ public:
 
     explicit SageBtActionNode();
     void setup_action_server();
+    void init_robot();
 
 private:
     // --- Core BT lifecycle ---
@@ -60,5 +62,7 @@ private:
     bool startup_ready_ = false;
     std::vector<std::string> required_topics_;
     std::vector<std::string> required_services_;
+
+    std::unique_ptr<Robot> robot_;
 
 };
