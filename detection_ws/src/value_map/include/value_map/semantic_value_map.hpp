@@ -90,7 +90,7 @@ class SemanticValueMap {
     cv::Mat valueMap;
     cv::Mat confidenceMap;
     bool mapInitialized = false;
-    float maxSemanticScore = 0.0f;
+    float maxSemanticScore = 1.0f;
     float confidenceSharpness = 10.0f;  // exponent = 2.0 --> Standard, exponent > 2.0 --> Sharper confidence decay, exponent < 2.0 --> Smoother confidence decay
     double decayFactor = 0.99;  // decay factor for previous values
     float maxRange = 10.0;  // Default maximum range for semantic mapping

@@ -62,8 +62,8 @@ def generate_launch_description():
     # Behaviour Tree node
     sage_bt_node = Node(
         package='sage_behaviour_tree',
-        executable='sage_bt_node',
-        name='sage_bt_node',
+        executable='sage_bt_action_node',
+        name='sage_bt_action_node',
         namespace='sage_behaviour_tree',
         # prefix=['gdbserver :3000'],  # no localhost
         output='screen',

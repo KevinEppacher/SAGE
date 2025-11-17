@@ -35,12 +35,7 @@
                                   reachable_graph_node="{reachable_detection_graph_node}"
                                   graph_node="{detected_graph_node}">
               <GoToGraphNode name="Go to detected GraphNode"
-                             graph_nodes="{reachable_detection_graph_node}"
-                             approach_radius="1"
-                             goal_topic="/goal_pose"
-                             robot_frame="base_link"
-                             map_frame="map"
-                             timeout="30"/>
+                             graph_node="{reachable_detection_graph_node}"/>
             </ApproachPoseAdjustor>
             <RealignToObject detected_graph_node="{detected_graph_node}"
                              spinDuration="5.0"/>
@@ -67,9 +62,7 @@
                                max_yaw_default="0.523"
                                min_yaw="{min_yaw}"
                                max_yaw="{max_yaw}"/>
-            <Spin cosine_similarity_topic="/value_map/cosine_similarity"
-                  return_to_likeliest_value="true"
-                  spin_duration="5"
+            <Spin spin_duration="5"
                   turn_right_angle="{min_yaw}"
                   turn_left_angle="{max_yaw}"/>
             <SetParameterNode target_node="/value_map/value_map"
@@ -89,12 +82,7 @@
                                     reachable_graph_node="{reachable_explorer_graph_node}"
                                     graph_node="{likiest_explorer_node}">
                 <GoToGraphNode name="Go to likiest GraphNode"
-                               graph_nodes="{reachable_explorer_graph_node}"
-                               approach_radius="0.3"
-                               goal_topic="/goal_pose"
-                               robot_frame="base_link"
-                               map_frame="map"
-                               timeout="10"/>
+                               graph_node="{reachable_explorer_graph_node}"/>
               </ApproachPoseAdjustor>
             </ReactiveSequence>
           </Sequence>
@@ -115,14 +103,9 @@
             editable="true">
       <input_port name="service_name"/>
     </Action>
-    <Action ID="GoToGraphNode"
-            editable="true">
-      <input_port name="graph_nodes"/>
-      <input_port name="approach_radius"/>
-      <input_port name="goal_topic"/>
-      <input_port name="robot_frame"/>
-      <input_port name="map_frame"/>
-      <input_port name="timeout"/>
+    <Action ID="GoToGraphNode">
+      <input_port name="graph_node"
+                  type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Target GraphNode</input_port>
     </Action>
     <Condition ID="IsDetected">
       <output_port name="graph_nodes"
@@ -183,21 +166,15 @@
       <input_port name="value"/>
     </Action>
     <Action ID="Spin">
-      <input_port name="cosine_similarity_topic"
-                  default="/value_map/cosine_similarity"
-                  type="std::string">Cosine similarity topic</input_port>
-      <input_port name="return_to_likeliest_value"
-                  default="false"
-                  type="bool">Return to likeliest cosine similarity</input_port>
       <input_port name="spin_duration"
-                  default="15.000000"
-                  type="double">Spin duration seconds</input_port>
+                  default="10.000000"
+                  type="double">Duration per spin</input_port>
       <input_port name="turn_right_angle"
                   default="0.000000"
-                  type="double">CW rotation angle in radians</input_port>
+                  type="double">CW angle (radians)</input_port>
       <input_port name="turn_left_angle"
                   default="0.000000"
-                  type="double">CCW rotation angle in radians</input_port>
+                  type="double">CCW angle (radians)</input_port>
     </Action>
   </TreeNodesModel>
 

@@ -12,16 +12,56 @@
                          max_yaw_default="0.523"
                          min_yaw="{min_yaw}"
                          max_yaw="{max_yaw}"/>
-      <Spin cosine_similarity_topic="/value_map/cosine_similarity"
-            return_to_likeliest_value="true"
-            spin_duration="15.0"
+      <Spin spin_duration="15.0"
             turn_right_angle="{min_yaw}"
             turn_left_angle="{max_yaw}"/>
+      <IsDetected graph_nodes="{likiest_graph_node}"
+                  detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                  time_threshold="0"
+                  detection_threshold="0"/>
+      <GoToGraphNode map_frame="map"
+                     timeout="60.000000"
+                     robot_frame="base_link"
+                     goal_topic="/goal_pose"
+                     approach_radius="0.2"
+                     graph_nodes="{likiest_graph_node}"/>
     </Sequence>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
+    <Action ID="GoToGraphNode">
+      <input_port name="map_frame"
+                  default="map"
+                  type="std::string">Map frame</input_port>
+      <input_port name="timeout"
+                  default="60.000000"
+                  type="double">Timeout seconds</input_port>
+      <input_port name="robot_frame"
+                  default="base_link"
+                  type="std::string">Robot frame</input_port>
+      <input_port name="goal_topic"
+                  default="/goal_pose"
+                  type="std::string">Goal topic</input_port>
+      <input_port name="approach_radius"
+                  default="2.000000"
+                  type="double">Approach distance in meters</input_port>
+      <input_port name="graph_nodes"
+                  type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Target GraphNode</input_port>
+    </Action>
+    <Condition ID="IsDetected">
+      <output_port name="graph_nodes"
+                   type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Best detected GraphNode</output_port>
+      <input_port name="detection_graph_node_topic"
+                  default="/detection_graph_nodes/graph_nodes"
+                  type="std::string">GraphNodeArray topic</input_port>
+      <input_port name="time_threshold"
+                  default="1.000000"
+                  type="double">Seconds the detection must persist</input_port>
+      <input_port name="detection_threshold"
+                  default="0.800000"
+                  type="double">Minimum detection score threshold</input_port>
+    </Condition>
     <Action ID="SeekoutGraphNodes">
       <input_port name="graph_node_topic"
                   default="/fused/exploration_graph_nodes/graph_nodes"/>
@@ -39,21 +79,15 @@
       <output_port name="max_yaw"/>
     </Action>
     <Action ID="Spin">
-      <input_port name="cosine_similarity_topic"
-                  default="/value_map/cosine_similarity"
-                  type="std::string">Cosine similarity topic</input_port>
-      <input_port name="return_to_likeliest_value"
-                  default="false"
-                  type="bool">Return to likeliest cosine similarity</input_port>
       <input_port name="spin_duration"
-                  default="15.000000"
-                  type="double">Spin duration seconds</input_port>
+                  default="10.000000"
+                  type="double">Duration per spin</input_port>
       <input_port name="turn_right_angle"
                   default="0.000000"
-                  type="double">CW rotation angle in radians</input_port>
+                  type="double">CW angle (radians)</input_port>
       <input_port name="turn_left_angle"
                   default="0.000000"
-                  type="double">CCW rotation angle in radians</input_port>
+                  type="double">CCW angle (radians)</input_port>
     </Action>
   </TreeNodesModel>
 

@@ -74,190 +74,6 @@ BT::NodeStatus KeepRunningUntilObjectFound::tick()
     return childStatus;
 }
 
-// ============================ ForEachEvaluationPrompt ============================ //
-
-ForEachEvaluationPrompt::ForEachEvaluationPrompt(
-    const std::string &name,
-    const BT::NodeConfig &config,
-    const rclcpp::Node::SharedPtr &nodePtr)
-    : BT::DecoratorNode(name, config),
-      node(nodePtr)
-{
-    // Declare parameters if needed
-    node->declare_parameter("for_each_evaluation_prompt.evaluation_event_topic",
-                            "/evaluator/dashboard/event");
-    node->declare_parameter("for_each_evaluation_prompt.iteration_status_topic",
-                            "/evaluator/dashboard/iteration_status");
-    node->declare_parameter("for_each_evaluation_prompt.debug", false);
-
-    evaluation_event_topic_ =
-        node->get_parameter("for_each_evaluation_prompt.evaluation_event_topic").as_string();
-    iteration_status_topic_ =
-        node->get_parameter("for_each_evaluation_prompt.iteration_status_topic").as_string();
-    debug_flag =
-        node->get_parameter("for_each_evaluation_prompt.debug").as_bool();
-}
-
-
-BT::PortsList ForEachEvaluationPrompt::providedPorts()
-{
-    return {
-        BT::OutputPort<std::string>("target_object"),
-        BT::OutputPort<std::string>("save_image_path")
-    };
-}
-
-BT::NodeStatus ForEachEvaluationPrompt::tick()
-{
-    initCommsFromPorts();
-
-    if (!subscribed)
-    {
-        RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 2000,
-                             ORANGE "[%s] Waiting for %s..." RESET,
-                             name().c_str(), evaluation_event_topic_.c_str());
-        return BT::NodeStatus::RUNNING;
-    }
-
-    if (currentIndex >= promptTexts.size())
-    {
-        RCLCPP_INFO(node->get_logger(),
-                    GREEN "[%s] All prompts processed → SUCCESS" RESET,
-                    name().c_str());
-        return BT::NodeStatus::SUCCESS;
-    }
-
-    std::string currentPrompt = promptTexts[currentIndex];
-
-    // normalize class folder name (no spaces or commas)
-    std::string classFolder = currentPrompt;
-    std::replace(classFolder.begin(), classFolder.end(), ' ', '_');
-    std::replace(classFolder.begin(), classFolder.end(), ',', '_');
-
-    // build canonical detection path
-    std::string detectionDir = baseSavePath + "detections/" + classFolder + "/";
-    if (!std::filesystem::exists(detectionDir))
-        std::filesystem::create_directories(detectionDir);
-
-    // image name pattern
-    char filename[64];
-    snprintf(filename, sizeof(filename), "detection_%04zu.png", currentIndex + 1);
-    std::string saveFile = detectionDir + filename;
-
-    // export BT ports
-    setOutput("target_object", currentPrompt);
-    setOutput("save_image_path", saveFile);
-
-    BT::NodeStatus childStatus = child_node_->executeTick();
-
-    if (childStatus == BT::NodeStatus::RUNNING)
-    {
-        RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 3000,
-                            ORANGE "[%s] Processing prompt '%s'..." RESET,
-                            name().c_str(), currentPrompt.c_str());
-        return BT::NodeStatus::RUNNING;
-    }
-
-    // report back to dashboard
-    std_msgs::msg::String msg;
-    msg.data = "[ForEachEvaluationPrompt] Object '" + currentPrompt +
-            "' finished with status: " +
-            (childStatus == BT::NodeStatus::SUCCESS ? "SUCCESS" : "FAILURE");
-    statusPublisher->publish(msg);
-
-    // optional: write quick metadata JSON stub
-    std::ofstream metaFile(detectionDir + "detection_meta.json", std::ios::app);
-    if (metaFile)
-    {
-        metaFile << "{ \"object\": \"" << currentPrompt
-                << "\", \"status\": \"" << (childStatus == BT::NodeStatus::SUCCESS ? "SUCCESS" : "FAILURE")
-                << "\", \"image\": \"" << filename << "\" }\n";
-    }
-
-    RCLCPP_INFO(node->get_logger(),
-                (childStatus == BT::NodeStatus::SUCCESS
-                    ? GREEN "[%s] Prompt '%s' → SUCCESS" RESET
-                    : RED "[%s] Prompt '%s' → FAILURE" RESET),
-                name().c_str(), currentPrompt.c_str());
-
-    currentIndex++;
-    return BT::NodeStatus::RUNNING;
-}
-
-void ForEachEvaluationPrompt::callbackEvent(const EvaluationEvent::SharedPtr msg)
-{
-    if (subscribed)
-        return;
-    subscribed = true;
-
-    baseSavePath = msg->save_path;  // e.g. /app/src/sage_evaluator/sage_evaluator/data/scene/EXP_001/E01/
-    if (!baseSavePath.empty() && baseSavePath.back() != '/')
-        baseSavePath += '/';
-
-    RCLCPP_INFO(node->get_logger(),
-                ORANGE "[%s] === Evaluation Configuration Received ===" RESET,
-                name().c_str());
-    RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Experiment: %s" RESET,
-                name().c_str(), msg->experiment_id.c_str());
-    RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Scene: %s" RESET,
-                name().c_str(), msg->scene.c_str());
-    RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Save Path: %s" RESET,
-                name().c_str(), msg->save_path.c_str());
-    RCLCPP_INFO(node->get_logger(), ORANGE "[%s] Episode: %s" RESET,
-                name().c_str(), msg->episode_id.c_str());
-    RCLCPP_INFO(node->get_logger(),
-                ORANGE "[%s] Prompts in this run:" RESET,
-                name().c_str());
-
-    for (const auto &prompt : msg->prompt_list.prompt_list)
-    {
-        RCLCPP_INFO(node->get_logger(),
-                    ORANGE "[%s]   - %s" RESET,
-                    name().c_str(), prompt.text_query.c_str());
-        promptTexts.push_back(prompt.text_query);
-    }
-
-    RCLCPP_INFO(node->get_logger(),
-                ORANGE "[%s] ==========================================" RESET,
-                name().c_str());
-}
-
-void ForEachEvaluationPrompt::initCommsFromPorts()
-{
-    if (commReady) return;
-
-    // Subscriber must match dashboard publisher QoS
-    rclcpp::QoS event_qos(1);
-    event_qos.transient_local();
-    event_qos.reliable();
-
-    subscriber = node->create_subscription<EvaluationEvent>(
-        evaluation_event_topic_,
-        event_qos,
-        std::bind(&ForEachEvaluationPrompt::callbackEvent, this, std::placeholders::_1)
-    );
-
-    // Publisher: normal volatile reliable
-    rclcpp::QoS status_qos(10);
-    status_qos.reliable();
-
-    statusPublisher = node->create_publisher<std_msgs::msg::String>(
-        iteration_status_topic_,
-        status_qos
-    );
-
-    if (debug_flag)
-    {
-        RCLCPP_INFO(
-            node->get_logger(),
-            "[%s] Using topics: event='%s', status='%s'",
-            name().c_str(), evaluation_event_topic_.c_str(), iteration_status_topic_.c_str());
-    }
-
-    commReady = true;
-}
-
-
 // ============================ ApproachPoseAdjustor ============================ //
 
 ApproachPoseAdjustor::ApproachPoseAdjustor(const std::string &name,
@@ -782,92 +598,153 @@ void SageBtOrchestrator::executeGoal(const std::shared_ptr<GoalHandle> goal_hand
     currentSavePath = goal->save_directory;
     double timeoutSec = goal->timeout * 60.0;
 
+    // Write BT blackboard values
     setOutput("target_object", currentPrompt);
     setOutput("image_path", currentSavePath);
+
+    // Reset BT subtree before starting
+    this->haltChild();                     // stop any running nodes
+    child_node_->executeTick();            // force BT to transition HALTED -> IDLE
+
+    // Reset robot trajectory recording
+    robot->resetPath();
+    robot->recordCurrentPose();
 
     rclcpp::Rate loop_rate(10);
     BT::NodeStatus status = BT::NodeStatus::RUNNING;
     rclcpp::Time start_time = node->now();
-    bool goalCompleted = false;   // <== NEW GUARD FLAG
 
-    robot->resetPath();
-    robot->recordCurrentPose();
-
-    while (rclcpp::ok() && status == BT::NodeStatus::RUNNING)
+    // ------------------------------------------------------------------
+    //                 MAIN EXECUTION LOOP (BT TICKING)
+    // ------------------------------------------------------------------
+    while (rclcpp::ok())
     {
-
-        // Early termination: BT forced to stop (e.g., via /force_exit)
-        if (!activeGoal)
+        // Goal was externally removed (cancel/abort/server cleanup)
+        if (!goal_handle->is_active())
         {
             RCLCPP_WARN(node->get_logger(),
-                ORANGE "[%s] Detected ForceExit or external stop → ending ExecutePrompt thread safely." RESET,
+                YELLOW "[%s] Goal became inactive during execution. Exiting thread safely." RESET,
                 this->name().c_str());
+            activeGoal = false;
             return;
         }
 
+        // ForceExit external command
+        if (!activeGoal)
+        {
+            RCLCPP_WARN(node->get_logger(),
+                ORANGE "[%s] activeGoal=false during execution → stopping BT." RESET,
+                this->name().c_str());
+            this->haltChild();
+            goal_handle->canceled(result);
+            return;
+        }
+
+        // User/client-side cancel
         if (goal_handle->is_canceling())
         {
             RCLCPP_WARN(node->get_logger(),
-                        YELLOW "[%s] Goal canceled by client. Halting BT subtree..." RESET,
-                        this->name().c_str());
+                YELLOW "[%s] Client requested cancel → halting BT." RESET,
+                this->name().c_str());
             this->haltChild();
 
             result->result = false;
             result->confidence_score = 0.0f;
+
             goal_handle->canceled(result);
             activeGoal = false;
-            goalCompleted = true;     // <== prevent later publishing
             return;
         }
 
+        // Timeout
         double elapsed = (node->now() - start_time).seconds();
         if (timeoutSec > 0.0 && elapsed > timeoutSec)
         {
             RCLCPP_ERROR(node->get_logger(),
-                         RED "[%s] TIMEOUT after %.2fs → aborting goal." RESET,
-                         this->name().c_str(), elapsed);
+                RED "[%s] TIMEOUT after %.2fs → aborting goal." RESET,
+                this->name().c_str(), elapsed);
             this->haltChild();
 
-            result->result = false;
-            result->confidence_score = 0.0f;
-            goal_handle->abort(result);
+            if (goal_handle->is_active())
+            {
+                result->result = false;
+                result->confidence_score = 0.0f;
+                goal_handle->abort(result);
+            }
+
             activeGoal = false;
-            goalCompleted = true;
             return;
         }
 
+        // ----------------------- TICK SUBTREE --------------------------
         status = child_node_->executeTick();
         robot->recordCurrentPose();
 
-        ExecutePrompt::Feedback feedback;
-        feedback.active_node = this->name();
-        feedback.status = (status == BT::NodeStatus::RUNNING);
-        feedback.log = "Ticking subtree...";
-        goal_handle->publish_feedback(std::make_shared<ExecutePrompt::Feedback>(feedback));
+        // Send feedback
+        ExecutePrompt::Feedback fb;
+        fb.active_node = this->name();
+        fb.status = (status == BT::NodeStatus::RUNNING);
+        fb.log = "Ticking subtree...";
+        goal_handle->publish_feedback(std::make_shared<ExecutePrompt::Feedback>(fb));
 
+        // --------------------- BT SUCCESS ------------------------------
+        if (status == BT::NodeStatus::SUCCESS)
+        {
+            RCLCPP_INFO(node->get_logger(),
+                GREEN "[%s] BT subtree → SUCCESS." RESET,
+                this->name().c_str());
+
+            if (goal_handle->is_active())
+            {
+                result->result = true;
+
+                std::shared_ptr<graph_node_msgs::msg::GraphNode> detected_node;
+                if (getInput("detected_graph_node", detected_node) && detected_node)
+                    result->confidence_score = static_cast<float>(detected_node->score);
+                else
+                    result->confidence_score = 1.0f;
+
+                result->start_pose = robot->getStartPose();
+                result->end_pose   = robot->getEndPose();
+                result->accumulated_path = robot->getAccumulatedPath();
+
+                goal_handle->succeed(result);
+            }
+
+            activeGoal = false;
+            this->haltChild();
+            return;
+        }
+
+        // --------------------- BT FAILURE ------------------------------
+        if (status == BT::NodeStatus::FAILURE)
+        {
+            RCLCPP_ERROR(node->get_logger(),
+                RED "[%s] BT subtree → FAILURE." RESET,
+                this->name().c_str());
+
+            if (goal_handle->is_active())
+            {
+                result->result = false;
+                result->confidence_score = 0.0f;
+
+                result->start_pose = robot->getStartPose();
+                result->end_pose   = robot->getEndPose();
+                result->accumulated_path = robot->getAccumulatedPath();
+
+                goal_handle->abort(result);
+            }
+
+            activeGoal = false;
+            this->haltChild();
+            return;
+        }
+
+        // Still running...
         loop_rate.sleep();
     }
 
-    if (goalCompleted) return;  // safeguard
-
-    bool success = (status == BT::NodeStatus::SUCCESS);
-    result->result = success;
-
-    std::shared_ptr<graph_node_msgs::msg::GraphNode> detected_node;
-    if (getInput("detected_graph_node", detected_node) && detected_node)
-        result->confidence_score = static_cast<float>(detected_node->score);
-    else
-        result->confidence_score = success ? 1.0f : 0.0f;
-
-    result->start_pose = robot->getStartPose();
-    result->end_pose   = robot->getEndPose();
-    result->accumulated_path = robot->getAccumulatedPath();
-
-    if (success)
-        goal_handle->succeed(result);
-    else
-        goal_handle->abort(result);
-
+    // Ros shutdown or executor stopped
     activeGoal = false;
 }
 

@@ -83,12 +83,52 @@ ament_target_dependencies(sage_bt_node
 target_compile_features(sage_bt_node PUBLIC cxx_std_17)
 
 #####################################################################
+
+add_executable(sage_bt_action_node
+    src/sage_bt_action_node.cpp
+    src/action_bt_server.cpp
+    src/detection.cpp
+    src/navigation.cpp
+    src/utils.cpp
+    src/robot.cpp
+    src/decorator.cpp
+    src/semantic_prompt.cpp
+)
+
+# Link ROS 2 dependencies
+ament_target_dependencies(sage_bt_action_node
+    behaviortree_cpp
+    rclcpp
+    rclcpp_lifecycle
+    lifecycle_msgs
+    graph_node_msgs
+    rclcpp_action
+    nav2_msgs
+    tf2
+    tf2_geometry_msgs
+    visualization_msgs
+    cv_bridge
+    OpenCV
+    sensor_msgs
+    std_srvs
+    multimodal_query_msgs
+    evaluator_msgs
+    nav2_costmap_2d
+    sage_bt_msgs
+)
+
+# Use C++17 standard
+target_compile_features(sage_bt_action_node PUBLIC cxx_std_17)
+
+
+#####################################################################
 #                           Installation                            #
 #####################################################################
 
 # Install the node binary into the ROS 2 lib directory
 install(TARGETS
   sage_bt_node
+  sage_bt_action_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
