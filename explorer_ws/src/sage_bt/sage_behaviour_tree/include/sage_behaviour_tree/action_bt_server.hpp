@@ -24,7 +24,7 @@ public:
 private:
     // --- Core BT lifecycle ---
     void create_behavior_tree(const std::shared_ptr<GoalHandle> goal_handle);
-    BT::NodeStatus run_behavior_tree();
+    BT::NodeStatus run_behavior_tree(const std::shared_ptr<GoalHandle> goal_handle);
 
     // --- Action callbacks ---
     rclcpp_action::GoalResponse handle_goal(
@@ -45,8 +45,11 @@ private:
 
     // --- BT runtime ---
     BT::Tree tree_;
-    std::unique_ptr<BT::Groot2Publisher> publisher_ptr_;
-
+    
     // --- ROS action server ---
     rclcpp_action::Server<ExecutePrompt>::SharedPtr action_server_;
+    
+    // in class SageBtActionNode
+    std::unique_ptr<BT::Groot2Publisher> publisher_ptr_;
+    bool groot_initialized_ = false;
 };
