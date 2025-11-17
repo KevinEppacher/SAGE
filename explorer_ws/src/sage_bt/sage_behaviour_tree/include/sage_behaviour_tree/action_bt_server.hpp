@@ -1,10 +1,7 @@
-#pragma once
-
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
 #include "behaviortree_cpp/bt_factory.h"
 #include "behaviortree_cpp/loggers/groot2_publisher.h"
-#include "sage_behaviour_tree/action_bt_server.hpp"   // contains ExecutePrompt definition
 #include <sage_bt_msgs/srv/startup_check.hpp>
 #include <sage_bt_msgs/action/execute_prompt.hpp>
 
@@ -36,6 +33,11 @@ private:
 
     void handle_accepted(const std::shared_ptr<GoalHandle> goal_handle);
     void execute_bt(const std::shared_ptr<GoalHandle> goal_handle);
+    void declare_if_not_declared(const std::string& name, const rclcpp::ParameterValue& value);
+    void on_startup_request(
+        const std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Request> request,
+        std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Response> response);
+    bool check_required_interfaces(std::stringstream& report);
 
     // --- Parameters ---
     double bt_tick_rate_ms_;
@@ -52,4 +54,11 @@ private:
     // in class SageBtActionNode
     std::unique_ptr<BT::Groot2Publisher> publisher_ptr_;
     bool groot_initialized_ = false;
+
+    // --- Service for startup checks ---
+    rclcpp::Service<sage_bt_msgs::srv::StartupCheck>::SharedPtr startup_service_;
+    bool startup_ready_ = false;
+    std::vector<std::string> required_topics_;
+    std::vector<std::string> required_services_;
+
 };

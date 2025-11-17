@@ -14,11 +14,6 @@ sage_behaviour_tree:
         debug_markers: true       # bool: enable debug markers in RViz
       spin_node:
         spin_timeout: 60.0        # double: timeout for spin action in seconds
-
-      for_each_evaluation_prompt:
-        evaluation_event_topic: "/evaluator/dashboard/event"
-        iteration_status_topic: "/evaluator/dashboard/iteration_status"
-        debug: false
       sage_bt:
         startup:
           required_topics:
@@ -32,3 +27,35 @@ sage_behaviour_tree:
           required_services:
             - /exploration_map/clear
             - /value_map/clear
+
+sage_behaviour_tree:
+  sage_bt_action_node:
+    ros__parameters:
+      bt_tick_rate_ms: 1000.0
+      # Approach pose adjustor parameters
+      approach_pose_adjustor:
+        allow_unknown: true       # bool: helps exploration and frontier regions
+        angular_step_deg: 5.0     # double: good balance
+        cost_threshold: 60        # int: allows low-inflation cells
+        line_step: 0.05           # double: more granular line sampling
+        radial_samples: 5         # int: more radius layers to test
+        robot_radius: 0.08        # double: slightly smaller footprint
+        marker_frame: map
+        marker_topic: approach_pose_adjustor/markers
+        debug_markers: true       # bool: enable debug markers in RViz
+      # Spin node parameters
+      spin_node:
+        spin_timeout: 60.0        # double: timeout for spin action in seconds
+      # Startup requirements for the BT action server
+      startup:
+        required_topics:
+          - /rgb/throttled
+          - /depth/throttled
+          - /camera_info
+          - /cmd_vel
+          - /map
+          - /exploration_map
+          - /value_map/value_map
+        required_services:
+          - /exploration_map/clear
+          - /value_map/clear
