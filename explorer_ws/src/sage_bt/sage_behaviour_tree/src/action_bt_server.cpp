@@ -120,21 +120,45 @@ void SageBtActionNode::create_behavior_tree(const std::shared_ptr<GoalHandle> go
 
     BT::printTreeRecursively(tree_.rootNode());
 
+    // // Create or update Groot2Publisher safely
+    // if (!groot_initialized_) {
+    //     publisher_ptr_ = std::make_unique<BT::Groot2Publisher>(tree_, 1668);
+    //     groot_initialized_ = true;
+    //     RCLCPP_INFO(get_logger(), "Initialized Groot2Publisher on port 1668");
+    // } else {
+    //     publisher_ptr_->setTree(tree_);
+    //     RCLCPP_INFO(get_logger(), "Reusing existing Groot2Publisher instance");
+    // }
+    // before creating new Groot publisher
+    if (publisher_ptr_) 
+    {
+        publisher_ptr_.reset();
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
     publisher_ptr_ = std::make_unique<BT::Groot2Publisher>(tree_, 1668);
 }
 
-BT::NodeStatus SageBtActionNode::run_behavior_tree()
+BT::NodeStatus SageBtActionNode::run_behavior_tree(const std::shared_ptr<GoalHandle> goal_handle)
 {
     BT::NodeStatus status = BT::NodeStatus::RUNNING;
     rclcpp::Rate rate(1000.0 / bt_tick_rate_ms_);
 
     while (rclcpp::ok() && status == BT::NodeStatus::RUNNING)
     {
+        // Check if goal has been canceled
+        if (goal_handle->is_canceling())
+        {
+            RCLCPP_WARN(get_logger(), "BT execution interrupted by cancel request");
+            break;
+        }
+
         status = tree_.tickOnce();
         rate.sleep();
     }
+
     return status;
 }
+
 
 void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
 {
@@ -152,7 +176,7 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
         "detected_graph_node", std::make_shared<graph_node_msgs::msg::GraphNode>());
 
     create_behavior_tree(goal_handle);   // use blackboard_ directly inside
-    BT::NodeStatus status = run_behavior_tree();
+    BT::NodeStatus status = run_behavior_tree(goal_handle);
 
     if (goal_handle->is_canceling())
     {
