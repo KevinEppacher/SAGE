@@ -7,6 +7,7 @@ float64 timeout   # timeout in minutes
 # Result
 bool result
 float32 confidence_score
+float32 total_time
 nav_msgs/Path accumulated_path
 sensor_msgs/Image image
 geometry_msgs/Pose start_pose

@@ -46,6 +46,13 @@ sage_behaviour_tree:
       # Spin node parameters
       spin_node:
         spin_timeout: 60.0        # double: timeout for spin action in seconds
+        spin_distance_threshold: 1.5  # double: min distance before allowing another spin
+      go_to_graph_node:
+        approach_radius: 1.0      # double: radius to consider "at goal"
+        goal_topic: /goal_pose
+        map_frame: map
+        robot_frame: base_link
+        timeout: 60.0             # double: timeout for go to graph action in seconds
       # Startup requirements for the BT action server
       startup:
         required_topics:

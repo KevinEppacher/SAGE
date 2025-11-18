@@ -15,28 +15,26 @@ Spin::Spin(const std::string &name,
       robot(std::make_shared<Robot>(node))
 {
     if (!node->has_parameter("spin_node.spin_timeout"))
-    {
         node->declare_parameter<double>("spin_node.spin_timeout", spinTimeout);
-    }
+    if (!node->has_parameter("spin_node.spin_distance_threshold"))
+        node->declare_parameter<double>("spin_node.spin_distance_threshold", spinDistanceThreshold);
 
     spinTimeout = node->get_parameter("spin_node.spin_timeout").as_double();
+    spinDistanceThreshold = node->get_parameter("spin_node.spin_distance_threshold").as_double();
 }
+
 
 BT::PortsList Spin::providedPorts()
 {
     return {
-        BT::InputPort<double>("turn_left_angle", 0.0,
-                              "CCW angle (radians)"),
-        BT::InputPort<double>("turn_right_angle", 0.0,
-                              "CW angle (radians)"),
-        BT::InputPort<double>("spin_duration", 10.0,
-                              "Duration per spin")
+        BT::InputPort<double>("turn_left_angle", 0.0, "CCW angle (radians)"),
+        BT::InputPort<double>("turn_right_angle", 0.0, "CW angle (radians)"),
+        BT::InputPort<double>("spin_duration", 10.0, "Duration per spin")
     };
 }
 
 BT::NodeStatus Spin::onStart()
 {
-    // Read inputs
     getInput("turn_left_angle", turnLeftAngle);
     getInput("turn_right_angle", turnRightAngle);
     getInput("spin_duration", spinDuration);
@@ -44,16 +42,8 @@ BT::NodeStatus Spin::onStart()
     startTimeSteady = steadyClock.now();
     robot->cancelNavigationGoals();
 
-    // Store starting yaw
     geometry_msgs::msg::Pose pose;
-    if (robot->getPose(pose, "map", "base_link"))
-    {
-        originYaw = tf2::getYaw(pose.orientation);
-        RCLCPP_INFO(node->get_logger(),
-                    "%s[%s] Starting yaw: %.2f rad%s",
-                    BLUE, name().c_str(), originYaw, RESET);
-    }
-    else
+    if (!robot->getPose(pose, "map", "base_link"))
     {
         RCLCPP_ERROR(node->get_logger(),
                      "%s[%s] Failed to get robot pose → %sFAILURE%s",
@@ -61,31 +51,47 @@ BT::NodeStatus Spin::onStart()
         return BT::NodeStatus::FAILURE;
     }
 
-    // Precompute absolute yaw targets
+    geometry_msgs::msg::Point currentPos = pose.position;
+    originYaw = tf2::getYaw(pose.orientation);
+
+    if (isNearLastSpin(currentPos))
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    "%s[%s] Skipping spin: within %.2f m of last spin → %sSUCCESS%s",
+                    YELLOW, name().c_str(), spinDistanceThreshold, GREEN, RESET);
+        return BT::NodeStatus::SUCCESS;
+    }
+
+    // Record new spin position
+    lastSpinPosition = currentPos;
+
+    // Precompute yaw targets
     leftTarget  = originYaw + std::fabs(turnLeftAngle);
     rightTarget = originYaw - std::fabs(turnRightAngle);
 
-    // Start first step: turn left
+    // Start first phase (left spin)
     phase = 1;
     robot->spinRelativeTo("map", leftTarget, spinDuration);
+
     RCLCPP_INFO(node->get_logger(),
-                "%s[%s] Spinning left to %.2f deg over %.2f s...%s",
-                BLUE, name().c_str(), leftTarget * 180.0 / M_PI, spinDuration, RESET);
+                "%s[%s] Starting spin (yaw=%.2f rad)...%s",
+                BLUE, name().c_str(), originYaw, RESET);
 
     return BT::NodeStatus::RUNNING;
 }
 
 BT::NodeStatus Spin::onRunning()
 {
-    // Timeout
     double elapsed = (steadyClock.now() - startTimeSteady).seconds();
     if (elapsed > spinTimeout)
     {
         robot->cancelSpin();
+        RCLCPP_ERROR(node->get_logger(),
+                     "%s[%s] Spin timeout (%.1f s) → %sFAILURE%s",
+                     RED, name().c_str(), elapsed, RED, RESET);
         return BT::NodeStatus::FAILURE;
     }
 
-    // Wait until motion completes
     if (!robot->isSpinDone())
     {
         RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 2000,
@@ -94,7 +100,6 @@ BT::NodeStatus Spin::onRunning()
         return BT::NodeStatus::RUNNING;
     }
 
-    // Check result
     if (robot->getSpinResult() != rclcpp_action::ResultCode::SUCCEEDED)
     {
         RCLCPP_WARN(node->get_logger(),
@@ -105,35 +110,21 @@ BT::NodeStatus Spin::onRunning()
 
     if (phase == 1)
     {
-        // Return to origin
         phase = 2;
         robot->spinRelativeTo("map", originYaw, spinDuration);
-        RCLCPP_INFO(node->get_logger(),
-                    "%s[%s] Spinning back to origin (%.2f deg) over %.2f s...%s",
-                    ORANGE, name().c_str(), originYaw * 180.0 / M_PI, spinDuration, RESET);
         return BT::NodeStatus::RUNNING;
     }
 
     if (phase == 2)
     {
-        // Turn right
         phase = 3;
         robot->spinRelativeTo("map", rightTarget, spinDuration);
-        RCLCPP_INFO(node->get_logger(),
-                    "%s[%s] Spinning right to %.2f deg over %.2f s...%s",
-                    ORANGE, name().c_str(), rightTarget * 180.0 / M_PI, spinDuration, RESET);
         return BT::NodeStatus::RUNNING;
     }
 
     RCLCPP_INFO(node->get_logger(),
-            "%s[%s] Spin completed → %sSUCCESS%s",
-            GREEN, name().c_str(), GREEN, RESET);
-
-    if (phase == 3)
-    {
-        return BT::NodeStatus::SUCCESS;
-    }
-
+                "%s[%s] Spin completed → %sSUCCESS%s",
+                GREEN, name().c_str(), GREEN, RESET);
     return BT::NodeStatus::SUCCESS;
 }
 
@@ -143,6 +134,19 @@ void Spin::onHalted()
                 "%s[%s] Spin halted.%s",
                 YELLOW, name().c_str(), RESET);
     robot->cancelSpin();
+}
+
+bool Spin::isNearLastSpin(const geometry_msgs::msg::Point &pos) const
+{
+    if (!lastSpinPosition.has_value())
+        return false;
+
+    const auto &p = lastSpinPosition.value();
+    const double dx = pos.x - p.x;
+    const double dy = pos.y - p.y;
+    const double dist = std::sqrt(dx * dx + dy * dy);
+
+    return dist < spinDistanceThreshold;
 }
 
 // -------------------- GoToGraphNode -------------------- //

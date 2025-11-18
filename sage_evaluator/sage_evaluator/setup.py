@@ -41,6 +41,7 @@ setup(
             'shortest_path_service = sage_evaluator.shortest_path_service:main',
             # Tests
             'test_nav2_path_action = sage_evaluator.test.test_nav2_path_action:main',
+            'test_execute_prompt = sage_evaluator.test.test_execute_prompt:main',
         ],
     },
 )

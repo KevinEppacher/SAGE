@@ -1,16 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="4"
-      main_tree_to_execute="SAGE_MultiObject">
-  <BehaviorTree ID="SAGE_MultiObject">
-    <SageBtOrchestrator detected_graph_node="{detected_graph_node}"
-                        image_path="{image_path}"
-                        target_object="{target_object}">
-      <SubTree ID="SAGE_SingleObject"
-               object=""
-               _autoremap="true"/>
-    </SageBtOrchestrator>
-  </BehaviorTree>
-
+<root BTCPP_format="4">
   <BehaviorTree ID="SAGE_SingleObject">
     <Sequence>
       <SetBlackboard value="false"
@@ -19,7 +8,7 @@
                      output_key="any_exploration_nodes"/>
       <CallEmptyService service_name="/exploration_map/clear"/>
       <CallEmptyService service_name="/value_map/clear"/>
-      <PublishSemanticPrompt text_query="{target_object}"
+      <PublishSemanticPrompt text_query="{text_query}"
                              topic="/user_prompt"/>
       <Sleep msec="2000"/>
       <KeepRunningUntilObjectFound object_found="{object_found}"
@@ -135,14 +124,6 @@
       <input_port name="detected_graph_node"/>
       <input_port name="spinDuration"/>
     </Action>
-    <Decorator ID="SageBtOrchestrator">
-      <input_port name="detected_graph_node"
-                  type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Best detected GraphNode</input_port>
-      <output_port name="image_path"
-                   type="std::string"/>
-      <output_port name="target_object"
-                   type="std::string"/>
-    </Decorator>
     <Action ID="SaveImageAction"
             editable="true">
       <input_port name="imageTopic"/>

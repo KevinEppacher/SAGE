@@ -127,7 +127,7 @@ class EvaluatorDashboard(Node):
                     return
 
             # --- 3. Execute BT for prompt ---
-            success, confidence, actual_path, start_pose, end_pose = self._call_execute_prompt(train_prompt)
+            success, confidence, actual_path, start_pose, end_pose, total_time = self._call_execute_prompt(train_prompt)
 
             # --- 4. Compute metrics ---
             metrics = Metrics(success, actual_path, shortest_path)
@@ -189,7 +189,7 @@ class EvaluatorDashboard(Node):
         filename = f"detection_{len(existing) + 1:04d}.png"
         save_path = os.path.join(det_dir, filename)
         goal.save_directory = save_path
-        goal.timeout = 60.0
+        goal.timeout = 10.0
 
         self.get_logger().info(f"Executing BT for prompt '{query}' → save {save_path}")
         send_future = self.bt_action_client.send_goal_async(goal, feedback_callback=self._feedback_cb)
@@ -205,16 +205,17 @@ class EvaluatorDashboard(Node):
         result = result_future.result().result
 
         success = result.result
-        confidence = result.confidence_score
+        confidence = result.confidence_score    
         actual_path = result.accumulated_path
         start_pose = result.start_pose
         end_pose = result.end_pose
+        total_time = result.total_time
 
         self.get_logger().info(
-            f"BT finished: result={success}, confidence={confidence:.3f}, poses={len(actual_path.poses)}"
+            f"BT finished: result={success}, confidence={confidence:.3f}, poses={len(actual_path.poses)}, time={total_time:.2f}s"
         )
 
-        return success, confidence, actual_path, start_pose, end_pose
+        return success, confidence, actual_path, start_pose, end_pose, total_time
 
     # ------------------------------------------------------------
     def _feedback_cb(self, feedback_msg):

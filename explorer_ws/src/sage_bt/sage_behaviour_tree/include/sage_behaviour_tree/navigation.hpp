@@ -55,9 +55,17 @@ private:
     rclcpp::Time startTimeSteady;
     double spinTimeout{30.0};
 
-    // Phases: 1=left, 2=origin, 3=right
+    // Parameter and tracking
+    double spinDistanceThreshold{1.0};  // [m]
+    std::optional<geometry_msgs::msg::Point> lastSpinPosition;
+
+    // Phase tracking
     int phase{0};
+
+    // Helper
+    bool isNearLastSpin(const geometry_msgs::msg::Point &pos) const;
 };
+
 
 // ============================ GoToGraphNode ============================ //
 
