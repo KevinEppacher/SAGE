@@ -98,9 +98,16 @@ def launch_setup(context, *args, **kwargs):
             'version': version
         }.items()
     )
+
+    #----------------------Delayed Nodes & Launch Files ------------------------------#
+
+    delayed_evaluate_node = TimerAction(
+        period=10.0,
+        actions=[evaluate_node]
+    )
     
     return [
-        evaluate_node,
+        delayed_evaluate_node,
         start_evaluation_map_launch,
         # trajectory_recorder_node,
         # dataset_writer_node
