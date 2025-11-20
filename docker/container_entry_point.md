@@ -51,3 +51,8 @@ cd /home/kevin/Groot2/bin && ./groot2
 ```bash
 cd /home/kevin/Documents/IsaacOmniverse && ./isaacsim-webrtc-streaming-client-1.0.6-linux-x64.AppImage 
 ```
+
+# Launch tmux Terminal
+```bash
+cd /home/kevin/Documents/4_Semester/SAGE/docker && ./start_sage_tmux.sh
+```
