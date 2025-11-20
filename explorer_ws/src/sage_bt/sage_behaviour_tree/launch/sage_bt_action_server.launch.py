@@ -11,7 +11,7 @@ import os
 ros2 service call /sage_behaviour_tree/startup_check sage_bt_msgs/srv/StartupCheck
 
 ros2 action send_goal /sage_behaviour_tree/execute_prompt sage_bt_msgs/action/ExecutePrompt \
-"{prompt: 'bed', experiment_id: 'EVAL01', save_directory: '/app/test.png', timeout: 60.0}" \
+"{prompt: 'chair', experiment_id: 'EVAL01', save_directory: '/app/test.png', timeout: 60.0}" \
 --feedback
 
 ros2 service call /sage_behaviour_tree/force_exit std_srvs/srv/Empty
@@ -39,9 +39,9 @@ def generate_launch_description():
     bt_default = os.path.join(
         get_package_share_directory("sage_behaviour_tree"),
         'bt_xml',
-        'test',
-        'test_single_search.xml'
-        # 'sage_bt_orchestrator.xml'
+        # 'test',
+        # 'test_single_search.xml'
+        'sage_bt_orchestrator.xml'
     )
 
     bt_xml_arg = DeclareLaunchArgument(
