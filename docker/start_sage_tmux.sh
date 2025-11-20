@@ -3,102 +3,59 @@
 SESSION=sage
 
 echo "Starting new tmux session '${SESSION}'..."
-
-# Kill existing session if it exists to ensure a fresh start
 tmux kill-session -t $SESSION 2>/dev/null
 
 ###########################################################
-# explorer window
+# Create session with pane 0
 ###########################################################
-tmux new-session -d -s $SESSION -n explorer
-
-tmux split-window -h -t $SESSION:explorer.0
-tmux split-window -v -t $SESSION:explorer.0
-tmux split-window -v -t $SESSION:explorer.1
-
-tmux select-layout -t $SESSION:explorer tiled
-
-tmux send-keys -t $SESSION:explorer.0 "docker exec -it -u root -w /app ros2_lavis_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:explorer.1 "docker exec -it -u root -w /app ros2_detection_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:explorer.2 "docker exec -it -u root -w /app ros2_explorer_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:explorer.3 "docker exec -it -u root -w /app ros2_detection_container bash --init-file /app/.initrc" C-m
+tmux new-session -d -s $SESSION -n main
 
 ###########################################################
-# exploitation window
+# Create all additional panes (total 5)
 ###########################################################
-tmux new-window -t $SESSION -n exploitation
+tmux split-window -h   -t $SESSION:0        # Pane 1
+tmux split-window -v   -t $SESSION:0.0      # Pane 2
+tmux split-window -v   -t $SESSION:0.1      # Pane 3
+tmux split-window -v   -t $SESSION:0.3      # Pane 4
 
-tmux split-window -h -t $SESSION:exploitation.0
-tmux split-window -v -t $SESSION:exploitation.0
-tmux split-window -v -t $SESSION:exploitation.1
-
-tmux select-layout -t $SESSION:exploitation tiled
-
-tmux send-keys -t $SESSION:exploitation.0 "docker exec -it -u root -w /app ros2_exploitation_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:exploitation.1 "docker exec -it -u root -w /app ros2_exploitation_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:exploitation.2 "docker exec -it -u root -w /app ros2_exploitation_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:exploitation.3 "docker exec -it -u root -w /app ros2_exploitation_container bash --init-file /app/.initrc" C-m
+tmux select-layout -t $SESSION:0 tiled
 
 ###########################################################
-# detection window
+# EXECUTE ENTRYPOINT via /entrypoint.sh (guaranteed path)
 ###########################################################
-tmux new-window -t $SESSION -n detection
-
-tmux split-window -h -t $SESSION:detection.0
-tmux split-window -v -t $SESSION:detection.0
-tmux split-window -v -t $SESSION:detection.1
-
-tmux select-layout -t $SESSION:detection tiled
-
-tmux send-keys -t $SESSION:detection.0 "docker exec -it -u root -w /app ros2_detection_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:detection.1 "docker exec -it -u root -w /app ros2_detection_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:detection.2 "docker exec -it -u root -w /app ros2_detection_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:detection.3 "docker exec -it -u root -w /app ros2_detection_container bash --init-file /app/.initrc" C-m
 
 ###########################################################
-# lavis window
+# Pane 0 — LAVIS
 ###########################################################
-tmux new-window -t $SESSION -n lavis
-
-tmux split-window -h -t $SESSION:lavis.0
-tmux split-window -v -t $SESSION:lavis.0
-tmux split-window -v -t $SESSION:lavis.1
-
-tmux select-layout -t $SESSION:lavis tiled
-
-tmux send-keys -t $SESSION:lavis.0 "docker exec -it -u root -w /app ros2_lavis_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:lavis.1 "docker exec -it -u root -w /app ros2_lavis_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:lavis.2 "docker exec -it -u root -w /app ros2_lavis_container bash --init-file /app/.initrc" C-m
-tmux send-keys -t $SESSION:lavis.3 "docker exec -it -u root -w /app ros2_lavis_container bash --init-file /app/.initrc" C-m
+tmux send-keys -t $SESSION:0.0 "docker exec -it ros2_lavis_container bash
+" C-m
+tmux send-keys -t $SESSION:0.0 "ros2 launch blip2_ros blip2_ros.launch.py"
 
 ###########################################################
-# isaac-lab window
+# Pane 1 — EXPLOITATION
 ###########################################################
-tmux new-window -t $SESSION -n isaac-lab-ros2
-
-tmux select-layout -t $SESSION:isaac-lab-ros2 tiled
-
-tmux send-keys -t $SESSION:isaac-lab-ros2.0 \
-"docker exec -it isaac-lab-ros2 bash -c 'export PS1=\"\\[\\e[01;32m\\]\\u@\\h:\\[\\e[01;34m\\]\\w\\[\\e[00m\\]\\\\$ \"; exec bash --norc'" C-m
-
+tmux send-keys -t $SESSION:0.1 "docker exec -it ros2_exploitation_container bash" C-m
+tmux send-keys -t $SESSION:0.1 "ros2 launch sage_commander exploitation_ws.launch.py"
 
 ###########################################################
-# monitoring window
+# Pane 2 — EXPLORER
 ###########################################################
-tmux new-window -t $SESSION -n monitoring
-tmux rename-window -t $SESSION:monitoring "MONITORING"
-
-# Pane 0: CPU/RAM mit htop
-tmux send-keys -t $SESSION:monitoring.0 "htop" C-m
-
-# Split horizontal und GPU-Anzeige starten
-tmux split-window -h -t $SESSION:monitoring.0
-tmux send-keys -t $SESSION:monitoring.1 "watch -n 1 nvidia-smi" C-m
-
-tmux select-layout -t $SESSION:monitoring tiled
+tmux send-keys -t $SESSION:0.2 "docker exec -it ros2_explorer_container bash" C-m
+tmux send-keys -t $SESSION:0.2 "ros2 launch sage_commander explorer_ws.launch.py"
 
 ###########################################################
-# Focus the first window and attach the session
+# Pane 3 — DETECTION
 ###########################################################
-tmux select-window -t $SESSION:explorer
+tmux send-keys -t $SESSION:0.3 "docker exec -it ros2_detection_container bash" C-m
+tmux send-keys -t $SESSION:0.3 "ros2 launch sage_commander detection_ws.launch.py"
+
+###########################################################
+# Pane 4 — NVTOP
+###########################################################
+tmux send-keys -t $SESSION:0.4 "nvtop" C-m
+
+###########################################################
+# Attach
+###########################################################
+tmux select-pane -t $SESSION:0.0
 tmux attach -t $SESSION

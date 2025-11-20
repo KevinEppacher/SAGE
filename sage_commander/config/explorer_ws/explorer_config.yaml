@@ -96,10 +96,13 @@ fused:
       plan_rate: 0.1
       approach_radius: 1.5
       max_visited: 200
-      exploration_weight: 1.0
+      exploration_weight: 0.0
       sigma: 1.5
       gaussian_influence: 0.5
       sight_horizon: 5.0
       fused_topics:
         detection_graph_nodes: "detection_graph_nodes/graph_nodes"
         exploration_graph_nodes: "exploration_graph_nodes/graph_nodes"
+      weights:
+        det_weight: 1.0
+        vlm_weight: 1.0
