@@ -101,9 +101,8 @@ fused:
         exploration_graph_nodes: exploration_graph_nodes/graph_nodes
       max_visited: 200
       timer_period: 0.1
-
-
-weights.det_weight: 1.0
-weights.map_weight: 1.0
-weights.mem_sigma: 0.5
-weights.mem_weight: 1.0
+      weights:
+        det_weight: 1.0
+        map_weight: 1.0
+        mem_sigma: 0.5
+        mem_weight: 1.0

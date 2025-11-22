@@ -88,4 +88,4 @@ evaluator:
       evaluate_prompt_pub: "/evaluator/prompt"
       shortest_path_sub: "/evaluator/shortest_path"
       timeout_sec: 30.0
-      debug_info: true
+      debug_info: false

@@ -61,6 +61,7 @@ private:
 
     // Phase tracking
     int phase{0};
+    int skippedSpins{0};
 
     // Helper
     bool isNearLastSpin(const geometry_msgs::msg::Point &pos) const;

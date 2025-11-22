@@ -1,1 +1,5 @@
-{ "object": "chair", "status": "SUCCESS", "image": "detection_0002.png" }
+{
+  "object": "chair",
+  "status": "FAILURE",
+  "image": "detection.png"
+}

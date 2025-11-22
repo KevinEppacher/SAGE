@@ -13,17 +13,25 @@ from sage_bt_msgs.srv import StartupCheck
 from sage_bt_msgs.action import ExecutePrompt
 from nav_msgs.msg import Path
 from sage_datasets.utils import DatasetManager
-
+from multimodal_query_msgs.msg import SemanticPrompt
 
 class Metrics:
-    """Compute and hold SR/SPL values."""
+    """Compute SR/SPL values and log via passed ROS2 node."""
 
-    def __init__(self, success: bool, actual_path: Path, shortest_path: Path):
+    def __init__(self, node: Node, success: bool, actual_path: Path, shortest_path: Path):
+        self.node = node
         self.success = success
         self.actual_path = actual_path
         self.shortest_path = shortest_path
+
+        self.l_shortest = self._compute_length(shortest_path)
+        self.l_actual = self._compute_length(actual_path)
+
         self.sr = float(success)
         self.spl = self._compute_spl()
+
+        # Print immediately
+        self._print_path_info()
 
     def _compute_length(self, path: Path) -> float:
         if path is None or not path.poses:
@@ -33,21 +41,37 @@ class Metrics:
             p1 = path.poses[i - 1].pose.position
             p2 = path.poses[i].pose.position
             total += math.sqrt(
-                (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2 + (p1.z - p2.z) ** 2
+                (p1.x - p2.x)**2 + (p1.y - p2.y)**2 + (p1.z - p2.z)**2
             )
         return total
 
     def _compute_spl(self) -> float:
         if not self.success:
             return 0.0
-        l_shortest = self._compute_length(self.shortest_path)
-        l_actual = self._compute_length(self.actual_path)
-        if l_shortest <= 0.0 or l_actual <= 0.0:
-            return 0.0
-        return l_shortest / max(l_shortest, l_actual)
 
-    def to_dict(self) -> dict:
-        return {"SR": self.sr, "SPL": self.spl}
+        if self.l_shortest <= 0.0 or self.l_actual <= 0.0:
+            return 0.0
+
+        return self.l_shortest / max(self.l_shortest, self.l_actual)
+
+    def _print_path_info(self):
+        actual_len = self.l_actual
+        shortest_len = self.l_shortest
+
+        self.node.get_logger().info("---- PATH METRICS ----")
+        self.node.get_logger().info(f"Shortest path length: {shortest_len:.2f} m")
+        self.node.get_logger().info(f"Actual executed path: {actual_len:.2f} m")
+        self.node.get_logger().info(f"SR = {self.sr:.2f}, SPL = {self.spl:.3f}")
+        self.node.get_logger().info("-----------------------")
+
+    def to_dict(self):
+        return {
+            "SR": self.sr,
+            "SPL": self.spl,
+            "shortest_path_length": self.l_shortest,
+            "actual_path_length": self.l_actual
+        }
+
 
 
 class EvaluatorDashboard(Node):
@@ -91,6 +115,20 @@ class EvaluatorDashboard(Node):
         self.startup_check_client = self.create_client(StartupCheck, "/sage_behaviour_tree/startup_check")
         self.bt_action_client = ActionClient(self, ExecutePrompt, "/sage_behaviour_tree/execute_prompt")
 
+        # Publisher for the actual executed path
+        self.executed_path_pub = self.create_publisher(
+            Path,
+            "/evaluator/executed_path",
+            10
+        )
+
+        # adding a zero shot publisher
+        self.zero_shot_pub = self.create_publisher(
+            SemanticPrompt,
+            "/zero_shot_prompt",
+            10
+        )
+
         self._wait_for_servers()
 
         # ---------------- Metrics store ----------------
@@ -115,6 +153,10 @@ class EvaluatorDashboard(Node):
             self.get_logger().info("=" * 60)
             self.get_logger().info(f"[{i}/{total}] EVALUATING: {train_prompt}")
             self.get_logger().info("=" * 60)
+            zero_shot_msg = SemanticPrompt()
+            zero_shot_msg.prompt = self.prompts_data["zero_shot"][i-1]
+            self.zero_shot_pub.publish(zero_shot_msg)
+            self.get_logger().info(f"Published zero-shot prompt: {zero_shot_msg.prompt} on topic /zero_shot_prompt")
 
             # --- 1. Get shortest path ---
             self.get_logger().info(f"Requesting shortest path for '{eval_prompt}'")
@@ -130,7 +172,7 @@ class EvaluatorDashboard(Node):
             success, confidence, actual_path, start_pose, end_pose, total_time = self._call_execute_prompt(train_prompt)
 
             # --- 4. Compute metrics ---
-            metrics = Metrics(success, actual_path, shortest_path)
+            metrics = Metrics(self, success, actual_path, shortest_path)
             self.metrics_all[train_prompt] = metrics.to_dict()
             self.get_logger().info(f"Metrics for '{train_prompt}': {metrics.to_dict()}")
 
@@ -185,8 +227,7 @@ class EvaluatorDashboard(Node):
         os.makedirs(det_dir, exist_ok=True)
 
         # Unique file per prompt
-        existing = [f for f in os.listdir(det_dir) if f.endswith(".png")]
-        filename = f"detection_{len(existing) + 1:04d}.png"
+        filename = "detection.png"
         save_path = os.path.join(det_dir, filename)
         goal.save_directory = save_path
         goal.timeout = 10.0
@@ -211,11 +252,42 @@ class EvaluatorDashboard(Node):
         end_pose = result.end_pose
         total_time = result.total_time
 
+        if actual_path is not None:
+            # Ensure Header exists
+            actual_path.header.stamp = self.get_clock().now().to_msg()
+            if not actual_path.header.frame_id:
+                actual_path.header.frame_id = "robot_original_pose_at_scan"  # or your global frame
+
+            self.executed_path_pub.publish(actual_path)
+            self.get_logger().info(
+                f"Published executed path ({len(actual_path.poses)} poses) on /evaluator/executed_path"
+            )
+
         self.get_logger().info(
             f"BT finished: result={success}, confidence={confidence:.3f}, poses={len(actual_path.poses)}, time={total_time:.2f}s"
         )
 
+        self._save_detection_meta(query, success, "detection.png")
+
         return success, confidence, actual_path, start_pose, end_pose, total_time
+
+    def _save_detection_meta(self, prompt, success, image_name):
+        """Overwrite detection_meta.json with a single valid JSON object."""
+        det_dir = os.path.join(self.episode_dir, "detections", prompt)
+        os.makedirs(det_dir, exist_ok=True)
+
+        meta_path = os.path.join(det_dir, "detection_meta.json")
+
+        data = {
+            "object": prompt,
+            "status": "SUCCESS" if success else "FAILURE",
+            "image": image_name
+        }
+
+        with open(meta_path, "w") as f:
+            json.dump(data, f, indent=2)
+
+        self.get_logger().info(f"Saved detection meta → {meta_path}")
 
     # ------------------------------------------------------------
     def _feedback_cb(self, feedback_msg):
