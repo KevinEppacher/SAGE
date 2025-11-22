@@ -1,0 +1,32 @@
+{
+  "bed": {
+    "SR": 1.0,
+    "SPL": 1.0,
+    "shortest_path_length": 3.170164245506527,
+    "actual_path_length": 1.5694377693551984
+  },
+  "chair": {
+    "SR": 0.0,
+    "SPL": 0.0,
+    "shortest_path_length": 7.168064622994345,
+    "actual_path_length": 24.862767055824254
+  },
+  "table": {
+    "SR": 0.0,
+    "SPL": 0.0,
+    "shortest_path_length": 0.0,
+    "actual_path_length": 0.7770341967936245
+  },
+  "sofa": {
+    "SR": 1.0,
+    "SPL": 0.002422143904476282,
+    "shortest_path_length": 0.07963969098556867,
+    "actual_path_length": 32.87983461196887
+  },
+  "toilet": {
+    "SR": 0.0,
+    "SPL": 0.0,
+    "shortest_path_length": 11.545193439486152,
+    "actual_path_length": 9.9183740231385
+  }
+}

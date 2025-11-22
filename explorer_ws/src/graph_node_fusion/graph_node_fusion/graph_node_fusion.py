@@ -186,6 +186,13 @@ class NodeWeighter:
         node.declare_parameter("weights.map_weight", 1.0)
         node.declare_parameter("weights.mem_weight", 1.0)
         node.declare_parameter("weights.mem_sigma", 0.5)
+        node.declare_parameter("proximity_weight", 1.0)
+
+        self.det_weight = node.get_parameter("weights.det_weight").value
+        self.map_weight = node.get_parameter("weights.map_weight").value
+        self.mem_weight = node.get_parameter("weights.mem_weight").value
+        self.mem_sigma = node.get_parameter("weights.mem_sigma").value
+        self.proximity_weight = node.get_parameter("proximity_weight").value
 
         node.add_on_set_parameters_callback(self._param_callback)
 
@@ -216,6 +223,8 @@ class NodeWeighter:
                 self.mem_weight = max(0.0, min(1.0, p.value))
             elif p.name == "weights.mem_sigma":
                 self.mem_sigma = max(0.05, float(p.value))
+            elif p.name == "proximity_weight":
+                self.proximity_weight = max(0.0, min(1.0, p.value))
         res = SetParametersResult()
         res.successful = True
         return res
@@ -272,7 +281,7 @@ class NodeWeighter:
     # ----------------------------------------------------------------------
     # Weighted Noisy-OR fusion (detector + value map + memory)
     # ----------------------------------------------------------------------
-    def weight_nodes(self, exploration_nodes, exploitation_nodes, detection_nodes):
+    def weight_nodes(self, exploration_nodes, exploitation_nodes, detection_nodes, robot_pose=None):
         fused_exploration, fused_detection = [], []
 
         # --- Exploration vs exploitation weighting ---
@@ -280,6 +289,11 @@ class NodeWeighter:
             n.score *= self.exploration_weight
         for n in exploitation_nodes:
             n.score *= (1.0 - self.exploration_weight)
+
+        if robot_pose is not None:
+            for n in exploration_nodes:
+                pr = self._proximity_reward(n, robot_pose)
+                n.score = (1 - self.proximity_weight) * n.score + self.proximity_weight * (n.score * pr)
 
         all_exp = exploration_nodes + exploitation_nodes
         all_exp.sort(key=lambda n: n.score, reverse=True)
@@ -299,6 +313,12 @@ class NodeWeighter:
 
         fused_detection = sorted(detection_nodes, key=lambda n: n.score, reverse=True)
         return fused_exploration, fused_detection
+
+    def _proximity_reward(self, node, robot_pos, k=0.15):
+        x, y = node.position.x, node.position.y
+        rx, ry = robot_pos
+        d = math.hypot(x - rx, y - ry)
+        return 1.0 / (1.0 + k * d)
 
 # ===============================================================
 # Main orchestrator node
@@ -384,7 +404,10 @@ class GraphNodeFusion(Node):
         self._update_visited(robot_pose)
 
         fused_exp, fused_det = self.weighter.weight_nodes(
-            self.exploration_nodes, self.exploitation_nodes, self.detection_nodes
+            self.exploration_nodes, 
+            self.exploitation_nodes, 
+            self.detection_nodes,
+            robot_pose
         )
 
         fused_exp = [n for n in fused_exp if not self._is_visited(n)]
