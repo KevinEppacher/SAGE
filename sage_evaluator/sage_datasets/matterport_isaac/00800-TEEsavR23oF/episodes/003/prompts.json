@@ -14,10 +14,10 @@
     "tv"
   ],
   "zero_shot": [
-    "somewhere to sleep",
-    "a place to sit",
-    "a surface to put things on",
-    "a comfortable place to relax",
-    "a device to watch shows"
+    "a door leading to a bed",
+    "a door leading to a chair",
+    "a door leading to a table",
+    "a door leading to a sofa",
+    "a door leading to a tv"
   ]
 }

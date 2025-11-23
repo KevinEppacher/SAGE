@@ -90,12 +90,12 @@ exploration_graph_nodes:
 fused:
   graph_node_fusion:
     ros__parameters:
-      approach_radius: 2.0
+      approach_radius: 1.8
       debug_distance: true
       detection_topic: /detection_graph_nodes/graph_nodes
       exploitation_topic: /exploitation_graph_nodes/graph_nodes
       exploration_topic: /exploration_graph_nodes/graph_nodes
-      exploration_weight: 0.0
+      exploration_weight: 0.5
       fused_topics:
         detection_graph_nodes: detection_graph_nodes/graph_nodes
         exploration_graph_nodes: exploration_graph_nodes/graph_nodes
@@ -106,3 +106,5 @@ fused:
         map_weight: 1.0
         mem_sigma: 0.5
         mem_weight: 1.0
+        proximity_weight: 1.0
+        

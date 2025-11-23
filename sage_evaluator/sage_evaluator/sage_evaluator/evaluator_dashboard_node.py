@@ -154,9 +154,9 @@ class EvaluatorDashboard(Node):
             self.get_logger().info(f"[{i}/{total}] EVALUATING: {train_prompt}")
             self.get_logger().info("=" * 60)
             zero_shot_msg = SemanticPrompt()
-            zero_shot_msg.prompt = self.prompts_data["zero_shot"][i-1]
+            zero_shot_msg.text_query = self.prompts_data["zero_shot"][i-1]
             self.zero_shot_pub.publish(zero_shot_msg)
-            self.get_logger().info(f"Published zero-shot prompt: {zero_shot_msg.prompt} on topic /zero_shot_prompt")
+            self.get_logger().info(f"Published zero-shot prompt: \"{zero_shot_msg.text_query}\" on topic /zero_shot_prompt")
 
             # --- 1. Get shortest path ---
             self.get_logger().info(f"Requesting shortest path for '{eval_prompt}'")

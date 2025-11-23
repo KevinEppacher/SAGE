@@ -58,40 +58,50 @@ class Markers:
     def publish(self, exploration_nodes, detection_nodes, visited_nodes, robot_pose):
         marker_array = MarkerArray()
 
-        # --- Clear existing markers ---
+        # --- Clear all markers ---
         clear = Marker()
         clear.header.frame_id = "map"
         clear.header.stamp = self.node.get_clock().now().to_msg()
         clear.action = Marker.DELETEALL
         marker_array.markers.append(clear)
 
-        # --- Normalization for color mapping ---
+        # --- Score normalization for color ---
         all_scores = [n.score for n in exploration_nodes + detection_nodes] or [0.0]
         norm = plt.Normalize(vmin=min(all_scores), vmax=max(all_scores))
 
         idx = 0
 
-        # --- Draw spheres for all nodes (exploration + detection) ---
+        # --- Spheres and score texts ---
         for n in exploration_nodes + detection_nodes:
-            marker_array.markers.append(self._make_sphere(n, idx, norm))
+            sphere = self._make_sphere(n, idx, norm)
+            marker_array.markers.append(sphere)
             idx += 1
 
-        # --- Draw visited nodes (small blue dots) ---
+            score_text = self._make_score_text(n, idx, norm)
+            marker_array.markers.append(score_text)
+            idx += 1
+
+        # --- Visited nodes ---
         for vx, vy in visited_nodes[-200:]:
             marker_array.markers.append(self._make_visited(vx, vy, idx))
             idx += 1
 
-        # --- Draw debug distance lines and text (if enabled) ---
+        # --- Ropes and distance texts ---
         if self.debug_distance:
             for n in exploration_nodes:
-                line_markers = self._make_line(robot_pose, (n.position.x, n.position.y), idx)
-                for marker in line_markers:   # add both line and text separately
-                    marker_array.markers.append(marker)
+                rope = self._make_line(robot_pose, n, idx, norm)
+                marker_array.markers.append(rope)
                 idx += 1
 
-        # --- Publish marker array ---
+                dist_text = self._make_distance_text(robot_pose, n, idx)
+                marker_array.markers.append(dist_text)
+                idx += 1
+
         self.publisher.publish(marker_array)
 
+    # -------------------------------------------------------------
+    # Spheres for nodes
+    # -------------------------------------------------------------
     def _make_sphere(self, node: GraphNode, idx: int, norm):
         r, g, b, a = self.cmap(norm(node.score))
         m = Marker()
@@ -110,6 +120,90 @@ class Markers:
         m.lifetime.sec = 1
         return m
 
+    # -------------------------------------------------------------
+    # Score text above each node
+    # -------------------------------------------------------------
+    def _make_score_text(self, node: GraphNode, idx: int, norm):
+        r, g, b, _ = self.cmap(norm(node.score))
+
+        m = Marker()
+        m.header.frame_id = "map"
+        m.header.stamp = self.node.get_clock().now().to_msg()
+        m.ns = "score_text"
+        m.id = idx
+        m.type = Marker.TEXT_VIEW_FACING
+        m.action = Marker.ADD
+
+        m.pose.position.x = node.position.x
+        m.pose.position.y = node.position.y
+        m.pose.position.z = 0.35   # above the sphere
+
+        m.scale.z = 0.12           # text height
+        m.color = ColorRGBA(r=r, g=g, b=b, a=1.0)
+
+        m.text = f"{node.score:.2f}"
+        m.lifetime.sec = 1
+        return m
+
+    # -------------------------------------------------------------
+    # Ropes (colored & thickness from score)
+    # -------------------------------------------------------------
+    def _make_line(self, robot_pose, node, idx, norm):
+        rx, ry = robot_pose
+        nx, ny = node.position.x, node.position.y
+        r, g, b, a = self.cmap(norm(node.score))
+
+        thickness = 0.01 + 0.05 * norm(node.score)
+
+        from geometry_msgs.msg import Point
+
+        m = Marker()
+        m.header.frame_id = "map"
+        m.header.stamp = self.node.get_clock().now().to_msg()
+        m.ns = "rope_lines"
+        m.id = idx
+        m.type = Marker.LINE_STRIP
+        m.action = Marker.ADD
+
+        m.scale.x = thickness
+        m.color = ColorRGBA(r=r, g=g, b=b, a=max(0.4, a))
+
+        p1 = Point(x=rx, y=ry, z=0.05)
+        p2 = Point(x=nx, y=ny, z=0.05)
+        m.points = [p1, p2]
+        m.lifetime.sec = 1
+        return m
+
+    # -------------------------------------------------------------
+    # Distance text near the midpoint of the rope
+    # -------------------------------------------------------------
+    def _make_distance_text(self, robot_pose, node, idx):
+        rx, ry = robot_pose
+        nx, ny = node.position.x, node.position.y
+        dist = math.hypot(nx - rx, ny - ry)
+
+        m = Marker()
+        m.header.frame_id = "map"
+        m.header.stamp = self.node.get_clock().now().to_msg()
+        m.ns = "distance_text"
+        m.id = idx
+        m.type = Marker.TEXT_VIEW_FACING
+        m.action = Marker.ADD
+
+        m.pose.position.x = (rx + nx) * 0.5
+        m.pose.position.y = (ry + ny) * 0.5
+        m.pose.position.z = 0.25
+
+        m.scale.z = 0.12
+        m.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=0.9)
+
+        m.text = f"{dist:.2f} m"
+        m.lifetime.sec = 1
+        return m
+
+    # -------------------------------------------------------------
+    # Visited nodes
+    # -------------------------------------------------------------
     def _make_visited(self, vx: float, vy: float, idx: int):
         m = Marker()
         m.header.frame_id = "map"
@@ -125,47 +219,6 @@ class Markers:
         m.color = ColorRGBA(r=0.3, g=0.3, b=1.0, a=0.6)
         m.lifetime.sec = 1
         return m
-
-    def _make_line(self, robot_pose, node_pose, idx: int):
-        rx, ry = robot_pose
-        nx, ny = node_pose
-        distance = math.hypot(nx - rx, ny - ry)
-
-        # --- Line Marker (black) ---
-        m = Marker()
-        m.header.frame_id = "map"
-        m.header.stamp = self.node.get_clock().now().to_msg()
-        m.ns = "debug_lines"
-        m.id = idx
-        m.type = Marker.LINE_STRIP
-        m.action = Marker.ADD
-        m.scale.x = 0.02
-        m.color = ColorRGBA(r=0.0, g=0.0, b=0.0, a=0.8)
-
-        from geometry_msgs.msg import Point
-        p1 = Point(x=rx, y=ry, z=0.05)
-        p2 = Point(x=nx, y=ny, z=0.05)
-        m.points = [p1, p2]
-        m.lifetime.sec = 1
-
-        # --- Distance text marker ---
-        text_marker = Marker()
-        text_marker.header.frame_id = "map"
-        text_marker.header.stamp = self.node.get_clock().now().to_msg()
-        text_marker.ns = "debug_text"
-        text_marker.id = idx + 10000  # ensure unique ID separate from line
-        text_marker.type = Marker.TEXT_VIEW_FACING
-        text_marker.action = Marker.ADD
-        text_marker.pose.position.x = (rx + nx) / 2.0
-        text_marker.pose.position.y = (ry + ny) / 2.0
-        text_marker.pose.position.z = 0.2
-        text_marker.scale.z = 0.1
-        text_marker.color = ColorRGBA(r=0.0, g=0.0, b=0.0, a=1.0)
-        text_marker.text = f"{distance:.2f}"
-        text_marker.lifetime.sec = 1
-
-        return [m, text_marker]
-
 
 # ===============================================================
 # NodeWeighter: handles scoring and weighting logic
@@ -186,13 +239,27 @@ class NodeWeighter:
         node.declare_parameter("weights.map_weight", 1.0)
         node.declare_parameter("weights.mem_weight", 1.0)
         node.declare_parameter("weights.mem_sigma", 0.5)
-        node.declare_parameter("proximity_weight", 1.0)
+        node.declare_parameter("weights.proximity_weight", 1.0)
 
         self.det_weight = node.get_parameter("weights.det_weight").value
         self.map_weight = node.get_parameter("weights.map_weight").value
         self.mem_weight = node.get_parameter("weights.mem_weight").value
         self.mem_sigma = node.get_parameter("weights.mem_sigma").value
-        self.proximity_weight = node.get_parameter("proximity_weight").value
+        self.proximity_weight = node.get_parameter("weights.proximity_weight").value
+
+        self.det_weight = max(0.0, min(1.0, self.det_weight))
+        self.map_weight = max(0.0, min(1.0, self.map_weight))
+        self.mem_weight = max(0.0, min(1.0, self.mem_weight))
+        self.mem_sigma = max(0.05, float(self.mem_sigma))
+        self.proximity_weight = max(0.0, min(1.0, self.proximity_weight))
+
+        self.node.get_logger().info(
+            f"NodeWeighter initialized with \n det_weight={self.det_weight}, \n "
+            f"map_weight={self.map_weight} \n, mem_weight={self.mem_weight} \n, "
+            f"mem_sigma={self.mem_sigma} \n, proximity_weight={self.proximity_weight} \n"
+        )
+
+         # Register parameter change callback
 
         node.add_on_set_parameters_callback(self._param_callback)
 
@@ -223,7 +290,7 @@ class NodeWeighter:
                 self.mem_weight = max(0.0, min(1.0, p.value))
             elif p.name == "weights.mem_sigma":
                 self.mem_sigma = max(0.05, float(p.value))
-            elif p.name == "proximity_weight":
+            elif p.name == "weights.proximity_weight":
                 self.proximity_weight = max(0.0, min(1.0, p.value))
         res = SetParametersResult()
         res.successful = True
@@ -454,6 +521,7 @@ class GraphNodeFusion(Node):
         self.get_logger().debug(
             f"Published {len(exploration_nodes)} exploration nodes and {len(detection_nodes)} detection nodes."
         )
+
 
 def main(args=None):
     rclpy.init(args=args)
