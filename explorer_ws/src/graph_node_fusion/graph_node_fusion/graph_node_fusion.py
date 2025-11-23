@@ -13,6 +13,10 @@ import struct
 import numpy as np
 from sensor_msgs.msg import PointCloud2
 from rcl_interfaces.msg import SetParametersResult
+from collections import deque
+from geometry_msgs.msg import PoseArray, Pose
+from sensor_msgs.msg import PointCloud2, PointField
+from rcl_interfaces.msg import ParameterDescriptor, FloatingPointRange
 
 # ===============================================================
 # Robot class: handles TF lookup and provides robot position
@@ -52,8 +56,46 @@ class Markers:
         )
         self.node = node
         self.publisher = node.create_publisher(MarkerArray, topic_name, qos)
+        self.pose_pub = node.create_publisher(PoseArray, "backtrack_pose_array", qos)
+        self.field_pub = node.create_publisher(PointCloud2, "backtrack_field", qos)
         self.debug_distance = debug_distance
         self.cmap = plt.get_cmap("inferno")
+
+        sigma_range = FloatingPointRange(from_value=0.1, to_value=3.0, step=0.001)
+        res_range   = FloatingPointRange(from_value=0.05, to_value=1.0, step=0.05)
+        range_range = FloatingPointRange(from_value=0.5, to_value=10.0, step=0.5)
+        z_range     = FloatingPointRange(from_value=0.1, to_value=5.0, step=0.1)
+        int_range   = FloatingPointRange(from_value=0.0, to_value=0.1, step=0.005)
+
+        node.declare_parameter(
+            "backtrack.sigma", 1.5,
+            ParameterDescriptor(description="Gaussian spread of backtrack dome [m]", floating_point_range=[sigma_range])
+        )
+        node.declare_parameter(
+            "backtrack.grid_res", 0.25,
+            ParameterDescriptor(description="Resolution of backtrack grid [m]", floating_point_range=[res_range])
+        )
+        node.declare_parameter(
+            "backtrack.grid_range", 3.0,
+            ParameterDescriptor(description="Spatial extent of backtrack field [m]", floating_point_range=[range_range])
+        )
+        node.declare_parameter(
+            "backtrack.z_scale", 1.5,
+            ParameterDescriptor(description="Vertical exaggeration of Gaussian dome", floating_point_range=[z_range])
+        )
+        node.declare_parameter(
+            "backtrack.min_intensity", 0.01,
+            ParameterDescriptor(description="Minimum intensity threshold", floating_point_range=[int_range])
+        )
+
+        self.sigma = node.get_parameter("backtrack.sigma").value
+        self.grid_res = node.get_parameter("backtrack.grid_res").value
+        self.grid_range = node.get_parameter("backtrack.grid_range").value
+        self.z_scale = node.get_parameter("backtrack.z_scale").value
+        self.min_intensity = node.get_parameter("backtrack.min_intensity").value
+
+        # Register callback for dynamic updates
+        node.add_on_set_parameters_callback(self._param_callback)
 
     def publish(self, exploration_nodes, detection_nodes, visited_nodes, robot_pose):
         marker_array = MarkerArray()
@@ -220,6 +262,91 @@ class Markers:
         m.lifetime.sec = 1
         return m
 
+    # -------------------------------------------------------------
+    # Dynamic parameter callback
+    # -------------------------------------------------------------
+    def _param_callback(self, params):
+        for p in params:
+            if p.name == "backtrack.sigma":
+                self.sigma = max(0.1, float(p.value))
+                self.node.get_logger().info(f"Updated backtrack.sigma to {self.sigma}")
+            elif p.name == "backtrack.grid_res":
+                self.grid_res = max(0.05, float(p.value))
+                self.node.get_logger().info(f"Updated backtrack.grid_res to {self.grid_res}")
+            elif p.name == "backtrack.grid_range":
+                self.grid_range = max(0.5, float(p.value))
+                self.node.get_logger().info(f"Updated backtrack.grid_range to {self.grid_range}")
+            elif p.name == "backtrack.z_scale":
+                self.z_scale = max(0.1, float(p.value))
+                self.node.get_logger().info(f"Updated backtrack.z_scale to {self.z_scale}")
+            elif p.name == "backtrack.min_intensity":
+                self.min_intensity = max(0.0, float(p.value))
+                self.node.get_logger().info(f"Updated backtrack.min_intensity to {self.min_intensity}")
+        res = SetParametersResult()
+        res.successful = True
+        return res
+
+    # ------------------------------------------------------------------
+    # Backtrack visualization (pose array + Gaussian intensity field)
+    # ------------------------------------------------------------------
+    def publish_backtrack_field(self, pose_buffer):
+        """Visualize the spatial backtrack suppression field as a 3D Gaussian dome."""
+        if not pose_buffer:
+            return
+
+        # --- PoseArray: path of the recent robot poses ---
+        pose_array = PoseArray()
+        pose_array.header.frame_id = "map"
+        pose_array.header.stamp = self.node.get_clock().now().to_msg()
+
+        for px, py in pose_buffer:
+            p = Pose()
+            p.position.x = px
+            p.position.y = py
+            p.orientation.w = 1.0
+            pose_array.poses.append(p)
+
+        self.pose_pub.publish(pose_array)
+
+        # --- Build Gaussian dome field around each buffered pose ---
+        points = []
+        num_poses = len(pose_buffer)
+        for i, (px, py) in enumerate(pose_buffer):
+            age_weight = 1.0 - (i / num_poses)
+            xs = np.arange(px - self.grid_range, px + self.grid_range + self.grid_res, self.grid_res)
+            ys = np.arange(py - self.grid_range, py + self.grid_range + self.grid_res, self.grid_res)
+
+            for x in xs:
+                for y in ys:
+                    d2 = (x - px) ** 2 + (y - py) ** 2
+                    intensity = math.exp(-d2 / (2 * self.sigma * self.sigma)) * age_weight
+                    if intensity > self.min_intensity:
+                        z = intensity * self.z_scale  # height proportional to field strength
+                        points.append((x, y, z, intensity))
+
+        if not points:
+            return
+
+        # --- Convert to PointCloud2 for RViz ---
+        msg = PointCloud2()
+        msg.header.frame_id = "map"
+        msg.header.stamp = self.node.get_clock().now().to_msg()
+        msg.height = 1
+        msg.width = len(points)
+        msg.is_dense = True
+        msg.is_bigendian = False
+        msg.point_step = 16
+        msg.row_step = msg.point_step * msg.width
+        msg.fields = [
+            PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+            PointField(name="intensity", offset=12, datatype=PointField.FLOAT32, count=1),
+        ]
+        msg.data = b"".join([struct.pack("<ffff", *p) for p in points])
+        self.field_pub.publish(msg)
+
+
 # ===============================================================
 # NodeWeighter: handles scoring and weighting logic
 # ===============================================================
@@ -235,11 +362,30 @@ class NodeWeighter:
         self.mem_weight = 1.0
         self.mem_sigma = 0.5  # spatial falloff [m]
 
-        node.declare_parameter("weights.det_weight", 1.0)
-        node.declare_parameter("weights.map_weight", 1.0)
-        node.declare_parameter("weights.mem_weight", 1.0)
-        node.declare_parameter("weights.mem_sigma", 0.5)
-        node.declare_parameter("weights.proximity_weight", 1.0)
+        float01 = FloatingPointRange(from_value=0.0, to_value=1.0, step=0.05)
+        sigma_range = FloatingPointRange(from_value=0.05, to_value=3.0, step=0.05)
+
+        node.declare_parameter(
+            "weights.det_weight", 1.0,
+            ParameterDescriptor(description="Weight of detection nodes", floating_point_range=[float01])
+        )
+        node.declare_parameter(
+            "weights.map_weight", 1.0,
+            ParameterDescriptor(description="Weight of value map nodes", floating_point_range=[float01])
+        )
+        node.declare_parameter(
+            "weights.mem_weight", 1.0,
+            ParameterDescriptor(description="Weight of memory nodes", floating_point_range=[float01])
+        )
+        node.declare_parameter(
+            "weights.mem_sigma", 0.5,
+            ParameterDescriptor(description="Spatial falloff for memory weighting [m]", floating_point_range=[sigma_range])
+        )
+        node.declare_parameter(
+            "weights.proximity_weight", 1.0,
+            ParameterDescriptor(description="Relative weight of proximity reward", floating_point_range=[float01])
+        )
+
 
         self.det_weight = node.get_parameter("weights.det_weight").value
         self.map_weight = node.get_parameter("weights.map_weight").value
@@ -357,6 +503,12 @@ class NodeWeighter:
         for n in exploitation_nodes:
             n.score *= (1.0 - self.exploration_weight)
 
+        for n in exploration_nodes:
+            backtrack_penalty = self.compute_spatial_backtrack_penalty(
+                n, pose_buffer=self.node.pose_buffer, sigma=1.5, weighted=True
+            )
+            n.score *= (1.0 - 0.3 * backtrack_penalty)  # 30% max suppression
+
         if robot_pose is not None:
             for n in exploration_nodes:
                 pr = self._proximity_reward(n, robot_pose)
@@ -387,6 +539,44 @@ class NodeWeighter:
         d = math.hypot(x - rx, y - ry)
         return 1.0 / (1.0 + k * d)
 
+    def compute_spatial_backtrack_penalty(self, node, pose_buffer, sigma=1.5, weighted=False):
+        """
+        Compute a continuous Gaussian penalty for nodes near the robot's recent trajectory.
+
+        Args:
+            node: GraphNode
+            pose_buffer: list of (x, y) tuples representing recent robot poses.
+            sigma: Gaussian spatial falloff (m).
+            weighted: if True, apply stronger penalty to more recent poses.
+        Returns:
+            float in [0, 1]: higher = stronger penalty
+        """
+        if not pose_buffer:
+            return 0.0
+
+        best_penalty = 0.0
+        n = len(pose_buffer)
+
+        for i, (px, py) in enumerate(pose_buffer):
+            dx = node.position.x - px
+            dy = node.position.y - py
+            d2 = dx * dx + dy * dy
+
+            spatial_factor = math.exp(-d2 / (2.0 * sigma * sigma))
+
+            # Optional: weight recent poses slightly more
+            if weighted:
+                age_weight = 1.0 - (i / n)  # 1 for most recent, 0 for oldest
+                penalty = spatial_factor * age_weight
+            else:
+                penalty = spatial_factor
+
+            if penalty > best_penalty:
+                best_penalty = penalty
+
+        return best_penalty
+
+
 # ===============================================================
 # Main orchestrator node
 # ===============================================================
@@ -397,7 +587,6 @@ class GraphNodeFusion(Node):
         # --- Parameters ---
         self.declare_parameter("approach_radius", 1.0)
         self.declare_parameter("max_visited", 200)
-        self.declare_parameter("exploration_weight", 0.7)
         self.declare_parameter("debug_distance", True)
         self.declare_parameter("exploration_topic", "/exploration_graph_nodes/graph_nodes")
         self.declare_parameter("exploitation_topic", "/exploitation_graph_nodes/graph_nodes")
@@ -405,6 +594,12 @@ class GraphNodeFusion(Node):
         self.declare_parameter("fused_topics.detection_graph_nodes", "/fused/detection_graph_nodes/graph_nodes")
         self.declare_parameter("fused_topics.exploration_graph_nodes", "/fused/exploration_graph_nodes/graph_nodes")
         self.declare_parameter("timer_period", 0.1)
+
+        float01 = FloatingPointRange(from_value=0.0, to_value=1.0, step=0.01)
+        self.declare_parameter(
+            "exploration_weight", 0.7,
+            ParameterDescriptor(description="Balance between exploration and exploitation", floating_point_range=[float01])
+        )
 
         gp = self.get_parameter
         self.approach_radius = gp("approach_radius").value
@@ -443,8 +638,13 @@ class GraphNodeFusion(Node):
         self.detection_nodes = []
         self.visited_nodes = []
 
+        self.pose_buffer = deque(maxlen=20)
+        self.pose_spacing = 1.0  # meters
+
         self.create_timer(self.timer_period, self._loop)
         self.last_loop_time = self.get_clock().now()
+
+        self.add_on_set_parameters_callback(self._param_callback)
 
     # ---------- Callbacks ----------
     def cb_exploration(self, msg): self.exploration_nodes = list(msg.nodes)
@@ -467,6 +667,8 @@ class GraphNodeFusion(Node):
         robot_pose = self.robot.get_position()
         if robot_pose is None:
             return
+        
+        self._update_pose_buffer(robot_pose)
 
         self._update_visited(robot_pose)
 
@@ -476,6 +678,9 @@ class GraphNodeFusion(Node):
             self.detection_nodes,
             robot_pose
         )
+
+        self.markers.publish(fused_exp, fused_det, self.visited_nodes, robot_pose)
+        self.markers.publish_backtrack_field(self.pose_buffer)
 
         fused_exp = [n for n in fused_exp if not self._is_visited(n)]
         self._publish_arrays(fused_exp, fused_det)
@@ -522,6 +727,35 @@ class GraphNodeFusion(Node):
             f"Published {len(exploration_nodes)} exploration nodes and {len(detection_nodes)} detection nodes."
         )
 
+    def _update_pose_buffer(self, robot_pose):
+        """Maintain a fixed-length spatial buffer of recent robot poses."""
+        if not self.pose_buffer:
+            self.pose_buffer.append(robot_pose)
+            return
+        last_x, last_y = self.pose_buffer[-1]
+        if math.hypot(robot_pose[0] - last_x, robot_pose[1] - last_y) >= self.pose_spacing:
+            self.pose_buffer.append(robot_pose)
+
+    def _param_callback(self, params):
+        for p in params:
+            if p.name == "approach_radius":
+                self.approach_radius = max(0.1, float(p.value))
+                self.get_logger().info(f"Updated approach_radius to {self.approach_radius}")
+            elif p.name == "max_visited":
+                self.max_visited = max(10, int(p.value))
+                self.visited_nodes = self.visited_nodes[-self.max_visited:]
+                self.get_logger().info(f"Updated max_visited to {self.max_visited}")
+            elif p.name == "exploration_weight":
+                self.exploration_weight = max(0.0, min(1.0, float(p.value)))
+                self.weighter.exploration_weight = self.exploration_weight
+                self.get_logger().info(f"Updated exploration_weight to {self.exploration_weight}")
+            elif p.name == "debug_distance":
+                self.debug_distance = bool(p.value)
+                self.markers.debug_distance = self.debug_distance
+                self.get_logger().info(f"Updated debug_distance to {self.debug_distance}")
+        res = SetParametersResult()
+        res.successful = True
+        return res
 
 def main(args=None):
     rclpy.init(args=args)
