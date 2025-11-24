@@ -26,7 +26,7 @@ class Robot:
         self.tf_listener = TransformListener(self.tf_buffer, node, spin_thread=True)
         self.last_pose = (0.0, 0.0)
 
-    def get_position(self):
+    def get_pose(self):
         """Return (x, y) of robot in map frame or last known pose."""
         try:
             tf = self.tf_buffer.lookup_transform(
@@ -34,7 +34,11 @@ class Robot:
                 rclpy.time.Time(), timeout=Duration(seconds=0.1)
             )
             t = tf.transform.translation
-            self.last_pose = (t.x, t.y)
+            q = tf.transform.rotation
+            (_, _, yaw) = self._quaternion_to_euler(q.x, q.y, q.z, q.w)
+            pose = (t.x, t.y, yaw)
+            self.last_pose = pose
+            return pose
         except Exception as e:
             self.node.get_logger().warn(f"TF lookup failed: {e}", throttle_duration_sec=2.0)
         return self.last_pose
@@ -272,12 +276,15 @@ class NodeWeighter:
     # ----------------------------------------------------------------------
     # Weighted Noisy-OR fusion (detector + value map + memory)
     # ----------------------------------------------------------------------
-    def weight_nodes(self, exploration_nodes, exploitation_nodes, detection_nodes):
+    def weight_nodes(self, exploration_nodes, exploitation_nodes, detection_nodes, robot_pose):
         fused_exploration, fused_detection = [], []
 
         # --- Exploration vs exploitation weighting ---
         for n in exploration_nodes:
+            # baseline
             n.score *= self.exploration_weight
+            # add persistence weighting
+            n.score *= self._get_directional_persistence(n.position.x, n.position.y, robot_pose)
         for n in exploitation_nodes:
             n.score *= (1.0 - self.exploration_weight)
 
@@ -290,15 +297,31 @@ class NodeWeighter:
             s_det = max(0.0, min(1.0, n.score))
             s_map = self._get_score_from_value_map(n.position.x, n.position.y)
             s_mem = self._get_score_from_memory(n.position.x, n.position.y, exploitation_nodes)
-
             s_fused = 1.0 - (1.0 - self.det_weight * s_det) \
                             * (1.0 - self.map_weight * s_map) \
                             * (1.0 - self.mem_weight * s_mem)
-
             n.score = min(max(s_fused, 0.0), 1.0)
 
         fused_detection = sorted(detection_nodes, key=lambda n: n.score, reverse=True)
         return fused_exploration, fused_detection
+
+    # ----------------------------------------------------------------------
+    # Directional persistence term (favor front-facing frontiers)
+    # ----------------------------------------------------------------------
+    def _get_directional_persistence(self, x_node, y_node, robot_pose, gain=0.3, sigma_deg=45.0):
+        """
+        Returns a weighting factor (0–1) favoring nodes roughly in front of the robot.
+        gain controls strength, sigma_deg controls angular spread.
+        """
+        x, y, yaw = robot_pose
+        dx = x_node - x
+        dy = y_node - y
+        node_angle = math.atan2(dy, dx)
+        angle_diff = math.atan2(math.sin(node_angle - yaw), math.cos(node_angle - yaw))
+        sigma = math.radians(sigma_deg)
+        weight = math.exp(-0.5 * (angle_diff / sigma) ** 2)
+        return 1.0 + gain * weight
+
 
 # ===============================================================
 # Main orchestrator node
@@ -377,14 +400,17 @@ class GraphNodeFusion(Node):
             )
 
         # --- Regular logic ---
-        robot_pose = self.robot.get_position()
+        robot_pose = self.robot.get_pose()
         if robot_pose is None:
             return
 
         self._update_visited(robot_pose)
 
         fused_exp, fused_det = self.weighter.weight_nodes(
-            self.exploration_nodes, self.exploitation_nodes, self.detection_nodes
+            self.exploration_nodes, 
+            self.exploitation_nodes, 
+            self.detection_nodes,
+            robot_pose
         )
 
         fused_exp = [n for n in fused_exp if not self._is_visited(n)]
