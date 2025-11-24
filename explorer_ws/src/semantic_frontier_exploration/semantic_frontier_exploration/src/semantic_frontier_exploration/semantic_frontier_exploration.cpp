@@ -126,6 +126,7 @@ void SemanticFrontier::timerCallback()
         graphNode.setScore(score);
         graphNode.setId(id);
         graphNodes->addNode(graphNode);
+        
     }
 
     graphNodes->publishPosMarkers();

@@ -1,12 +1,12 @@
 fused:
   graph_node_fusion:
     ros__parameters:
-      approach_radius: 1.8
-      # approach_radius: 0.0
+      # approach_radius: 1.8
+      approach_radius: 0.0
       debug_distance: true
       detection_topic: /detection_graph_nodes/graph_nodes
       exploitation_topic: /exploitation_graph_nodes/graph_nodes
-      exploration_topic: /exploration_graph_nodes/graph_nodes
+      exploration_topic: /filtered/exploration_graph_nodes/graph_nodes
       exploration_weight: 0.5
       fused_topics:
         detection_graph_nodes: detection_graph_nodes/graph_nodes

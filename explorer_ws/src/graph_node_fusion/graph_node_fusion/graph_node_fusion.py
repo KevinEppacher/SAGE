@@ -13,11 +13,6 @@ import struct
 import numpy as np
 from sensor_msgs.msg import PointCloud2
 from rcl_interfaces.msg import SetParametersResult
-from collections import deque
-from geometry_msgs.msg import PoseArray, Pose
-from sensor_msgs.msg import PointCloud2, PointField
-from rcl_interfaces.msg import ParameterDescriptor, FloatingPointRange
-from multimodal_query_msgs.msg import SemanticPrompt
 
 # ===============================================================
 # Robot class: handles TF lookup and provides robot position
@@ -29,53 +24,25 @@ class Robot:
         self.reference_frame = reference_frame
         self.tf_buffer = Buffer(cache_time=Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, node, spin_thread=True)
-        self.path_history = deque(maxlen=500)
-        self.spatial_delayed_pose = (0.0, 0.0)
+        self.last_pose = (0.0, 0.0)
 
-        # configurable offset (m)
-        node.declare_parameter("robot.pose_delay_distance", 3.0)
-        self.pose_delay_distance = node.get_parameter("robot.pose_delay_distance").value
-
-    def get_position(self):
-        """Return (x, y) in map frame."""
+    def get_pose(self):
+        """Return (x, y) of robot in map frame or last known pose."""
         try:
             tf = self.tf_buffer.lookup_transform(
                 self.reference_frame, self.target_frame,
                 rclpy.time.Time(), timeout=Duration(seconds=0.1)
             )
             t = tf.transform.translation
-            pos = (t.x, t.y)
-            self._update_path_history(pos)
-            return pos
+            q = tf.transform.rotation
+            (_, _, yaw) = self._quaternion_to_euler(q.x, q.y, q.z, q.w)
+            pose = (t.x, t.y, yaw)
+            self.last_pose = pose
+            return pose
         except Exception as e:
             self.node.get_logger().warn(f"TF lookup failed: {e}", throttle_duration_sec=2.0)
-            return self.path_history[-1] if self.path_history else (0.0, 0.0)
+        return self.last_pose
 
-    def get_spatial_delayed_pose(self):
-        """Return a pose ~pose_delay_distance behind current position along the trajectory."""
-        if len(self.path_history) < 2:
-            return self.path_history[-1] if self.path_history else (0.0, 0.0)
-
-        total_dist = 0.0
-        for i in range(len(self.path_history) - 1, 0, -1):
-            x1, y1 = self.path_history[i]
-            x0, y0 = self.path_history[i - 1]
-            seg = math.hypot(x1 - x0, y1 - y0)
-            total_dist += seg
-            if total_dist >= self.pose_delay_distance:
-                self.spatial_delayed_pose = (x0, y0)
-                return self.spatial_delayed_pose
-
-        return self.path_history[0]
-
-    def _update_path_history(self, pos):
-        """Store robot trajectory for delayed pose computation."""
-        if not self.path_history:
-            self.path_history.append(pos)
-            return
-        lx, ly = self.path_history[-1]
-        if math.hypot(pos[0] - lx, pos[1] - ly) > 0.1:
-            self.path_history.append(pos)
 
 # ===============================================================
 # Markers class: handles visualization
@@ -89,73 +56,46 @@ class Markers:
         )
         self.node = node
         self.publisher = node.create_publisher(MarkerArray, topic_name, qos)
-        self.pose_pub = node.create_publisher(PoseArray, "backtrack_pose_array", qos)
-        self.field_pub = node.create_publisher(PointCloud2, "backtrack_field", qos)
         self.debug_distance = debug_distance
         self.cmap = plt.get_cmap("inferno")
-
-        # --- Declare visualization-specific parameters here (owned by Markers) ---
-        node.declare_parameter("backtrack.grid_res", 0.25)
-        node.declare_parameter("backtrack.grid_range", 3.0)
-        node.declare_parameter("backtrack.z_scale", 1.5)
-        node.declare_parameter("backtrack.min_intensity", 0.01)
-
-        self.sigma = node.get_parameter("backtrack.sigma").value
-        self.grid_res = node.get_parameter("backtrack.grid_res").value
-        self.grid_range = node.get_parameter("backtrack.grid_range").value
-        self.z_scale = node.get_parameter("backtrack.z_scale").value
-        self.min_intensity = node.get_parameter("backtrack.min_intensity").value
-
-        # Register callback for dynamic updates
-        node.add_on_set_parameters_callback(self._param_callback)
 
     def publish(self, exploration_nodes, detection_nodes, visited_nodes, robot_pose):
         marker_array = MarkerArray()
 
-        # --- Clear all markers ---
+        # --- Clear existing markers ---
         clear = Marker()
         clear.header.frame_id = "map"
         clear.header.stamp = self.node.get_clock().now().to_msg()
         clear.action = Marker.DELETEALL
         marker_array.markers.append(clear)
 
-        # --- Score normalization for color ---
+        # --- Normalization for color mapping ---
         all_scores = [n.score for n in exploration_nodes + detection_nodes] or [0.0]
         norm = plt.Normalize(vmin=min(all_scores), vmax=max(all_scores))
 
         idx = 0
 
-        # --- Spheres and score texts ---
+        # --- Draw spheres for all nodes (exploration + detection) ---
         for n in exploration_nodes + detection_nodes:
-            sphere = self._make_sphere(n, idx, norm)
-            marker_array.markers.append(sphere)
+            marker_array.markers.append(self._make_sphere(n, idx, norm))
             idx += 1
 
-            score_text = self._make_score_text(n, idx, norm)
-            marker_array.markers.append(score_text)
-            idx += 1
-
-        # --- Visited nodes ---
+        # --- Draw visited nodes (small blue dots) ---
         for vx, vy in visited_nodes[-200:]:
             marker_array.markers.append(self._make_visited(vx, vy, idx))
             idx += 1
 
-        # --- Ropes and distance texts ---
+        # --- Draw debug distance lines and text (if enabled) ---
         if self.debug_distance:
             for n in exploration_nodes:
-                rope = self._make_line(robot_pose, n, idx, norm)
-                marker_array.markers.append(rope)
+                line_markers = self._make_line(robot_pose, (n.position.x, n.position.y), idx)
+                for marker in line_markers:   # add both line and text separately
+                    marker_array.markers.append(marker)
                 idx += 1
 
-                dist_text = self._make_distance_text(robot_pose, n, idx)
-                marker_array.markers.append(dist_text)
-                idx += 1
-
+        # --- Publish marker array ---
         self.publisher.publish(marker_array)
 
-    # -------------------------------------------------------------
-    # Spheres for nodes
-    # -------------------------------------------------------------
     def _make_sphere(self, node: GraphNode, idx: int, norm):
         r, g, b, a = self.cmap(norm(node.score))
         m = Marker()
@@ -174,90 +114,6 @@ class Markers:
         m.lifetime.sec = 1
         return m
 
-    # -------------------------------------------------------------
-    # Score text above each node
-    # -------------------------------------------------------------
-    def _make_score_text(self, node: GraphNode, idx: int, norm):
-        r, g, b, _ = self.cmap(norm(node.score))
-
-        m = Marker()
-        m.header.frame_id = "map"
-        m.header.stamp = self.node.get_clock().now().to_msg()
-        m.ns = "score_text"
-        m.id = idx
-        m.type = Marker.TEXT_VIEW_FACING
-        m.action = Marker.ADD
-
-        m.pose.position.x = node.position.x
-        m.pose.position.y = node.position.y
-        m.pose.position.z = 0.35   # above the sphere
-
-        m.scale.z = 0.12           # text height
-        m.color = ColorRGBA(r=r, g=g, b=b, a=1.0)
-
-        m.text = f"{node.score:.2f}"
-        m.lifetime.sec = 1
-        return m
-
-    # -------------------------------------------------------------
-    # Ropes (colored & thickness from score)
-    # -------------------------------------------------------------
-    def _make_line(self, robot_pose, node, idx, norm):
-        rx, ry = robot_pose
-        nx, ny = node.position.x, node.position.y
-        r, g, b, a = self.cmap(norm(node.score))
-
-        thickness = 0.01 + 0.05 * norm(node.score)
-
-        from geometry_msgs.msg import Point
-
-        m = Marker()
-        m.header.frame_id = "map"
-        m.header.stamp = self.node.get_clock().now().to_msg()
-        m.ns = "rope_lines"
-        m.id = idx
-        m.type = Marker.LINE_STRIP
-        m.action = Marker.ADD
-
-        m.scale.x = thickness
-        m.color = ColorRGBA(r=r, g=g, b=b, a=max(0.4, a))
-
-        p1 = Point(x=rx, y=ry, z=0.05)
-        p2 = Point(x=nx, y=ny, z=0.05)
-        m.points = [p1, p2]
-        m.lifetime.sec = 1
-        return m
-
-    # -------------------------------------------------------------
-    # Distance text near the midpoint of the rope
-    # -------------------------------------------------------------
-    def _make_distance_text(self, robot_pose, node, idx):
-        rx, ry = robot_pose
-        nx, ny = node.position.x, node.position.y
-        dist = math.hypot(nx - rx, ny - ry)
-
-        m = Marker()
-        m.header.frame_id = "map"
-        m.header.stamp = self.node.get_clock().now().to_msg()
-        m.ns = "distance_text"
-        m.id = idx
-        m.type = Marker.TEXT_VIEW_FACING
-        m.action = Marker.ADD
-
-        m.pose.position.x = (rx + nx) * 0.5
-        m.pose.position.y = (ry + ny) * 0.5
-        m.pose.position.z = 0.25
-
-        m.scale.z = 0.12
-        m.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=0.9)
-
-        m.text = f"{dist:.2f} m"
-        m.lifetime.sec = 1
-        return m
-
-    # -------------------------------------------------------------
-    # Visited nodes
-    # -------------------------------------------------------------
     def _make_visited(self, vx: float, vy: float, idx: int):
         m = Marker()
         m.header.frame_id = "map"
@@ -274,89 +130,45 @@ class Markers:
         m.lifetime.sec = 1
         return m
 
-    # -------------------------------------------------------------
-    # Dynamic parameter callback
-    # -------------------------------------------------------------
-    def _param_callback(self, params):
-        for p in params:
-            if p.name == "backtrack.sigma":
-                self.sigma = max(0.1, float(p.value))
-                self.node.get_logger().info(f"Updated backtrack.sigma to {self.sigma}")
-            elif p.name == "backtrack.grid_res":
-                self.grid_res = max(0.05, float(p.value))
-                self.node.get_logger().info(f"Updated backtrack.grid_res to {self.grid_res}")
-            elif p.name == "backtrack.grid_range":
-                self.grid_range = max(0.5, float(p.value))
-                self.node.get_logger().info(f"Updated backtrack.grid_range to {self.grid_range}")
-            elif p.name == "backtrack.z_scale":
-                self.z_scale = max(0.1, float(p.value))
-                self.node.get_logger().info(f"Updated backtrack.z_scale to {self.z_scale}")
-            elif p.name == "backtrack.min_intensity":
-                self.min_intensity = max(0.0, float(p.value))
-                self.node.get_logger().info(f"Updated backtrack.min_intensity to {self.min_intensity}")
-        res = SetParametersResult()
-        res.successful = True
-        return res
+    def _make_line(self, robot_pose, node_pose, idx: int):
+        rx, ry = robot_pose
+        nx, ny = node_pose
+        distance = math.hypot(nx - rx, ny - ry)
 
-    # ------------------------------------------------------------------
-    # Backtrack visualization (pose array + Gaussian intensity field)
-    # ------------------------------------------------------------------
-    def publish_backtrack_field(self, pose_buffer):
-        """Visualize the spatial backtrack suppression field as a 3D Gaussian dome."""
-        if not pose_buffer:
-            return
+        # --- Line Marker (black) ---
+        m = Marker()
+        m.header.frame_id = "map"
+        m.header.stamp = self.node.get_clock().now().to_msg()
+        m.ns = "debug_lines"
+        m.id = idx
+        m.type = Marker.LINE_STRIP
+        m.action = Marker.ADD
+        m.scale.x = 0.02
+        m.color = ColorRGBA(r=0.0, g=0.0, b=0.0, a=0.8)
 
-        # --- PoseArray: path of the recent robot poses ---
-        pose_array = PoseArray()
-        pose_array.header.frame_id = "map"
-        pose_array.header.stamp = self.node.get_clock().now().to_msg()
+        from geometry_msgs.msg import Point
+        p1 = Point(x=rx, y=ry, z=0.05)
+        p2 = Point(x=nx, y=ny, z=0.05)
+        m.points = [p1, p2]
+        m.lifetime.sec = 1
 
-        for px, py in pose_buffer:
-            p = Pose()
-            p.position.x = px
-            p.position.y = py
-            p.orientation.w = 1.0
-            pose_array.poses.append(p)
+        # --- Distance text marker ---
+        text_marker = Marker()
+        text_marker.header.frame_id = "map"
+        text_marker.header.stamp = self.node.get_clock().now().to_msg()
+        text_marker.ns = "debug_text"
+        text_marker.id = idx + 10000  # ensure unique ID separate from line
+        text_marker.type = Marker.TEXT_VIEW_FACING
+        text_marker.action = Marker.ADD
+        text_marker.pose.position.x = (rx + nx) / 2.0
+        text_marker.pose.position.y = (ry + ny) / 2.0
+        text_marker.pose.position.z = 0.2
+        text_marker.scale.z = 0.1
+        text_marker.color = ColorRGBA(r=0.0, g=0.0, b=0.0, a=1.0)
+        text_marker.text = f"{distance:.2f}"
+        text_marker.lifetime.sec = 1
 
-        self.pose_pub.publish(pose_array)
-
-        # --- Build Gaussian dome field around each buffered pose ---
-        points = []
-        num_poses = len(pose_buffer)
-        for i, (px, py) in enumerate(pose_buffer):
-            age_weight = 1.0 - (i / num_poses)
-            xs = np.arange(px - self.grid_range, px + self.grid_range + self.grid_res, self.grid_res)
-            ys = np.arange(py - self.grid_range, py + self.grid_range + self.grid_res, self.grid_res)
-
-            for x in xs:
-                for y in ys:
-                    d2 = (x - px) ** 2 + (y - py) ** 2
-                    intensity = math.exp(-d2 / (2 * self.sigma * self.sigma)) * age_weight
-                    if intensity > self.min_intensity:
-                        z = intensity * self.z_scale  # height proportional to field strength
-                        points.append((x, y, z, intensity))
-
-        if not points:
-            return
-
-        # --- Convert to PointCloud2 for RViz ---
-        msg = PointCloud2()
-        msg.header.frame_id = "map"
-        msg.header.stamp = self.node.get_clock().now().to_msg()
-        msg.height = 1
-        msg.width = len(points)
-        msg.is_dense = True
-        msg.is_bigendian = False
-        msg.point_step = 16
-        msg.row_step = msg.point_step * msg.width
-        msg.fields = [
-            PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
-            PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
-            PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
-            PointField(name="intensity", offset=12, datatype=PointField.FLOAT32, count=1),
-        ]
-        msg.data = b"".join([struct.pack("<ffff", *p) for p in points])
-        self.field_pub.publish(msg)
+        return [m, text_marker]
 
 
 # ===============================================================
@@ -366,43 +178,18 @@ class NodeWeighter:
     def __init__(self, node, exploration_weight: float = 0.7):
         self.node = node
         self.exploration_weight = exploration_weight
-        self.value_map_points = None
+        self.value_map_points = None  # numpy array (x, y, intensity)
 
-        # Existing weights
-        float01 = FloatingPointRange(from_value=0.0, to_value=1.0, step=0.05)
-        sigma_range = FloatingPointRange(from_value=0.05, to_value=3.0, step=0.05)
-        back_sigma_range = FloatingPointRange(from_value=0.1, to_value=5.0, step=0.1)
-        offset_range = FloatingPointRange(from_value=0.5, to_value=5.0, step=0.1)
+        # --- Dynamic parameters ---
+        self.det_weight = 1.0
+        self.map_weight = 1.0
+        self.mem_weight = 1.0
+        self.mem_sigma = 0.5  # spatial falloff [m]
 
-        node.declare_parameter("weights.det_weight", 1.0, ParameterDescriptor(floating_point_range=[float01]))
-        node.declare_parameter("weights.map_weight", 1.0, ParameterDescriptor(floating_point_range=[float01]))
-        node.declare_parameter("weights.mem_weight", 1.0, ParameterDescriptor(floating_point_range=[float01]))
-        node.declare_parameter("weights.mem_sigma", 0.5, ParameterDescriptor(floating_point_range=[sigma_range]))
-        node.declare_parameter("weights.proximity_weight", 1.0, ParameterDescriptor(floating_point_range=[float01]))
-
-        # --- NEW: Spatial backtrack params ---
-        node.declare_parameter(
-            "backtrack.sigma", 0.8,
-            ParameterDescriptor(description="Gaussian decay for spatial penalty [m]", floating_point_range=[back_sigma_range])
-        )
-        node.declare_parameter(
-            "backtrack.max_penalty", 1.0,
-            ParameterDescriptor(description="Maximum suppression factor", floating_point_range=[float01])
-        )
-        node.declare_parameter(
-            "backtrack.pose_offset_distance", 2.0,
-            ParameterDescriptor(description="Distance behind robot used as delayed start [m]", floating_point_range=[offset_range])
-        )
-
-        # Read initial values
-        self.det_weight = node.get_parameter("weights.det_weight").value
-        self.map_weight = node.get_parameter("weights.map_weight").value
-        self.mem_weight = node.get_parameter("weights.mem_weight").value
-        self.mem_sigma = node.get_parameter("weights.mem_sigma").value
-        self.proximity_weight = node.get_parameter("weights.proximity_weight").value
-        self.back_sigma = node.get_parameter("backtrack.sigma").value
-        self.max_penalty = node.get_parameter("backtrack.max_penalty").value
-        self.pose_offset_distance = node.get_parameter("backtrack.pose_offset_distance").value
+        node.declare_parameter("weights.det_weight", 1.0)
+        node.declare_parameter("weights.map_weight", 1.0)
+        node.declare_parameter("weights.mem_weight", 1.0)
+        node.declare_parameter("weights.mem_sigma", 0.5)
 
         node.add_on_set_parameters_callback(self._param_callback)
 
@@ -433,8 +220,6 @@ class NodeWeighter:
                 self.mem_weight = max(0.0, min(1.0, p.value))
             elif p.name == "weights.mem_sigma":
                 self.mem_sigma = max(0.05, float(p.value))
-            elif p.name == "weights.proximity_weight":
-                self.proximity_weight = max(0.0, min(1.0, p.value))
         res = SetParametersResult()
         res.successful = True
         return res
@@ -491,25 +276,17 @@ class NodeWeighter:
     # ----------------------------------------------------------------------
     # Weighted Noisy-OR fusion (detector + value map + memory)
     # ----------------------------------------------------------------------
-    def weight_nodes(self, exploration_nodes, exploitation_nodes, detection_nodes, robot_pose=None):
+    def weight_nodes(self, exploration_nodes, exploitation_nodes, detection_nodes, robot_pose):
         fused_exploration, fused_detection = [], []
 
         # --- Exploration vs exploitation weighting ---
         for n in exploration_nodes:
+            # baseline
             n.score *= self.exploration_weight
+            # add persistence weighting
+            n.score *= self._get_directional_persistence(n.position.x, n.position.y, robot_pose)
         for n in exploitation_nodes:
             n.score *= (1.0 - self.exploration_weight)
-
-        for n in exploration_nodes:
-            back_pen = self.compute_spatial_backtrack_penalty(
-                n, pose_buffer=self.node.pose_buffer
-            )
-            n.score *= (1.0 - self.max_penalty * back_pen)
-
-        if robot_pose is not None:
-            for n in exploration_nodes:
-                pr = self._proximity_reward(n, robot_pose)
-                n.score = (1 - self.proximity_weight) * n.score + self.proximity_weight * (n.score * pr)
 
         all_exp = exploration_nodes + exploitation_nodes
         all_exp.sort(key=lambda n: n.score, reverse=True)
@@ -520,46 +297,31 @@ class NodeWeighter:
             s_det = max(0.0, min(1.0, n.score))
             s_map = self._get_score_from_value_map(n.position.x, n.position.y)
             s_mem = self._get_score_from_memory(n.position.x, n.position.y, exploitation_nodes)
-
             s_fused = 1.0 - (1.0 - self.det_weight * s_det) \
                             * (1.0 - self.map_weight * s_map) \
                             * (1.0 - self.mem_weight * s_mem)
-
             n.score = min(max(s_fused, 0.0), 1.0)
 
         fused_detection = sorted(detection_nodes, key=lambda n: n.score, reverse=True)
         return fused_exploration, fused_detection
 
-    def _proximity_reward(self, node, robot_pos, k=0.15):
-        x, y = node.position.x, node.position.y
-        rx, ry = robot_pos
-        d = math.hypot(x - rx, y - ry)
-        return 1.0 / (1.0 + k * d)
-
-    def compute_spatial_backtrack_penalty(self, node, pose_buffer):
+    # ----------------------------------------------------------------------
+    # Directional persistence term (favor front-facing frontiers)
+    # ----------------------------------------------------------------------
+    def _get_directional_persistence(self, x_node, y_node, robot_pose, gain=0.3, sigma_deg=45.0):
         """
-        Compute Gaussian penalty: highest at newest pose, decaying for older ones.
+        Returns a weighting factor (0–1) favoring nodes roughly in front of the robot.
+        gain controls strength, sigma_deg controls angular spread.
         """
-        if not pose_buffer:
-            return 0.0
+        x, y, yaw = robot_pose
+        dx = x_node - x
+        dy = y_node - y
+        node_angle = math.atan2(dy, dx)
+        angle_diff = math.atan2(math.sin(node_angle - yaw), math.cos(node_angle - yaw))
+        sigma = math.radians(sigma_deg)
+        weight = math.exp(-0.5 * (angle_diff / sigma) ** 2)
+        return 1.0 + gain * weight
 
-        n = len(pose_buffer)
-        total_penalty = 0.0
-        weight_sum = 0.0
-
-        for i, (px, py) in enumerate(pose_buffer):
-            dx = node.position.x - px
-            dy = node.position.y - py
-            d2 = dx * dx + dy * dy
-            spatial = math.exp(-d2 / (2.0 * self.back_sigma * self.back_sigma))
-
-            # reverse age weighting: newest has highest
-            age_weight = (i + 1) / n
-            total_penalty += spatial * age_weight
-            weight_sum += age_weight
-
-        penalty = total_penalty / weight_sum if weight_sum > 0 else 0.0
-        return min(1.0, penalty)
 
 # ===============================================================
 # Main orchestrator node
@@ -571,6 +333,7 @@ class GraphNodeFusion(Node):
         # --- Parameters ---
         self.declare_parameter("approach_radius", 1.0)
         self.declare_parameter("max_visited", 200)
+        self.declare_parameter("exploration_weight", 0.7)
         self.declare_parameter("debug_distance", True)
         self.declare_parameter("exploration_topic", "/exploration_graph_nodes/graph_nodes")
         self.declare_parameter("exploitation_topic", "/exploitation_graph_nodes/graph_nodes")
@@ -578,12 +341,6 @@ class GraphNodeFusion(Node):
         self.declare_parameter("fused_topics.detection_graph_nodes", "/fused/detection_graph_nodes/graph_nodes")
         self.declare_parameter("fused_topics.exploration_graph_nodes", "/fused/exploration_graph_nodes/graph_nodes")
         self.declare_parameter("timer_period", 0.1)
-
-        float01 = FloatingPointRange(from_value=0.0, to_value=1.0, step=0.01)
-        self.declare_parameter(
-            "exploration_weight", 0.7,
-            ParameterDescriptor(description="Balance between exploration and exploitation", floating_point_range=[float01])
-        )
 
         gp = self.get_parameter
         self.approach_radius = gp("approach_radius").value
@@ -607,15 +364,14 @@ class GraphNodeFusion(Node):
         self.create_subscription(GraphNodeArray, self.exploration_topic, self.cb_exploration, qos)
         self.create_subscription(GraphNodeArray, self.exploitation_topic, self.cb_exploitation, qos)
         self.create_subscription(GraphNodeArray, self.detection_topic, self.cb_detection, qos)
-        self.create_subscription(SemanticPrompt, "/user_prompt", self._cb_semantic_prompt, qos)
 
         self.pub_exploration = self.create_publisher(GraphNodeArray, self.pub_fused_exploration_topic, qos)
         self.pub_detection = self.create_publisher(GraphNodeArray, self.pub_fused_detection_topic, qos)
 
         # --- Modules ---
         self.robot = Robot(self)
-        self.weighter = NodeWeighter(self, self.exploration_weight)
         self.markers = Markers(self, debug_distance=self.debug_distance)
+        self.weighter = NodeWeighter(self, self.exploration_weight)
 
         # --- State ---
         self.exploration_nodes = []
@@ -623,26 +379,13 @@ class GraphNodeFusion(Node):
         self.detection_nodes = []
         self.visited_nodes = []
 
-        self.pose_buffer = deque(maxlen=10)
-        self.pose_spacing = 0.5  # meters
-
         self.create_timer(self.timer_period, self._loop)
         self.last_loop_time = self.get_clock().now()
-
-        self.add_on_set_parameters_callback(self._param_callback)
 
     # ---------- Callbacks ----------
     def cb_exploration(self, msg): self.exploration_nodes = list(msg.nodes)
     def cb_exploitation(self, msg): self.exploitation_nodes = list(msg.nodes)
     def cb_detection(self, msg): self.detection_nodes = list(msg.nodes)
-
-    def _cb_semantic_prompt(self, msg: SemanticPrompt):
-        self.get_logger().info("Received new semantic prompt, clearing visited nodes and spatial memory.")
-        self.visited_nodes.clear()
-        self.pose_buffer.clear()
-        # Immediately publish cleared visualization
-        self.markers.publish([], [], [], (0.0, 0.0))
-        self.markers.publish_backtrack_field([])
 
     # ---------- Main loop ----------
     def _loop(self):
@@ -657,14 +400,9 @@ class GraphNodeFusion(Node):
             )
 
         # --- Regular logic ---
-        robot_pose = self.robot.get_position()
+        robot_pose = self.robot.get_pose()
         if robot_pose is None:
             return
-        
-    
-        delayed_robot_pose = self.robot.get_spatial_delayed_pose()
-
-        self._update_pose_buffer(delayed_robot_pose)
 
         self._update_visited(robot_pose)
 
@@ -674,9 +412,6 @@ class GraphNodeFusion(Node):
             self.detection_nodes,
             robot_pose
         )
-
-        self.markers.publish(fused_exp, fused_det, self.visited_nodes, robot_pose)
-        self.markers.publish_backtrack_field(self.pose_buffer)
 
         fused_exp = [n for n in fused_exp if not self._is_visited(n)]
         self._publish_arrays(fused_exp, fused_det)
@@ -722,36 +457,6 @@ class GraphNodeFusion(Node):
         self.get_logger().debug(
             f"Published {len(exploration_nodes)} exploration nodes and {len(detection_nodes)} detection nodes."
         )
-
-    def _update_pose_buffer(self, robot_pose):
-        """Maintain a fixed-length spatial buffer of recent robot poses."""
-        if not self.pose_buffer:
-            self.pose_buffer.append(robot_pose)
-            return
-        last_x, last_y = self.pose_buffer[-1]
-        if math.hypot(robot_pose[0] - last_x, robot_pose[1] - last_y) >= self.pose_spacing:
-            self.pose_buffer.append(robot_pose)
-
-    def _param_callback(self, params):
-        for p in params:
-            if p.name == "approach_radius":
-                self.approach_radius = max(0.1, float(p.value))
-                self.get_logger().info(f"Updated approach_radius to {self.approach_radius}")
-            elif p.name == "max_visited":
-                self.max_visited = max(10, int(p.value))
-                self.visited_nodes = self.visited_nodes[-self.max_visited:]
-                self.get_logger().info(f"Updated max_visited to {self.max_visited}")
-            elif p.name == "exploration_weight":
-                self.exploration_weight = max(0.0, min(1.0, float(p.value)))
-                self.weighter.exploration_weight = self.exploration_weight
-                self.get_logger().info(f"Updated exploration_weight to {self.exploration_weight}")
-            elif p.name == "debug_distance":
-                self.debug_distance = bool(p.value)
-                self.markers.debug_distance = self.debug_distance
-                self.get_logger().info(f"Updated debug_distance to {self.debug_distance}")
-        res = SetParametersResult()
-        res.successful = True
-        return res
 
 def main(args=None):
     rclpy.init(args=args)

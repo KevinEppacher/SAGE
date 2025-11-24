@@ -108,3 +108,84 @@ fused:
         mem_sigma: 0.5
         mem_weight: 1.0
         proximity_weight: 1.0
+
+fused:
+  graph_node_fusion:
+    ros__parameters:
+      # approach_radius: 1.8
+      approach_radius: 0.0
+      debug_distance: true
+      detection_topic: /detection_graph_nodes/graph_nodes
+      exploitation_topic: /exploitation_graph_nodes/graph_nodes
+      exploration_topic: /filtered/exploration_graph_nodes/graph_nodes
+      exploration_weight: 0.5
+      fused_topics:
+        detection_graph_nodes: detection_graph_nodes/graph_nodes
+        exploration_graph_nodes: exploration_graph_nodes/graph_nodes
+      max_visited: 200
+      timer_period: 0.1
+      weights:
+        det_weight: 1.0
+        map_weight: 1.0
+        mem_sigma: 0.5
+        mem_weight: 1.0
+        proximity_weight: 1.0
+
+explorer_relevance_map:
+  relevance_map:
+    ros__parameters:
+      angular_confidence_sharpness: 0.6
+      base_increment_rate: 0.01
+      camera_info_topic: /camera_info
+      debug_mode: true
+      decay_factor: 0.999
+      fov_deg: 70.0
+      frame_map: map
+      frame_robot: base_link
+      input_graph_topic: /exploration_graph_nodes/graph_nodes
+      input_map_topic: /map
+      max_range: 3.0
+      output_graph_topic: /filtered/exploration_graph_nodes/graph_nodes
+      prompt_topic: /user_prompt
+      qos_overrides./clock.subscription.depth: 1
+      qos_overrides./clock.subscription.durability: volatile
+      qos_overrides./clock.subscription.history: keep_last
+      qos_overrides./clock.subscription.reliability: best_effort
+      qos_overrides./parameter_events.publisher.depth: 1000
+      qos_overrides./parameter_events.publisher.durability: volatile
+      qos_overrides./parameter_events.publisher.history: keep_last
+      qos_overrides./parameter_events.publisher.reliability: reliable
+      radial_confidence_sharpness: 1.0
+      raytracing_enabled: true
+      relevance_threshold: 1.0
+      robot.frame_map: map
+      robot.frame_robot: base_link
+
+exploitation_relevance_map:
+  relevance_map:
+    ros__parameters:
+      base_increment_rate: 0.03
+      camera_info_topic: /camera_info
+      debug_mode: true
+      decay_factor: 0.99
+      fov_deg: 70.0
+      frame_map: map
+      frame_robot: base_link
+      input_graph_topic: /exploitation_graph_nodes/graph_nodes
+      input_map_topic: /map
+      max_range: 5.0
+      output_graph_topic: /filtered/exploitation_graph_nodes/graph_nodes
+      qos_overrides./clock.subscription.depth: 1
+      qos_overrides./clock.subscription.durability: volatile
+      qos_overrides./clock.subscription.history: keep_last
+      qos_overrides./clock.subscription.reliability: best_effort
+      qos_overrides./parameter_events.publisher.depth: 1000
+      qos_overrides./parameter_events.publisher.durability: volatile
+      qos_overrides./parameter_events.publisher.history: keep_last
+      qos_overrides./parameter_events.publisher.reliability: reliable
+      raytracing_enabled: false
+      relevance_threshold: 0.8
+      robot.frame_map: map
+      robot.frame_robot: base_link
+      angular_confidence_sharpness: 0.2
+      radial_confidence_sharpness: 0.5

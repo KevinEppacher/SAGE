@@ -9,8 +9,8 @@ import os
 
 def generate_launch_description():
 
-    #---------------------- Paths and Arguments ------------------------------#
-    
+    #---------------------- Arguments and Paths ------------------------------#
+
     sim_time_arg = DeclareLaunchArgument(
         'use_sim_time', default_value='true',
         description='Flag to enable use_sim_time'
@@ -20,12 +20,12 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
 
     param_file = os.path.join(
-        get_package_share_directory('graph_node_fusion'), 
+        get_package_share_directory('relevance_map'), 
         'config', 
-        'graph_node_fusion.yml'
+        'relevance_map.yaml'
     )
 
-    default_config_path = DeclareLaunchArgument(
+    config_path_arg = DeclareLaunchArgument(
         'config_path', default_value=param_file,
         description='Path to the configuration file'
     )
@@ -34,11 +34,24 @@ def generate_launch_description():
 
     #---------------------- Nodes ------------------------------#
 
-    graph_node = Node(
-        package='graph_node_fusion',
-        executable='graph_node_fusion',
-        name='graph_node_fusion',
-        namespace='fused',
+    explorer_relevance_map_node = Node(
+        package='relevance_map',
+        executable='relevance_map_node',
+        name='relevance_map',
+        namespace='explorer_relevance_map',
+        output='screen',
+        emulate_tty=True,
+        parameters=[
+            {'use_sim_time': use_sim_time},
+            config_path
+        ],
+    )
+
+    exploitation_relevance_map_node = Node(
+        package='relevance_map',
+        executable='relevance_map_node',
+        name='relevance_map',
+        namespace='exploitation_relevance_map',
         output='screen',
         emulate_tty=True,
         parameters=[
@@ -51,6 +64,7 @@ def generate_launch_description():
 
     ld  = LaunchDescription()
     ld.add_action(sim_time_arg)
-    ld.add_action(default_config_path)
-    ld.add_action(graph_node)
+    ld.add_action(config_path_arg)
+    ld.add_action(explorer_relevance_map_node)
+    ld.add_action(exploitation_relevance_map_node)
     return ld
