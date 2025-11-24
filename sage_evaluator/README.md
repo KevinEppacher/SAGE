@@ -108,3 +108,6 @@ sankey_data.json
 ```
 
 ros2 topic pub --once /evaluator/prompt multimodal_query_msgs/msg/SemanticPrompt "{text_query: chair}"
+ros2 topic pub --once /zero_shot_prompt multimodal_query_msgs/msg/SemanticPrompt "{text_query: a door leading to a chair}"
+
+a door leading to a chair

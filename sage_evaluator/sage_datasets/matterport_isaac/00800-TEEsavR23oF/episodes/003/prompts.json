@@ -1,21 +1,21 @@
 {
   "train": [
-    "bed",
     "chair",
+    "bed",
     "table",
     "sofa",
     "tv"
   ],
   "eval": [
-    "bed",
     "chair",
+    "bed",
     "table",
     "sofa",
     "tv"
   ],
   "zero_shot": [
-    "a door leading to a bed",
     "a door leading to a chair",
+    "a door leading to a bed",
     "a door leading to a table",
     "a door leading to a sofa",
     "a door leading to a tv"
