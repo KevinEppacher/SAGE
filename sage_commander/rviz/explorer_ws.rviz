@@ -472,7 +472,6 @@ Visualization Manager:
             graph_nodes: true
             rope_lines: true
             score_text: true
-            visited_nodes: true
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -1119,6 +1118,27 @@ Visualization Manager:
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
+    - Alpha: 0.699999988079071
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Map
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /debug/relevance_map
+      Update Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /debug/relevance_map_updates
+      Use Timestamp: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -1165,25 +1185,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 6.062196731567383
+      Distance: 7.604419708251953
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 1.075598120689392
-        Y: -0.15532511472702026
-        Z: 2.4349164962768555
+        X: 1.5859918594360352
+        Y: 0.9345389008522034
+        Z: 2.4355599880218506
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.3697962760925293
+      Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 5.056889057159424
+      Yaw: 5.281894207000732
     Saved: ~
 Window Geometry:
   Displays:

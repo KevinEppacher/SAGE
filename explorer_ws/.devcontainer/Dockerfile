@@ -132,6 +132,7 @@ RUN sudo apt update && sudo apt install -y \
     ros-${ROS_DISTRO}-gazebo-ros-pkgs \
     ros-${ROS_DISTRO}-slam-toolbox \
     ros-${ROS_DISTRO}-behaviortree-cpp-v3 \
+    ros-${ROS_DISTRO}-tf-transformations \
     ros-${ROS_DISTRO}-joint-state-publisher
     # ros-${ROS_DISTRO}-navigation2 \
     # ros-${ROS_DISTRO}-nav2-bringup \
