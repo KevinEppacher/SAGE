@@ -55,6 +55,8 @@ private:
     double relevanceThreshold;
     bool debugMode;
     bool raytracingEnabled;
+    double angularSharpness = 0.25;
+    double radialSharpness = 0.5;
 
     std::string inputMapTopic;
     std::string inputGraphTopic;
@@ -63,6 +65,7 @@ private:
 
     std::string frameMap;
     std::string frameRobot;
+    std::string promptTopic;
 
     std::shared_ptr<Robot> robot;
 
@@ -72,8 +75,7 @@ private:
     void graphNodeCallback(const graph_node_msgs::msg::GraphNodeArray::SharedPtr msg);
     void promptCallback(const multimodal_query_msgs::msg::SemanticPrompt::SharedPtr msg);
 
-    geometry_msgs::msg::PoseStamped::SharedPtr getRobotPose();
-
+    double computeFovFromCameraInfo() const;
     void resizeRelevanceMap(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
     void integrateRelevance(const geometry_msgs::msg::Pose &pose);
 

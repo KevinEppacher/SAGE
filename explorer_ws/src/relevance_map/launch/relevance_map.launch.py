@@ -9,6 +9,8 @@ import os
 
 def generate_launch_description():
 
+    #---------------------- Arguments and Paths ------------------------------#
+
     sim_time_arg = DeclareLaunchArgument(
         'use_sim_time', default_value='true',
         description='Flag to enable use_sim_time'
@@ -23,20 +25,46 @@ def generate_launch_description():
         'relevance_map.yaml'
     )
 
-    graph_node = Node(
+    config_path_arg = DeclareLaunchArgument(
+        'config_path', default_value=param_file,
+        description='Path to the configuration file'
+    )
+
+    config_path = LaunchConfiguration('config_path')
+
+    #---------------------- Nodes ------------------------------#
+
+    explorer_relevance_map_node = Node(
         package='relevance_map',
         executable='relevance_map_node',
         name='relevance_map',
-        namespace='relevance_map',
+        namespace='explorer_relevance_map',
         output='screen',
         emulate_tty=True,
         parameters=[
             {'use_sim_time': use_sim_time},
-            param_file
+            config_path
         ],
     )
 
+    exploitation_relevance_map_node = Node(
+        package='relevance_map',
+        executable='relevance_map_node',
+        name='relevance_map',
+        namespace='exploitation_relevance_map',
+        output='screen',
+        emulate_tty=True,
+        parameters=[
+            {'use_sim_time': use_sim_time},
+            config_path
+        ],
+    )
+
+    #---------------------- Launch Description ------------------------------#
+
     ld  = LaunchDescription()
     ld.add_action(sim_time_arg)
-    ld.add_action(graph_node)
+    ld.add_action(config_path_arg)
+    ld.add_action(explorer_relevance_map_node)
+    ld.add_action(exploitation_relevance_map_node)
     return ld

@@ -9,6 +9,8 @@ import os
 
 def generate_launch_description():
 
+    #---------------------- Paths and Arguments ------------------------------#
+    
     sim_time_arg = DeclareLaunchArgument(
         'use_sim_time', default_value='true',
         description='Flag to enable use_sim_time'
@@ -23,6 +25,15 @@ def generate_launch_description():
         'graph_node_fusion.yml'
     )
 
+    default_config_path = DeclareLaunchArgument(
+        'config_path', default_value=param_file,
+        description='Path to the configuration file'
+    )
+
+    config_path = LaunchConfiguration('config_path')
+
+    #---------------------- Nodes ------------------------------#
+
     graph_node = Node(
         package='graph_node_fusion',
         executable='graph_node_fusion',
@@ -32,11 +43,14 @@ def generate_launch_description():
         emulate_tty=True,
         parameters=[
             {'use_sim_time': use_sim_time},
-            param_file
+            config_path
         ],
     )
 
+    #---------------------- Launch Description ------------------------------#
+
     ld  = LaunchDescription()
     ld.add_action(sim_time_arg)
+    ld.add_action(default_config_path)
     ld.add_action(graph_node)
     return ld
