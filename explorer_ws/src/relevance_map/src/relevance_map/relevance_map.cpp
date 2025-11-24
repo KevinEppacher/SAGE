@@ -2,6 +2,13 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <cmath>
 
+float normalizeAngle(float angle)
+{
+    while (angle > M_PI) angle -= 2.0f * M_PI;
+    while (angle < -M_PI) angle += 2.0f * M_PI;
+    return angle;
+}
+
 RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
 : Node("relevance_map_node", options)
 {
@@ -14,6 +21,7 @@ RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
     this->declare_parameter("frame_robot", "base_link");
     this->declare_parameter("debug_mode", false);
     this->declare_parameter("raytracing_enabled", true);
+    this->declare_parameter("prompt_topic", "/user_prompt");
     
     using FloatingRange = rcl_interfaces::msg::FloatingPointRange;
     using ParamDesc = rcl_interfaces::msg::ParameterDescriptor;
@@ -44,6 +52,16 @@ RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
     threshDesc.floating_point_range = {FloatingRange().set__from_value(0.0).set__to_value(1.0).set__step(0.05)};
     this->declare_parameter("relevance_threshold", 0.5, threshDesc);
     
+    ParamDesc angularSharpDesc;
+    angularSharpDesc.description = "Angular confidence sharpness";
+    angularSharpDesc.floating_point_range = {FloatingRange().set__from_value(0.0).set__to_value(1.0).set__step(0.05)};
+    this->declare_parameter("angular_confidence_sharpness", 0.25, angularSharpDesc);
+
+    ParamDesc radialSharpnessDesc;
+    radialSharpnessDesc.description = "Radial confidence sharpness";
+    radialSharpnessDesc.floating_point_range = {FloatingRange().set__from_value(0.0).set__to_value(1.0).set__step(0.05)};
+    this->declare_parameter("radial_confidence_sharpness", 0.5, radialSharpnessDesc);
+
     // Load parameters
     this->get_parameter("input_map_topic", inputMapTopic);
     this->get_parameter("input_graph_topic", inputGraphTopic);
@@ -60,6 +78,9 @@ RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
     this->get_parameter("relevance_threshold", relevanceThreshold);
     this->get_parameter("debug_mode", debugMode);
     this->get_parameter("raytracing_enabled", raytracingEnabled);
+    this->get_parameter("prompt_topic", promptTopic);
+    this->get_parameter("angular_confidence_sharpness", angularSharpness);
+    this->get_parameter("radial_confidence_sharpness", radialSharpness);
 
     // TF
     tfBuffer = std::make_shared<tf2_ros::Buffer>(this->get_clock());
@@ -81,7 +102,7 @@ RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
         std::bind(&RelevanceMapNode::graphNodeCallback, this, std::placeholders::_1));
 
     promptSub = this->create_subscription<multimodal_query_msgs::msg::SemanticPrompt>(
-        "/user_prompt", rclcpp::QoS(10),
+        promptTopic, rclcpp::QoS(10),
         std::bind(&RelevanceMapNode::promptCallback, this, std::placeholders::_1));
 
     // Publisher
@@ -91,7 +112,7 @@ RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
     
     if (debugMode) {
         relevanceMapPub = this->create_publisher<nav_msgs::msg::OccupancyGrid>(
-            "/debug/relevance_map", rclcpp::QoS(1).transient_local());
+            "relevance_map", rclcpp::QoS(1).transient_local());
         RCLCPP_WARN(this->get_logger(), "Debug mode enabled – publishing /debug/relevance_map");
     }
 
@@ -111,7 +132,9 @@ void RelevanceMapNode::mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr
 void RelevanceMapNode::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg)
 {
     camInfo = msg;
+    fovDeg = computeFovFromCameraInfo();
 }
+
 
 void RelevanceMapNode::promptCallback(const multimodal_query_msgs::msg::SemanticPrompt::SharedPtr)
 {
@@ -230,8 +253,10 @@ cv::Mat RelevanceMapNode::computeFovMask(const geometry_msgs::msg::Pose &pose)
     float robotY = (pose.position.y - map->info.origin.position.y) / res;
 
     float yaw = getYaw(pose);
-    float halfFov = (fovDeg * M_PI / 180.0f) * 0.5f;
 
+    float fov_deg = static_cast<float>(computeFovFromCameraInfo());
+    float halfFov = (fov_deg * M_PI / 180.0f) * 0.5f;
+    
     int maxSteps = static_cast<int>(maxRange / res);
 
     for (int i = 0; i < 200; i++) {
@@ -250,14 +275,26 @@ cv::Mat RelevanceMapNode::computeFovMask(const geometry_msgs::msg::Pose &pose)
             int8_t cell = map->data[idx];
 
             if (cell == -1) {
-                continue; // unknown space
-            } else if (cell >= 50 && raytracingEnabled) {
-                mask.at<uint8_t>(py, px) = 1; // mark wall boundary
-                break; // stop ray behind wall
+                // Unknown — allow if raytracing disabled, skip if enabled
+                if (!raytracingEnabled)
+                    mask.at<uint8_t>(py, px) = 1;
+                continue;
+            }
+
+            if (raytracingEnabled) {
+                // Stop ray once a wall is hit
+                if (cell >= 50) {
+                    mask.at<uint8_t>(py, px) = 1;  // mark the boundary cell
+                    break;
+                } else {
+                    mask.at<uint8_t>(py, px) = 1;  // free space before wall
+                }
             } else {
+                // No raytracing → fill all free and occupied cells alike
                 mask.at<uint8_t>(py, px) = 1;
             }
         }
+
     }
 
     return mask;
@@ -277,31 +314,51 @@ void RelevanceMapNode::integrateRelevance(const geometry_msgs::msg::Pose &pose)
     int h = map->info.height;
     float res = map->info.resolution;
 
+    // Apply decay to previous relevance values
     relevanceMap *= decayFactor;
 
+    // Compute field of view mask (with optional raytracing)
     cv::Mat fovMask = computeFovMask(pose);
 
+    // Robot position in map pixels
     float robotX = (pose.position.x - map->info.origin.position.x) / res;
     float robotY = (pose.position.y - map->info.origin.position.y) / res;
+    float yaw = getYaw(pose);
 
-    double sigma = maxRange * 0.5;
+    // Radial Gaussian width parameter
+    double sigma = maxRange * radialSharpness;
 
-    for (int y = 0; y < h; y++)
+    // Angular Gaussian width (controls how sharply confidence decays toward FOV edges)
+    double angularSigma = (fovDeg * M_PI / 180.0) * angularSharpness;
+
+    for (int y = 0; y < h; ++y)
     {
-        for (int x = 0; x < w; x++)
+        for (int x = 0; x < w; ++x)
         {
             if (fovMask.at<uint8_t>(y, x) == 0)
                 continue;
 
-            float dx = (float)x - robotX;
-            float dy = (float)y - robotY;
+            // Compute distance from robot
+            float dx = static_cast<float>(x) - robotX;
+            float dy = static_cast<float>(y) - robotY;
             double dist = std::sqrt(dx * dx + dy * dy) * res;
 
-            double weight = computeDistanceGaussian(dist, sigma);
+            // Radial Gaussian weighting (distance-based confidence)
+            double radialWeight = std::exp(- (dist * dist) / (2.0 * sigma * sigma));
 
-            relevanceMap.at<float>(y, x) += static_cast<float>(baseIncrementRate * weight);
+            // Angular Gaussian weighting (center-of-FOV confidence)
+            float angle = std::atan2(dy, dx);
+            float angleDiff = std::fabs(normalizeAngle(angle - yaw));
+            double angularWeight = std::exp(-0.5 * std::pow(angleDiff / angularSigma, 2.0));
+
+            // Combine both weights
+            double combinedWeight = radialWeight * angularWeight;
+
+            // Update relevance incrementally
+            relevanceMap.at<float>(y, x) += static_cast<float>(baseIncrementRate * combinedWeight);
         }
     }
+
     publishRelevanceMap();
 }
 
@@ -386,8 +443,38 @@ rcl_interfaces::msg::SetParametersResult RelevanceMapNode::onParameterChange(
         } else if (name == "relevance_threshold") {
             relevanceThreshold = p.as_double();
             RCLCPP_INFO(this->get_logger(), "Updated relevance_threshold: %.3f", relevanceThreshold);
+        } else if (name == "debug_mode") {
+            debugMode = p.as_bool();
+            RCLCPP_INFO(this->get_logger(), "Updated debug_mode: %s", debugMode ? "true" : "false");
+        } else if (name == "raytracing_enabled") {
+            raytracingEnabled = p.as_bool();
+            RCLCPP_INFO(this->get_logger(), "Updated raytracing_enabled: %s", raytracingEnabled ? "true" : "false");
+        } else if (name == "angular_confidence_sharpness") {
+            angularSharpness = p.as_double();
+            RCLCPP_INFO(this->get_logger(), "Updated angular_confidence_sharpness: %.3f", angularSharpness);
+        } else if (name == "radial_confidence_sharpness") {
+            radialSharpness = p.as_double();
+            RCLCPP_INFO(this->get_logger(), "Updated radial_confidence_sharpness: %.3f", radialSharpness);
         }
     }
 
     return result;
+}
+
+double RelevanceMapNode::computeFovFromCameraInfo() const
+{
+    if (!camInfo)
+        return fovDeg; // fallback to parameter if camera info not available
+
+    double fx = camInfo->k[0];
+    double width = static_cast<double>(camInfo->width);
+
+    if (fx <= 0.0) {
+        RCLCPP_WARN(this->get_logger(), "CameraInfo fx invalid (%.3f), using fallback FOV %.1f deg.", fx, fovDeg);
+        return fovDeg;
+    }
+
+    double fov_rad = 2.0 * std::atan(width / (2.0 * fx));
+    double fov_deg = fov_rad * 180.0 / M_PI;
+    return fov_deg;
 }

@@ -46,6 +46,18 @@ def generate_launch_description():
         'display.launch.py'
     )
 
+    graph_node_fusion_launch_path = os.path.join(
+        get_package_share_directory('graph_node_fusion'),
+        'launch',
+        'graph_node_fusion.launch.py'
+    )
+
+    relevance_map_launch_path = os.path.join(
+        get_package_share_directory('relevance_map'),
+        'launch',
+        'relevance_map.launch.py'
+    )
+
     #---------------------- Nodes ------------------------------#
 
     inflated_map_node = Node(
@@ -103,18 +115,18 @@ def generate_launch_description():
         ]
     )
 
-    graph_node_fusion_node = Node(
-        package='graph_node_fusion',
-        executable='graph_node_fusion',
-        name='graph_node_fusion',
-        namespace='fused',
-        output='screen',
-        emulate_tty=True,
-        parameters=[
-            {'use_sim_time': use_sim_time},
-            explorer_config
-        ],
-    )
+    # graph_node_fusion_node = Node(
+    #     package='graph_node_fusion',
+    #     executable='graph_node_fusion',
+    #     name='graph_node_fusion',
+    #     namespace='fused',
+    #     output='screen',
+    #     emulate_tty=True,
+    #     parameters=[
+    #         {'use_sim_time': use_sim_time},
+    #         explorer_config
+    #     ],
+    # )
 
     #---------------------- Launches ------------------------------#
 
@@ -129,6 +141,22 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(robot_description_launch_file),
         launch_arguments={
             'use_sim_time': use_sim_time
+        }.items()
+    )
+
+    graph_node_fusion_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(graph_node_fusion_launch_path),
+        launch_arguments={
+            'use_sim_time': use_sim_time,
+            'config_path': explorer_config
+        }.items()
+    )
+
+    relevance_map_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(relevance_map_launch_path),
+        launch_arguments={
+            'use_sim_time': use_sim_time,
+            'config_path': explorer_config
         }.items()
     )
 
@@ -147,8 +175,9 @@ def generate_launch_description():
     ld.add_action(map_explorer_node)
     ld.add_action(pcl_to_scan_node)
     ld.add_action(semantic_frontiers_node)
-    # ld.add_action(graph_node_fusion_node)
     ld.add_action(rviz_node)
     ld.add_action(nav2_stack_launch)
     ld.add_action(robot_description_launch)
+    ld.add_action(graph_node_fusion_launch)
+    ld.add_action(relevance_map_launch)
     return ld
