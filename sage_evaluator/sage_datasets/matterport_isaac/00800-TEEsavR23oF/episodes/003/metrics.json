@@ -2,31 +2,31 @@
   "bed": {
     "SR": 1.0,
     "SPL": 1.0,
-    "shortest_path_length": 3.170164245506527,
-    "actual_path_length": 1.5694377693551984
+    "shortest_path_length": 3.2200988123713326,
+    "actual_path_length": 1.498447513434351
   },
   "chair": {
     "SR": 0.0,
     "SPL": 0.0,
-    "shortest_path_length": 7.168064622994345,
-    "actual_path_length": 24.862767055824254
+    "shortest_path_length": 7.174960868370318,
+    "actual_path_length": 17.24720743653267
   },
   "table": {
     "SR": 0.0,
     "SPL": 0.0,
-    "shortest_path_length": 0.0,
-    "actual_path_length": 0.7770341967936245
+    "shortest_path_length": 7.843390218185578,
+    "actual_path_length": 15.386367577212527
   },
   "sofa": {
-    "SR": 1.0,
-    "SPL": 0.002422143904476282,
-    "shortest_path_length": 0.07963969098556867,
-    "actual_path_length": 32.87983461196887
-  },
-  "toilet": {
     "SR": 0.0,
     "SPL": 0.0,
-    "shortest_path_length": 11.545193439486152,
-    "actual_path_length": 9.9183740231385
+    "shortest_path_length": 5.805061050442016,
+    "actual_path_length": 3.7687450339335595
+  },
+  "tv": {
+    "SR": 0.0,
+    "SPL": 0.0,
+    "shortest_path_length": 25.606838718968714,
+    "actual_path_length": 16.079114165701835
   }
 }

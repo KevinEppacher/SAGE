@@ -230,7 +230,7 @@ class EvaluatorDashboard(Node):
         filename = "detection.png"
         save_path = os.path.join(det_dir, filename)
         goal.save_directory = save_path
-        goal.timeout = 10.0
+        goal.timeout = 30.0
 
         self.get_logger().info(f"Executing BT for prompt '{query}' → save {save_path}")
         send_future = self.bt_action_client.send_goal_async(goal, feedback_callback=self._feedback_cb)

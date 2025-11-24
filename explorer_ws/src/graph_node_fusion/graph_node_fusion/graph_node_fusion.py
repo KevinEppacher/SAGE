@@ -17,6 +17,7 @@ from collections import deque
 from geometry_msgs.msg import PoseArray, Pose
 from sensor_msgs.msg import PointCloud2, PointField
 from rcl_interfaces.msg import ParameterDescriptor, FloatingPointRange
+from multimodal_query_msgs.msg import SemanticPrompt
 
 # ===============================================================
 # Robot class: handles TF lookup and provides robot position
@@ -28,21 +29,53 @@ class Robot:
         self.reference_frame = reference_frame
         self.tf_buffer = Buffer(cache_time=Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, node, spin_thread=True)
-        self.last_pose = (0.0, 0.0)
+        self.path_history = deque(maxlen=500)
+        self.spatial_delayed_pose = (0.0, 0.0)
+
+        # configurable offset (m)
+        node.declare_parameter("robot.pose_delay_distance", 3.0)
+        self.pose_delay_distance = node.get_parameter("robot.pose_delay_distance").value
 
     def get_position(self):
-        """Return (x, y) of robot in map frame or last known pose."""
+        """Return (x, y) in map frame."""
         try:
             tf = self.tf_buffer.lookup_transform(
                 self.reference_frame, self.target_frame,
                 rclpy.time.Time(), timeout=Duration(seconds=0.1)
             )
             t = tf.transform.translation
-            self.last_pose = (t.x, t.y)
+            pos = (t.x, t.y)
+            self._update_path_history(pos)
+            return pos
         except Exception as e:
             self.node.get_logger().warn(f"TF lookup failed: {e}", throttle_duration_sec=2.0)
-        return self.last_pose
+            return self.path_history[-1] if self.path_history else (0.0, 0.0)
 
+    def get_spatial_delayed_pose(self):
+        """Return a pose ~pose_delay_distance behind current position along the trajectory."""
+        if len(self.path_history) < 2:
+            return self.path_history[-1] if self.path_history else (0.0, 0.0)
+
+        total_dist = 0.0
+        for i in range(len(self.path_history) - 1, 0, -1):
+            x1, y1 = self.path_history[i]
+            x0, y0 = self.path_history[i - 1]
+            seg = math.hypot(x1 - x0, y1 - y0)
+            total_dist += seg
+            if total_dist >= self.pose_delay_distance:
+                self.spatial_delayed_pose = (x0, y0)
+                return self.spatial_delayed_pose
+
+        return self.path_history[0]
+
+    def _update_path_history(self, pos):
+        """Store robot trajectory for delayed pose computation."""
+        if not self.path_history:
+            self.path_history.append(pos)
+            return
+        lx, ly = self.path_history[-1]
+        if math.hypot(pos[0] - lx, pos[1] - ly) > 0.1:
+            self.path_history.append(pos)
 
 # ===============================================================
 # Markers class: handles visualization
@@ -61,32 +94,11 @@ class Markers:
         self.debug_distance = debug_distance
         self.cmap = plt.get_cmap("inferno")
 
-        sigma_range = FloatingPointRange(from_value=0.1, to_value=3.0, step=0.001)
-        res_range   = FloatingPointRange(from_value=0.05, to_value=1.0, step=0.05)
-        range_range = FloatingPointRange(from_value=0.5, to_value=10.0, step=0.5)
-        z_range     = FloatingPointRange(from_value=0.1, to_value=5.0, step=0.1)
-        int_range   = FloatingPointRange(from_value=0.0, to_value=0.1, step=0.005)
-
-        node.declare_parameter(
-            "backtrack.sigma", 1.5,
-            ParameterDescriptor(description="Gaussian spread of backtrack dome [m]", floating_point_range=[sigma_range])
-        )
-        node.declare_parameter(
-            "backtrack.grid_res", 0.25,
-            ParameterDescriptor(description="Resolution of backtrack grid [m]", floating_point_range=[res_range])
-        )
-        node.declare_parameter(
-            "backtrack.grid_range", 3.0,
-            ParameterDescriptor(description="Spatial extent of backtrack field [m]", floating_point_range=[range_range])
-        )
-        node.declare_parameter(
-            "backtrack.z_scale", 1.5,
-            ParameterDescriptor(description="Vertical exaggeration of Gaussian dome", floating_point_range=[z_range])
-        )
-        node.declare_parameter(
-            "backtrack.min_intensity", 0.01,
-            ParameterDescriptor(description="Minimum intensity threshold", floating_point_range=[int_range])
-        )
+        # --- Declare visualization-specific parameters here (owned by Markers) ---
+        node.declare_parameter("backtrack.grid_res", 0.25)
+        node.declare_parameter("backtrack.grid_range", 3.0)
+        node.declare_parameter("backtrack.z_scale", 1.5)
+        node.declare_parameter("backtrack.min_intensity", 0.01)
 
         self.sigma = node.get_parameter("backtrack.sigma").value
         self.grid_res = node.get_parameter("backtrack.grid_res").value
@@ -354,58 +366,43 @@ class NodeWeighter:
     def __init__(self, node, exploration_weight: float = 0.7):
         self.node = node
         self.exploration_weight = exploration_weight
-        self.value_map_points = None  # numpy array (x, y, intensity)
+        self.value_map_points = None
 
-        # --- Dynamic parameters ---
-        self.det_weight = 1.0
-        self.map_weight = 1.0
-        self.mem_weight = 1.0
-        self.mem_sigma = 0.5  # spatial falloff [m]
-
+        # Existing weights
         float01 = FloatingPointRange(from_value=0.0, to_value=1.0, step=0.05)
         sigma_range = FloatingPointRange(from_value=0.05, to_value=3.0, step=0.05)
+        back_sigma_range = FloatingPointRange(from_value=0.1, to_value=5.0, step=0.1)
+        offset_range = FloatingPointRange(from_value=0.5, to_value=5.0, step=0.1)
 
+        node.declare_parameter("weights.det_weight", 1.0, ParameterDescriptor(floating_point_range=[float01]))
+        node.declare_parameter("weights.map_weight", 1.0, ParameterDescriptor(floating_point_range=[float01]))
+        node.declare_parameter("weights.mem_weight", 1.0, ParameterDescriptor(floating_point_range=[float01]))
+        node.declare_parameter("weights.mem_sigma", 0.5, ParameterDescriptor(floating_point_range=[sigma_range]))
+        node.declare_parameter("weights.proximity_weight", 1.0, ParameterDescriptor(floating_point_range=[float01]))
+
+        # --- NEW: Spatial backtrack params ---
         node.declare_parameter(
-            "weights.det_weight", 1.0,
-            ParameterDescriptor(description="Weight of detection nodes", floating_point_range=[float01])
+            "backtrack.sigma", 0.8,
+            ParameterDescriptor(description="Gaussian decay for spatial penalty [m]", floating_point_range=[back_sigma_range])
         )
         node.declare_parameter(
-            "weights.map_weight", 1.0,
-            ParameterDescriptor(description="Weight of value map nodes", floating_point_range=[float01])
+            "backtrack.max_penalty", 1.0,
+            ParameterDescriptor(description="Maximum suppression factor", floating_point_range=[float01])
         )
         node.declare_parameter(
-            "weights.mem_weight", 1.0,
-            ParameterDescriptor(description="Weight of memory nodes", floating_point_range=[float01])
-        )
-        node.declare_parameter(
-            "weights.mem_sigma", 0.5,
-            ParameterDescriptor(description="Spatial falloff for memory weighting [m]", floating_point_range=[sigma_range])
-        )
-        node.declare_parameter(
-            "weights.proximity_weight", 1.0,
-            ParameterDescriptor(description="Relative weight of proximity reward", floating_point_range=[float01])
+            "backtrack.pose_offset_distance", 2.0,
+            ParameterDescriptor(description="Distance behind robot used as delayed start [m]", floating_point_range=[offset_range])
         )
 
-
+        # Read initial values
         self.det_weight = node.get_parameter("weights.det_weight").value
         self.map_weight = node.get_parameter("weights.map_weight").value
         self.mem_weight = node.get_parameter("weights.mem_weight").value
         self.mem_sigma = node.get_parameter("weights.mem_sigma").value
         self.proximity_weight = node.get_parameter("weights.proximity_weight").value
-
-        self.det_weight = max(0.0, min(1.0, self.det_weight))
-        self.map_weight = max(0.0, min(1.0, self.map_weight))
-        self.mem_weight = max(0.0, min(1.0, self.mem_weight))
-        self.mem_sigma = max(0.05, float(self.mem_sigma))
-        self.proximity_weight = max(0.0, min(1.0, self.proximity_weight))
-
-        self.node.get_logger().info(
-            f"NodeWeighter initialized with \n det_weight={self.det_weight}, \n "
-            f"map_weight={self.map_weight} \n, mem_weight={self.mem_weight} \n, "
-            f"mem_sigma={self.mem_sigma} \n, proximity_weight={self.proximity_weight} \n"
-        )
-
-         # Register parameter change callback
+        self.back_sigma = node.get_parameter("backtrack.sigma").value
+        self.max_penalty = node.get_parameter("backtrack.max_penalty").value
+        self.pose_offset_distance = node.get_parameter("backtrack.pose_offset_distance").value
 
         node.add_on_set_parameters_callback(self._param_callback)
 
@@ -504,10 +501,10 @@ class NodeWeighter:
             n.score *= (1.0 - self.exploration_weight)
 
         for n in exploration_nodes:
-            backtrack_penalty = self.compute_spatial_backtrack_penalty(
-                n, pose_buffer=self.node.pose_buffer, sigma=1.5, weighted=True
+            back_pen = self.compute_spatial_backtrack_penalty(
+                n, pose_buffer=self.node.pose_buffer
             )
-            n.score *= (1.0 - 0.3 * backtrack_penalty)  # 30% max suppression
+            n.score *= (1.0 - self.max_penalty * back_pen)
 
         if robot_pose is not None:
             for n in exploration_nodes:
@@ -539,43 +536,30 @@ class NodeWeighter:
         d = math.hypot(x - rx, y - ry)
         return 1.0 / (1.0 + k * d)
 
-    def compute_spatial_backtrack_penalty(self, node, pose_buffer, sigma=1.5, weighted=False):
+    def compute_spatial_backtrack_penalty(self, node, pose_buffer):
         """
-        Compute a continuous Gaussian penalty for nodes near the robot's recent trajectory.
-
-        Args:
-            node: GraphNode
-            pose_buffer: list of (x, y) tuples representing recent robot poses.
-            sigma: Gaussian spatial falloff (m).
-            weighted: if True, apply stronger penalty to more recent poses.
-        Returns:
-            float in [0, 1]: higher = stronger penalty
+        Compute Gaussian penalty: highest at newest pose, decaying for older ones.
         """
         if not pose_buffer:
             return 0.0
 
-        best_penalty = 0.0
         n = len(pose_buffer)
+        total_penalty = 0.0
+        weight_sum = 0.0
 
         for i, (px, py) in enumerate(pose_buffer):
             dx = node.position.x - px
             dy = node.position.y - py
             d2 = dx * dx + dy * dy
+            spatial = math.exp(-d2 / (2.0 * self.back_sigma * self.back_sigma))
 
-            spatial_factor = math.exp(-d2 / (2.0 * sigma * sigma))
+            # reverse age weighting: newest has highest
+            age_weight = (i + 1) / n
+            total_penalty += spatial * age_weight
+            weight_sum += age_weight
 
-            # Optional: weight recent poses slightly more
-            if weighted:
-                age_weight = 1.0 - (i / n)  # 1 for most recent, 0 for oldest
-                penalty = spatial_factor * age_weight
-            else:
-                penalty = spatial_factor
-
-            if penalty > best_penalty:
-                best_penalty = penalty
-
-        return best_penalty
-
+        penalty = total_penalty / weight_sum if weight_sum > 0 else 0.0
+        return min(1.0, penalty)
 
 # ===============================================================
 # Main orchestrator node
@@ -623,14 +607,15 @@ class GraphNodeFusion(Node):
         self.create_subscription(GraphNodeArray, self.exploration_topic, self.cb_exploration, qos)
         self.create_subscription(GraphNodeArray, self.exploitation_topic, self.cb_exploitation, qos)
         self.create_subscription(GraphNodeArray, self.detection_topic, self.cb_detection, qos)
+        self.create_subscription(SemanticPrompt, "/user_prompt", self._cb_semantic_prompt, qos)
 
         self.pub_exploration = self.create_publisher(GraphNodeArray, self.pub_fused_exploration_topic, qos)
         self.pub_detection = self.create_publisher(GraphNodeArray, self.pub_fused_detection_topic, qos)
 
         # --- Modules ---
         self.robot = Robot(self)
-        self.markers = Markers(self, debug_distance=self.debug_distance)
         self.weighter = NodeWeighter(self, self.exploration_weight)
+        self.markers = Markers(self, debug_distance=self.debug_distance)
 
         # --- State ---
         self.exploration_nodes = []
@@ -638,8 +623,8 @@ class GraphNodeFusion(Node):
         self.detection_nodes = []
         self.visited_nodes = []
 
-        self.pose_buffer = deque(maxlen=20)
-        self.pose_spacing = 1.0  # meters
+        self.pose_buffer = deque(maxlen=10)
+        self.pose_spacing = 0.5  # meters
 
         self.create_timer(self.timer_period, self._loop)
         self.last_loop_time = self.get_clock().now()
@@ -650,6 +635,14 @@ class GraphNodeFusion(Node):
     def cb_exploration(self, msg): self.exploration_nodes = list(msg.nodes)
     def cb_exploitation(self, msg): self.exploitation_nodes = list(msg.nodes)
     def cb_detection(self, msg): self.detection_nodes = list(msg.nodes)
+
+    def _cb_semantic_prompt(self, msg: SemanticPrompt):
+        self.get_logger().info("Received new semantic prompt, clearing visited nodes and spatial memory.")
+        self.visited_nodes.clear()
+        self.pose_buffer.clear()
+        # Immediately publish cleared visualization
+        self.markers.publish([], [], [], (0.0, 0.0))
+        self.markers.publish_backtrack_field([])
 
     # ---------- Main loop ----------
     def _loop(self):
@@ -668,7 +661,10 @@ class GraphNodeFusion(Node):
         if robot_pose is None:
             return
         
-        self._update_pose_buffer(robot_pose)
+    
+        delayed_robot_pose = self.robot.get_spatial_delayed_pose()
+
+        self._update_pose_buffer(delayed_robot_pose)
 
         self._update_visited(robot_pose)
 

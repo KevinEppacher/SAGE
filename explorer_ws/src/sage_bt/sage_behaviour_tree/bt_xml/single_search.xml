@@ -41,7 +41,7 @@
                                graph_node_topic="/exploration_graph_nodes/graph_nodes"
                                robot_frame="base_link"
                                map_frame="map"
-                               sight_horizon="10"
+                               sight_horizon="5"
                                min_yaw_default="-0.523"
                                max_yaw_default="0.523"
                                min_yaw="{min_yaw}"

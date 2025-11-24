@@ -1,22 +1,25 @@
 fused:
   graph_node_fusion:
     ros__parameters:
-      exploitation_topic: "/exploitation_graph_nodes/graph_nodes"
-      exploration_topic: /exploration_graph_nodes/graph_nodes
+      approach_radius: 1.8
+      # approach_radius: 0.0
+      debug_distance: true
       detection_topic: /detection_graph_nodes/graph_nodes
-      plan_rate: 0.1
-      approach_radius: 1.5
-      max_visited: 200
-      exploration_weight: 1.0
-      sigma: 1.5
-      gaussian_influence: 0.5
-      sight_horizon: 5.0
+      exploitation_topic: /exploitation_graph_nodes/graph_nodes
+      exploration_topic: /exploration_graph_nodes/graph_nodes
+      exploration_weight: 0.5
       fused_topics:
-        detection_graph_nodes: "detection_graph_nodes/graph_nodes"
-        exploration_graph_nodes: "exploration_graph_nodes/graph_nodes"
+        detection_graph_nodes: detection_graph_nodes/graph_nodes
+        exploration_graph_nodes: exploration_graph_nodes/graph_nodes
+      max_visited: 200
+      timer_period: 0.1
       weights:
         det_weight: 1.0
-        vlm_weight: 1.0
+        map_weight: 1.0
+        mem_sigma: 0.5
+        mem_weight: 1.0
+        proximity_weight: 1.0
+        
 
 # fused:
 #   graph_node_fusion:

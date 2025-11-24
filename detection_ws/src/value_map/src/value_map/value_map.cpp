@@ -150,6 +150,11 @@ void ValueMap::timerCallback()
 
     // Get cosine similarity score
     double score = serviceHandler->getSemanticSimilarityScore(*rgbImage, textPrompt);
+    score = std::max(0.0, score);  // Ensure non-negative score
+    score = std::min(1.0, score);  // Cap at 1.0
+
+    // score = 1.0;        // TEMPORARY OVERRIDE. REMOVE AFTER TESTING.
+    
     // Publish cosine similarity score
     publishCosineSimilarity(score);
 
@@ -159,7 +164,6 @@ void ValueMap::timerCallback()
     // If pose is empty, return
     if (!pose) return;
 
-    
     semScore.setScore(score);
     semScore.setHeader(rgbImage->header);
 
