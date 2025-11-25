@@ -28,7 +28,12 @@ BT::NodeStatus PublishSemanticPrompt::tick()
     }
 
     // Lazily create publisher
-    if (!pub) {
+    if (!pub) 
+    {
+        rclcpp::QoS qosSemanticPrompt(rclcpp::KeepLast(1));
+        qosSemanticPrompt.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
+        qosSemanticPrompt.durability(RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL);
+
         pub = node->create_publisher<multimodal_query_msgs::msg::SemanticPrompt>(topic_, 10);
         RCLCPP_INFO(node->get_logger(),
                     ORANGE "[%s] Publisher created on topic '%s'" RESET,

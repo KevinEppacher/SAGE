@@ -14,6 +14,7 @@ import tf2_ros, tf2_geometry_msgs
 import json, os, time
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 
 # ANSI color codes for clarity in console
 GREEN = "\033[92m"
@@ -65,7 +66,15 @@ class SemanticRelabelerNode(Node):
 
         # ---------------- ROS interfaces ----------------
         self.clicked_sub = self.create_subscription(PointStamped, "/clicked_point", self.handle_click, 10)
-        self.prompt_sub = self.create_subscription(SemanticPrompt, "/user_prompt", self.handle_prompt, 10)
+
+        qos_semantic_prompt = rclpy.qos.QoSProfile(
+            reliability=rclpy.qos.ReliabilityPolicy.RELIABLE,
+            durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+            history=rclpy.qos.HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
+
+        self.prompt_sub = self.create_subscription(SemanticPrompt, "/user_prompt", self.handle_prompt, qos_semantic_prompt)
         self.pc_pub = self.create_publisher(PointCloud2, "semantic_cloud", 1)
         self.marker_pub = self.create_publisher(MarkerArray, "semantic_labels", 1)
 

@@ -75,7 +75,8 @@ public:
         mapPub = create_publisher<nav_msgs::msg::OccupancyGrid>(
             explorationTopic, rclcpp::QoS(1).transient_local());
 
-        if (debugMode) {
+        if (debugMode) 
+        {
             posePub = create_publisher<geometry_msgs::msg::PoseArray>(
                 "pose_buffer_debug", rclcpp::QoS(1).transient_local());
         }
