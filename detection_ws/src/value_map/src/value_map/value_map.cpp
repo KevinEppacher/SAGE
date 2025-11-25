@@ -48,8 +48,12 @@ CallbackReturn ValueMap::on_configure(const rclcpp_lifecycle::State &)
         return CallbackReturn::FAILURE;
     }
 
+    rclcpp::QoS qosSemanticPrompt(rclcpp::KeepLast(1));
+    qosSemanticPrompt.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
+    qosSemanticPrompt.durability(RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL);
+
     semanticPromptSub = this->create_subscription<multimodal_query_msgs::msg::SemanticPrompt>(
-        semanticPromptTopic, 10, std::bind(&ValueMap::semanticPromptCallback, this, std::placeholders::_1));
+        semanticPromptTopic, qosSemanticPrompt, std::bind(&ValueMap::semanticPromptCallback, this, std::placeholders::_1));
 
     cosineSimPub = this->create_publisher<std_msgs::msg::Float32>("cosine_similarity", 10);
 

@@ -4,13 +4,22 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
 from multimodal_query_msgs.msg import SemanticPrompt
-import os
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 
 class ROS2Backend(Node):
     """Handles ROS2 publishing of semantic prompts (text/image)."""
     def __init__(self):
         super().__init__('gui_node')
-        self.prompt_pub = self.create_publisher(SemanticPrompt, '/user_prompt', 10)
+
+
+        qos_semantic_prompt = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,  # Keeps last message in publisher's cache
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
+
+        self.prompt_pub = self.create_publisher(SemanticPrompt, '/user_prompt', qos_semantic_prompt)
         self.bridge = CvBridge()
         self.current_prompt = SemanticPrompt()
         self.current_prompt.header.frame_id = "semantic_prompt"
