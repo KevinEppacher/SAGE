@@ -330,8 +330,8 @@ class NodeWeighter:
         # --- Exploration vs exploitation weighting ---
         for n in exploration_nodes:
             # add small bias
-            if n.score == 0.0:
-                n.score = 0.01
+            if n.score < 0.1:
+                n.score = 0.1
             n.score *= self.source_balance
             n.score *= self._get_proximity_persistence(
                 n.position.x,

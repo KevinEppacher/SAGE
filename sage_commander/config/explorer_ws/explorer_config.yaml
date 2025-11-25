@@ -153,7 +153,7 @@ explorer_relevance_map:
       qos_overrides./parameter_events.publisher.history: keep_last
       qos_overrides./parameter_events.publisher.reliability: reliable
       radial_confidence_sharpness: 0.2
-      raytracing_enabled: true
+      raytracing_enabled: false
       relevance_threshold: 1.0
       robot.frame_map: map
       robot.frame_robot: base_link

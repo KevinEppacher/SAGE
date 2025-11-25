@@ -1,5 +1,5 @@
 {
   "object": "chair",
-  "status": "SUCCESS",
+  "status": "FAILURE",
   "image": "detection.png"
 }

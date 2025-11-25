@@ -2,15 +2,24 @@
 <root BTCPP_format="4">
   <BehaviorTree ID="SAGE_SingleObject">
     <Sequence>
-      <SetBlackboard value="false"
-                     output_key="object_found"/>
-      <SetBlackboard value="true"
-                     output_key="any_exploration_nodes"/>
       <CallEmptyService service_name="/exploration_map/clear"/>
       <CallEmptyService service_name="/value_map/clear"/>
       <PublishSemanticPrompt text_query="{text_query}"
                              topic="/user_prompt"/>
-      <Sleep msec="2000"/>
+      <SeekoutGraphNodes max_yaw="{turn_right_angle}"
+                         min_yaw="{turn_left_angle}"
+                         max_yaw_default="1.570796"
+                         min_yaw_default="-1.570796"
+                         sight_horizon="10.000000"
+                         robot_frame="base_link"
+                         map_frame="map"
+                         graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"/>
+      <Spin spin_duration="5"
+            turn_right_angle="{turn_right_angle}"
+            turn_left_angle="{turn_left_angle}"/>
+      <SetParameterNode value="0.9995"
+                        parameter_name="semantic_map.decay_factor"
+                        target_node="/value_map/value_map"/>
       <KeepRunningUntilObjectFound object_found="{object_found}"
                                    any_exploration_nodes="{any_exploration_nodes}">
         <ReactiveFallback>
@@ -38,43 +47,15 @@
             <SetBlackboard value="true"
                            output_key="object_found"/>
           </Sequence>
-          <Sequence name="Exploration sequence">
-            <SetParameterNode target_node="/value_map/value_map"
-                              parameter_name="semantic_map.decay_factor"
-                              value="1"/>
-            <SeekoutGraphNodes name="Observe all possible GraphNodes"
-                               graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
-                               robot_frame="base_link"
-                               map_frame="map"
-                               sight_horizon="10"
-                               min_yaw_default="-0.523"
-                               max_yaw_default="0.523"
-                               min_yaw="{min_yaw}"
-                               max_yaw="{max_yaw}"/>
-            <Spin spin_duration="5"
-                  turn_right_angle="{min_yaw}"
-                  turn_left_angle="{max_yaw}"/>
-            <SetParameterNode target_node="/value_map/value_map"
-                              parameter_name="semantic_map.decay_factor"
-                              value="0.999"/>
-            <ReactiveSequence>
-              <Fallback>
-                <IsDetected name="Already explored all available GraphNodes?"
-                            graph_nodes="{likiest_explorer_node}"
-                            detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
-                            time_threshold="0.0"
-                            detection_threshold="0.0"/>
-                <SetBlackboard value="false"
-                               output_key="any_exploration_nodes"/>
-              </Fallback>
-              <ApproachPoseAdjustor search_radius="2.5"
-                                    reachable_graph_node="{reachable_explorer_graph_node}"
-                                    graph_node="{likiest_explorer_node}">
-                <GoToGraphNode name="Go to likiest GraphNode"
-                               graph_node="{reachable_explorer_graph_node}"/>
-              </ApproachPoseAdjustor>
-            </ReactiveSequence>
-          </Sequence>
+          <ReactiveSequence>
+            <IsDetected name="Already explored all available GraphNodes?"
+                        graph_nodes="{likiest_explorer_node}"
+                        detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
+                        time_threshold="0.0"
+                        detection_threshold="0.0"/>
+            <GoToGraphNode name="Go to likiest GraphNode"
+                           graph_node="{likiest_explorer_node}"/>
+          </ReactiveSequence>
         </ReactiveFallback>
       </KeepRunningUntilObjectFound>
     </Sequence>
@@ -129,22 +110,34 @@
       <input_port name="imageTopic"/>
       <input_port name="savePath"/>
     </Action>
-    <Action ID="SeekoutGraphNodes"
-            editable="true">
-      <input_port name="graph_node_topic"/>
-      <input_port name="robot_frame"/>
-      <input_port name="map_frame"/>
-      <input_port name="sight_horizon"/>
-      <input_port name="min_yaw_default"/>
-      <input_port name="max_yaw_default"/>
-      <output_port name="min_yaw"/>
-      <output_port name="max_yaw"/>
+    <Action ID="SeekoutGraphNodes">
+      <output_port name="max_yaw"
+                   type="double"/>
+      <output_port name="min_yaw"
+                   type="double"/>
+      <input_port name="max_yaw_default"
+                  default="1.570796"
+                  type="double">Default max yaw (rad)</input_port>
+      <input_port name="min_yaw_default"
+                  default="-1.570796"
+                  type="double">Default min yaw (rad)</input_port>
+      <input_port name="sight_horizon"
+                  default="10.000000"
+                  type="double">Horizon distance (m)</input_port>
+      <input_port name="robot_frame"
+                  type="std::string">base_link</input_port>
+      <input_port name="map_frame"
+                  type="std::string">map</input_port>
+      <input_port name="graph_node_topic"
+                  type="std::string">/fused/exploration_graph_nodes/graph_nodes</input_port>
     </Action>
-    <Action ID="SetParameterNode"
-            editable="true">
-      <input_port name="target_node"/>
-      <input_port name="parameter_name"/>
-      <input_port name="value"/>
+    <Action ID="SetParameterNode">
+      <input_port name="value"
+                  type="double">Value to set for the parameter</input_port>
+      <input_port name="parameter_name"
+                  type="std::string">Name of the parameter to set</input_port>
+      <input_port name="target_node"
+                  type="std::string">Node name to set parameter on</input_port>
     </Action>
     <Action ID="Spin">
       <input_port name="spin_duration"
