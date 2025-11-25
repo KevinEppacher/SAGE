@@ -7,7 +7,7 @@ from nav_msgs.msg import Path
 from multimodal_query_msgs.msg import SemanticPrompt
 from evaluator_msgs.srv import GetShortestPath
 import threading, time
-
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 
 class ShortestPathService(Node):
     def __init__(self):
@@ -28,7 +28,14 @@ class ShortestPathService(Node):
         self.callback_group = ReentrantCallbackGroup()
 
         # ---------------- ROS I/O ----------------
-        self.prompt_pub = self.create_publisher(SemanticPrompt, prompt_topic, 10)
+        qos_semantic_prompt = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
+
+        self.prompt_pub = self.create_publisher(SemanticPrompt, prompt_topic, qos_semantic_prompt)
         
         self.path_sub = self.create_subscription(
             Path, path_topic, self._path_cb, 10, callback_group=self.callback_group

@@ -11,6 +11,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import Header, ColorRGBA
 from geometry_msgs.msg import PoseArray, Pose, Point, Quaternion
 import sensor_msgs_py.point_cloud2 as pc2
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 
 from multimodal_query_msgs.msg import SemanticPrompt
 
@@ -63,8 +64,15 @@ class SemanticPCLLoaderNode(Node):
 
         # ---------------- Timers ----------------
         self.timer = self.create_timer(1.0 / self.publish_rate, self.timer_callback)
-        self.prompt_sub = self.create_subscription(SemanticPrompt, user_prompt_topic, self.handle_prompt, 10)
 
+        qos_semantic_prompt = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
+
+        self.prompt_sub = self.create_subscription(SemanticPrompt, user_prompt_topic, self.handle_prompt, qos_semantic_prompt)
         self.get_logger().info("Ready for user prompts to filter semantic map.")
         self._publish_all_class_markers()
 

@@ -6,7 +6,7 @@ import time
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
-from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 
 from evaluator_msgs.srv import GetShortestPath
 from sage_bt_msgs.srv import StartupCheck
@@ -122,11 +122,18 @@ class EvaluatorDashboard(Node):
             10
         )
 
+        qos_semantic_prompt = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,  # Keeps last message in publisher's cache
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
+
         # adding a zero shot publisher
         self.zero_shot_pub = self.create_publisher(
             SemanticPrompt,
             "/zero_shot_prompt",
-            10
+            qos_semantic_prompt
         )
 
         self._wait_for_servers()
