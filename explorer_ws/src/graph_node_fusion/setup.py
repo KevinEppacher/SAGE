@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
             'graph_node_fusion = graph_node_fusion.graph_node_fusion_node:main',
             'simulate_graph_nodes = graph_node_fusion.test.simulate_graph_nodes:main',
+            'go_to_best_graphnode = graph_node_fusion.test.go_to_best_graphnode:main',
         ],
     },
 )
