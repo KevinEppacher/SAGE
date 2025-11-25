@@ -98,8 +98,8 @@ BT::NodeStatus Spin::onRunning()
     if (!robot->isSpinDone())
     {
         RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 2000,
-                             "%s[%s] Spinning... %sRUNNING%s",
-                             ORANGE, name().c_str(), ORANGE, RESET);
+                             "%s[%s] Spinning since %.1f / %.1f s → %sRUNNING%s",
+                             ORANGE, name().c_str(), elapsed, spinTimeout, ORANGE, RESET);
         return BT::NodeStatus::RUNNING;
     }
 

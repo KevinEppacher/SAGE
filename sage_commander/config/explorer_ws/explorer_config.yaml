@@ -138,7 +138,7 @@ explorer_relevance_map:
       base_increment_rate: 0.01
       camera_info_topic: /camera_info
       debug_mode: true
-      decay_factor: 0.999
+      decay_factor: 1.0
       fov_deg: 70.0
       frame_map: map
       frame_robot: base_link
