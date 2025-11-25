@@ -13,6 +13,7 @@ import struct
 import numpy as np
 from sensor_msgs.msg import PointCloud2
 from rcl_interfaces.msg import SetParametersResult
+from tf_transformations import euler_from_quaternion
 
 # ===============================================================
 # Robot class: handles TF lookup and provides robot position
@@ -24,10 +25,10 @@ class Robot:
         self.reference_frame = reference_frame
         self.tf_buffer = Buffer(cache_time=Duration(seconds=10.0))
         self.tf_listener = TransformListener(self.tf_buffer, node, spin_thread=True)
-        self.last_pose = (0.0, 0.0)
+        self.last_pose = (0.0, 0.0, 0.0)
 
     def get_pose(self):
-        """Return (x, y) of robot in map frame or last known pose."""
+        """Return (x, y, yaw) in map frame."""
         try:
             tf = self.tf_buffer.lookup_transform(
                 self.reference_frame, self.target_frame,
@@ -35,14 +36,13 @@ class Robot:
             )
             t = tf.transform.translation
             q = tf.transform.rotation
-            (_, _, yaw) = self._quaternion_to_euler(q.x, q.y, q.z, q.w)
+            roll, pitch, yaw = euler_from_quaternion([q.x, q.y, q.z, q.w])
             pose = (t.x, t.y, yaw)
             self.last_pose = pose
             return pose
         except Exception as e:
             self.node.get_logger().warn(f"TF lookup failed: {e}", throttle_duration_sec=2.0)
-        return self.last_pose
-
+            return self.last_pose
 
 # ===============================================================
 # Markers class: handles visualization
@@ -59,7 +59,7 @@ class Markers:
         self.debug_distance = debug_distance
         self.cmap = plt.get_cmap("inferno")
 
-    def publish(self, exploration_nodes, detection_nodes, visited_nodes, robot_pose):
+    def publish(self, exploration_nodes, detection_nodes, robot_pose):
         marker_array = MarkerArray()
 
         # --- Clear existing markers ---
@@ -77,13 +77,14 @@ class Markers:
 
         # --- Draw spheres for all nodes (exploration + detection) ---
         for n in exploration_nodes + detection_nodes:
-            marker_array.markers.append(self._make_sphere(n, idx, norm))
+            for marker in self._make_sphere(n, idx, norm):
+                marker_array.markers.append(marker)
             idx += 1
 
-        # --- Draw visited nodes (small blue dots) ---
-        for vx, vy in visited_nodes[-200:]:
-            marker_array.markers.append(self._make_visited(vx, vy, idx))
-            idx += 1
+        # # --- Draw visited nodes (small blue dots) ---
+        # for vx, vy in visited_nodes[-200:]:
+        #     marker_array.markers.append(self._make_visited(vx, vy, idx))
+        #     idx += 1
 
         # --- Draw debug distance lines and text (if enabled) ---
         if self.debug_distance:
@@ -98,11 +99,14 @@ class Markers:
 
     def _make_sphere(self, node: GraphNode, idx: int, norm):
         r, g, b, a = self.cmap(norm(node.score))
+        base_id = idx * 2  # reserve consecutive IDs for sphere + text
+
+        # --- Sphere marker ---
         m = Marker()
         m.header.frame_id = "map"
         m.header.stamp = self.node.get_clock().now().to_msg()
         m.ns = "graph_nodes"
-        m.id = idx
+        m.id = base_id
         m.type = Marker.SPHERE
         m.action = Marker.ADD
         m.pose.position = node.position
@@ -112,26 +116,43 @@ class Markers:
         m.scale.x = m.scale.y = m.scale.z = s
         m.color = ColorRGBA(r=r, g=g, b=b, a=a)
         m.lifetime.sec = 1
-        return m
 
-    def _make_visited(self, vx: float, vy: float, idx: int):
-        m = Marker()
-        m.header.frame_id = "map"
-        m.header.stamp = self.node.get_clock().now().to_msg()
-        m.ns = "visited_nodes"
-        m.id = idx
-        m.type = Marker.SPHERE
-        m.action = Marker.ADD
-        m.pose.position.x = vx
-        m.pose.position.y = vy
-        m.pose.position.z = 0.05
-        m.scale.x = m.scale.y = m.scale.z = 0.1
-        m.color = ColorRGBA(r=0.3, g=0.3, b=1.0, a=0.6)
-        m.lifetime.sec = 1
-        return m
+        # --- Text marker showing score ---
+        t = Marker()
+        t.header.frame_id = "map"
+        t.header.stamp = self.node.get_clock().now().to_msg()
+        t.ns = "graph_scores"
+        t.id = base_id + 1
+        t.type = Marker.TEXT_VIEW_FACING
+        t.action = Marker.ADD
+        t.pose.position.x = node.position.x
+        t.pose.position.y = node.position.y
+        t.pose.position.z = node.position.z + 0.25
+        t.scale.z = 0.12
+        t.color = ColorRGBA(r=0.0, g=0.0, b=0.0, a=1.0)
+        t.text = f"{node.score:.2f}"
+        t.lifetime.sec = 1
+
+        return [m, t]
+
+    # def _make_visited(self, vx: float, vy: float, idx: int):
+    #     m = Marker()
+    #     m.header.frame_id = "map"
+    #     m.header.stamp = self.node.get_clock().now().to_msg()
+    #     m.ns = "visited_nodes"
+    #     m.id = idx
+    #     m.type = Marker.SPHERE
+    #     m.action = Marker.ADD
+    #     m.pose.position.x = vx
+    #     m.pose.position.y = vy
+    #     m.pose.position.z = 0.05
+    #     m.scale.x = m.scale.y = m.scale.z = 0.1
+    #     m.color = ColorRGBA(r=0.3, g=0.3, b=1.0, a=0.6)
+    #     m.lifetime.sec = 1
+    #     return m
 
     def _make_line(self, robot_pose, node_pose, idx: int):
-        rx, ry = robot_pose
+        rx, ry, _ = robot_pose
         nx, ny = node_pose
         distance = math.hypot(nx - rx, ny - ry)
 
@@ -284,7 +305,7 @@ class NodeWeighter:
             # baseline
             n.score *= self.exploration_weight
             # add persistence weighting
-            n.score *= self._get_directional_persistence(n.position.x, n.position.y, robot_pose)
+            n.score *= self._get_proximity_persistence(n.position.x, n.position.y, robot_pose)
         for n in exploitation_nodes:
             n.score *= (1.0 - self.exploration_weight)
 
@@ -308,18 +329,16 @@ class NodeWeighter:
     # ----------------------------------------------------------------------
     # Directional persistence term (favor front-facing frontiers)
     # ----------------------------------------------------------------------
-    def _get_directional_persistence(self, x_node, y_node, robot_pose, gain=0.3, sigma_deg=45.0):
+    def _get_proximity_persistence(self, x_node, y_node, robot_pose, gain=0.3, radius=2.0):
         """
-        Returns a weighting factor (0–1) favoring nodes roughly in front of the robot.
-        gain controls strength, sigma_deg controls angular spread.
+        Returns a weighting factor favoring nodes near the robot.
+        gain: maximum boost (0–1)
+        radius: influence radius [m]
         """
-        x, y, yaw = robot_pose
-        dx = x_node - x
-        dy = y_node - y
-        node_angle = math.atan2(dy, dx)
-        angle_diff = math.atan2(math.sin(node_angle - yaw), math.cos(node_angle - yaw))
-        sigma = math.radians(sigma_deg)
-        weight = math.exp(-0.5 * (angle_diff / sigma) ** 2)
+        x, y, _ = robot_pose
+        dist = math.hypot(x_node - x, y_node - y)
+        # Gaussian falloff: strong near robot, quickly decreases
+        weight = math.exp(-0.5 * (dist / radius) ** 2)
         return 1.0 + gain * weight
 
 
@@ -377,7 +396,7 @@ class GraphNodeFusion(Node):
         self.exploration_nodes = []
         self.exploitation_nodes = []
         self.detection_nodes = []
-        self.visited_nodes = []
+        # self.visited_nodes = []
 
         self.create_timer(self.timer_period, self._loop)
         self.last_loop_time = self.get_clock().now()
@@ -404,7 +423,7 @@ class GraphNodeFusion(Node):
         if robot_pose is None:
             return
 
-        self._update_visited(robot_pose)
+        # self._update_visited(robot_pose)
 
         fused_exp, fused_det = self.weighter.weight_nodes(
             self.exploration_nodes, 
@@ -413,23 +432,23 @@ class GraphNodeFusion(Node):
             robot_pose
         )
 
-        fused_exp = [n for n in fused_exp if not self._is_visited(n)]
+        # fused_exp = [n for n in fused_exp if not self._is_visited(n)]
         self._publish_arrays(fused_exp, fused_det)
-        self.markers.publish(fused_exp, fused_det, self.visited_nodes, robot_pose)
+        self.markers.publish(fused_exp, fused_det, robot_pose)
 
-    # ---------- Utilities ----------
-    def _update_visited(self, robot_pose):
-        rx, ry = robot_pose
-        for n in self.exploration_nodes:
-            if math.hypot(n.position.x - rx, n.position.y - ry) < self.approach_radius:
-                self.visited_nodes.append((n.position.x, n.position.y))
-        self.visited_nodes = self.visited_nodes[-self.max_visited:]
+    # # ---------- Utilities ----------
+    # def _update_visited(self, robot_pose):
+    #     rx, ry, _= robot_pose
+    #     for n in self.exploration_nodes:
+    #         if math.hypot(n.position.x - rx, n.position.y - ry) < self.approach_radius:
+    #             self.visited_nodes.append((n.position.x, n.position.y))
+    #     self.visited_nodes = self.visited_nodes[-self.max_visited:]
 
-    def _is_visited(self, node):
-        for vx, vy in self.visited_nodes:
-            if math.hypot(node.position.x - vx, node.position.y - vy) < self.approach_radius:
-                return True
-        return False
+    # def _is_visited(self, node):
+    #     for vx, vy in self.visited_nodes:
+    #         if math.hypot(node.position.x - vx, node.position.y - vy) < self.approach_radius:
+    #             return True
+    #     return False
 
     def _publish_arrays(self, exploration_nodes, detection_nodes):
         # --- Exploration nodes ---

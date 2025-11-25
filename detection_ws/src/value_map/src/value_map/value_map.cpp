@@ -153,7 +153,7 @@ void ValueMap::timerCallback()
     score = std::max(0.0, score);  // Ensure non-negative score
     score = std::min(1.0, score);  // Cap at 1.0
 
-    score = 1.0;        // TEMPORARY OVERRIDE. REMOVE AFTER TESTING.
+    // score = 1.0;        // TEMPORARY OVERRIDE. REMOVE AFTER TESTING.
     
     // Publish cosine similarity score
     publishCosineSimilarity(score);

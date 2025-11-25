@@ -117,7 +117,7 @@ controller_server:
       plugin: "nav2_mppi_controller::MPPIController"
       time_steps: 30
       model_dt: 0.1
-      batch_size: 300
+      batch_size: 200
       # vx_std: 0.2
       # vy_std: 0.2
       # wz_std: 0.4
@@ -162,7 +162,7 @@ controller_server:
       PreferForwardCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 5.0
+        cost_weight: 10.0
         threshold_to_consider: 0.5
       # Option to replace Cost and use Obstacles instead
       # ObstaclesCritic:

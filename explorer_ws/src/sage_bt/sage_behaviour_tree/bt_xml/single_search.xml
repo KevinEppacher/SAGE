@@ -16,7 +16,7 @@
         <ReactiveFallback>
           <Sequence name="Detection sequence">
             <IsDetected name="Target object detected?"
-                        detection_threshold="0.85"
+                        detection_threshold="0.80"
                         detection_graph_node_topic="/detection_graph_nodes/graph_nodes"
                         graph_nodes="{detected_graph_node}"/>
             <GoToGraphNode name="Go to likiest GraphNode"
