@@ -19,7 +19,7 @@
                         graph_nodes="{detected_graph_node}"
                         detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
                         time_threshold="1.000000"
-                        detection_threshold="0.35"/>
+                        detection_threshold="0.50"/>
             <ApproachPoseAdjustor search_radius="2.5"
                                   reachable_graph_node="{reachable_detection_graph_node}"
                                   graph_node="{detected_graph_node}">
@@ -32,7 +32,7 @@
                         graph_nodes="{detected_graph_node}"
                         detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
                         time_threshold="0"
-                        detection_threshold="0.6"/>
+                        detection_threshold="0.75"/>
             <SaveImageAction imageTopic="/yoloe/overlay"
                              savePath="{image_path}"/>
             <SetBlackboard value="true"
