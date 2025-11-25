@@ -75,7 +75,7 @@ class GoToGraphNode : public BT::StatefulActionNode
 public:
     GoToGraphNode(const std::string &name,
                   const BT::NodeConfiguration &config,
-                  rclcpp::Node::SharedPtr node);
+                  rclcpp::Node::SharedPtr nodePtr);
 
     static BT::PortsList providedPorts();
 
@@ -85,9 +85,11 @@ public:
 
 private:
     bool isWithinGoal(const graph_node_msgs::msg::GraphNode &node);
+    bool hasTargetChanged(const graph_node_msgs::msg::GraphNode &new_target);
 
     rclcpp::Node::SharedPtr node;
     std::shared_ptr<Robot> robot;
+
     std::shared_ptr<graph_node_msgs::msg::GraphNode> target;
 
     std::string mapFrame{"map"};
@@ -96,8 +98,12 @@ private:
 
     double approachRadius{2.0};
     double timeoutSec{60.0};
-    rclcpp::Time lastPublishTime;
+
     rclcpp::Time startTime;
+    rclcpp::Time lastPublishTime;
+
+    // snapshot used to detect target changes
+    graph_node_msgs::msg::GraphNode lastTargetSnapshot;
 };
 
 // ============================ RealignToObject ============================ //

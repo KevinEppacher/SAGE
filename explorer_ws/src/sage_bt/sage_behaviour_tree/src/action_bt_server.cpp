@@ -140,7 +140,8 @@ void SageBtActionNode::create_behavior_tree(const std::shared_ptr<GoalHandle> go
     factory.registerNodeType<ApproachPoseAdjustor>("ApproachPoseAdjustor", shared_from_this());
 
     // --- Export XML model for Groot2 ---
-    try {
+    try 
+    {
         const std::string model_path = "/tmp/sage_nodes_model.xml";
         std::string xml_content = BT::writeTreeNodesModelXML(factory);
         std::ofstream(model_path) << xml_content;
@@ -155,6 +156,8 @@ void SageBtActionNode::create_behavior_tree(const std::shared_ptr<GoalHandle> go
     blackboard_->set("location_file", location_file_);
     blackboard_->set("text_query", goal->prompt);
     blackboard_->set("image_path", goal->save_directory);
+    blackboard_->set("object_found", false);
+    blackboard_->set("any_exploration_nodes", true);
     blackboard_->set<std::shared_ptr<graph_node_msgs::msg::GraphNode>>(
         "detected_graph_node", std::make_shared<graph_node_msgs::msg::GraphNode>());
 
