@@ -14,6 +14,7 @@ import numpy as np
 from sensor_msgs.msg import PointCloud2
 from rcl_interfaces.msg import SetParametersResult
 from tf_transformations import euler_from_quaternion
+from rcl_interfaces.msg import ParameterDescriptor, FloatingPointRange
 
 # ===============================================================
 # Robot class: handles TF lookup and provides robot position
@@ -43,6 +44,7 @@ class Robot:
         except Exception as e:
             self.node.get_logger().warn(f"TF lookup failed: {e}", throttle_duration_sec=2.0)
             return self.last_pose
+
 
 # ===============================================================
 # Markers class: handles visualization
@@ -80,11 +82,6 @@ class Markers:
             for marker in self._make_sphere(n, idx, norm):
                 marker_array.markers.append(marker)
             idx += 1
-
-        # # --- Draw visited nodes (small blue dots) ---
-        # for vx, vy in visited_nodes[-200:]:
-        #     marker_array.markers.append(self._make_visited(vx, vy, idx))
-        #     idx += 1
 
         # --- Draw debug distance lines and text (if enabled) ---
         if self.debug_distance:
@@ -135,22 +132,6 @@ class Markers:
 
         return [m, t]
 
-    # def _make_visited(self, vx: float, vy: float, idx: int):
-    #     m = Marker()
-    #     m.header.frame_id = "map"
-    #     m.header.stamp = self.node.get_clock().now().to_msg()
-    #     m.ns = "visited_nodes"
-    #     m.id = idx
-    #     m.type = Marker.SPHERE
-    #     m.action = Marker.ADD
-    #     m.pose.position.x = vx
-    #     m.pose.position.y = vy
-    #     m.pose.position.z = 0.05
-    #     m.scale.x = m.scale.y = m.scale.z = 0.1
-    #     m.color = ColorRGBA(r=0.3, g=0.3, b=1.0, a=0.6)
-    #     m.lifetime.sec = 1
-    #     return m
-
     def _make_line(self, robot_pose, node_pose, idx: int):
         rx, ry, _ = robot_pose
         nx, ny = node_pose
@@ -196,9 +177,8 @@ class Markers:
 # NodeWeighter: handles scoring and weighting logic
 # ===============================================================
 class NodeWeighter:
-    def __init__(self, node, exploration_weight: float = 0.7):
+    def __init__(self, node):
         self.node = node
-        self.exploration_weight = exploration_weight
         self.value_map_points = None  # numpy array (x, y, intensity)
 
         # --- Dynamic parameters ---
@@ -206,11 +186,52 @@ class NodeWeighter:
         self.map_weight = 1.0
         self.mem_weight = 1.0
         self.mem_sigma = 0.5  # spatial falloff [m]
+        self.proximity_weight = 1.0
+        self.proximity_radius = 2.0
 
-        node.declare_parameter("weights.det_weight", 1.0)
-        node.declare_parameter("weights.map_weight", 1.0)
-        node.declare_parameter("weights.mem_weight", 1.0)
-        node.declare_parameter("weights.mem_sigma", 0.5)
+        range_0_3 = [FloatingPointRange(from_value=0.0, to_value=3.0, step=0.001)]
+        range_0_5 = [FloatingPointRange(from_value=0.0, to_value=5.0, step=0.001)]
+
+        node.declare_parameter(
+            "weights.det_weight",
+            1.0,
+            ParameterDescriptor(floating_point_range=range_0_3)
+        )
+        node.declare_parameter(
+            "weights.map_weight",
+            1.0,
+            ParameterDescriptor(floating_point_range=range_0_3)
+        )
+        node.declare_parameter(
+            "weights.mem_weight",
+            1.0,
+            ParameterDescriptor(floating_point_range=range_0_3)
+        )
+        node.declare_parameter(
+            "weights.mem_sigma",
+            0.5,
+            ParameterDescriptor(floating_point_range=range_0_5)
+        )
+        node.declare_parameter(
+            "weights.proximity_weight",
+            1.0,
+            ParameterDescriptor(floating_point_range=range_0_3)
+        )
+        node.declare_parameter(
+            "weights.proximity_radius",
+            2.0,
+            ParameterDescriptor(floating_point_range=range_0_5)
+        )
+
+        node.declare_parameter(
+            "weights.source_balance",
+            0.7,
+            ParameterDescriptor(
+                floating_point_range=[FloatingPointRange(from_value=0.0, to_value=1.0, step=0.001)]
+            )
+        )
+        self.source_balance = 0.7
+
 
         node.add_on_set_parameters_callback(self._param_callback)
 
@@ -241,6 +262,12 @@ class NodeWeighter:
                 self.mem_weight = max(0.0, min(1.0, p.value))
             elif p.name == "weights.mem_sigma":
                 self.mem_sigma = max(0.05, float(p.value))
+            elif p.name == "weights.proximity_weight":
+                self.proximity_weight = max(0.0, float(p.value))
+            elif p.name == "weights.proximity_radius":
+                self.proximity_radius = max(0.1, float(p.value))
+            elif p.name == "weights.source_balance":
+                self.source_balance = max(0.0, min(1.0, float(p.value)))
         res = SetParametersResult()
         res.successful = True
         return res
@@ -302,12 +329,19 @@ class NodeWeighter:
 
         # --- Exploration vs exploitation weighting ---
         for n in exploration_nodes:
-            # baseline
-            n.score *= self.exploration_weight
-            # add persistence weighting
-            n.score *= self._get_proximity_persistence(n.position.x, n.position.y, robot_pose)
+            # add small bias
+            if n.score == 0.0:
+                n.score = 0.01
+            n.score *= self.source_balance
+            n.score *= self._get_proximity_persistence(
+                n.position.x,
+                n.position.y,
+                robot_pose,
+                gain=self.proximity_weight,             # now dynamic
+                radius=self.proximity_radius            # now dynamic
+            )
         for n in exploitation_nodes:
-            n.score *= (1.0 - self.exploration_weight)
+            n.score *= (1.0 - self.source_balance)
 
         all_exp = exploration_nodes + exploitation_nodes
         all_exp.sort(key=lambda n: n.score, reverse=True)
@@ -352,7 +386,6 @@ class GraphNodeFusion(Node):
         # --- Parameters ---
         self.declare_parameter("approach_radius", 1.0)
         self.declare_parameter("max_visited", 200)
-        self.declare_parameter("exploration_weight", 0.7)
         self.declare_parameter("debug_distance", True)
         self.declare_parameter("exploration_topic", "/exploration_graph_nodes/graph_nodes")
         self.declare_parameter("exploitation_topic", "/exploitation_graph_nodes/graph_nodes")
@@ -364,7 +397,6 @@ class GraphNodeFusion(Node):
         gp = self.get_parameter
         self.approach_radius = gp("approach_radius").value
         self.max_visited = gp("max_visited").value
-        self.exploration_weight = gp("exploration_weight").value
         self.debug_distance = gp("debug_distance").value
         self.exploration_topic = gp("exploration_topic").value
         self.exploitation_topic = gp("exploitation_topic").value
@@ -390,13 +422,12 @@ class GraphNodeFusion(Node):
         # --- Modules ---
         self.robot = Robot(self)
         self.markers = Markers(self, debug_distance=self.debug_distance)
-        self.weighter = NodeWeighter(self, self.exploration_weight)
+        self.weighter = NodeWeighter(self)
 
         # --- State ---
         self.exploration_nodes = []
         self.exploitation_nodes = []
         self.detection_nodes = []
-        # self.visited_nodes = []
 
         self.create_timer(self.timer_period, self._loop)
         self.last_loop_time = self.get_clock().now()
@@ -423,8 +454,6 @@ class GraphNodeFusion(Node):
         if robot_pose is None:
             return
 
-        # self._update_visited(robot_pose)
-
         fused_exp, fused_det = self.weighter.weight_nodes(
             self.exploration_nodes, 
             self.exploitation_nodes, 
@@ -435,20 +464,6 @@ class GraphNodeFusion(Node):
         # fused_exp = [n for n in fused_exp if not self._is_visited(n)]
         self._publish_arrays(fused_exp, fused_det)
         self.markers.publish(fused_exp, fused_det, robot_pose)
-
-    # # ---------- Utilities ----------
-    # def _update_visited(self, robot_pose):
-    #     rx, ry, _= robot_pose
-    #     for n in self.exploration_nodes:
-    #         if math.hypot(n.position.x - rx, n.position.y - ry) < self.approach_radius:
-    #             self.visited_nodes.append((n.position.x, n.position.y))
-    #     self.visited_nodes = self.visited_nodes[-self.max_visited:]
-
-    # def _is_visited(self, node):
-    #     for vx, vy in self.visited_nodes:
-    #         if math.hypot(node.position.x - vx, node.position.y - vy) < self.approach_radius:
-    #             return True
-    #     return False
 
     def _publish_arrays(self, exploration_nodes, detection_nodes):
         # --- Exploration nodes ---
@@ -476,6 +491,7 @@ class GraphNodeFusion(Node):
         self.get_logger().debug(
             f"Published {len(exploration_nodes)} exploration nodes and {len(detection_nodes)} detection nodes."
         )
+
 
 def main(args=None):
     rclpy.init(args=args)

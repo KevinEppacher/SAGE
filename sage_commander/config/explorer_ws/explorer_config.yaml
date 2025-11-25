@@ -112,30 +112,27 @@ fused:
 fused:
   graph_node_fusion:
     ros__parameters:
-      # approach_radius: 1.8
       approach_radius: 0.0
       debug_distance: true
       detection_topic: /detection_graph_nodes/graph_nodes
       exploitation_topic: /exploitation_graph_nodes/graph_nodes
       exploration_topic: /filtered/exploration_graph_nodes/graph_nodes
       exploration_weight: 0.5
-      fused_topics:
-        detection_graph_nodes: detection_graph_nodes/graph_nodes
-        exploration_graph_nodes: exploration_graph_nodes/graph_nodes
+      fused_topics.detection_graph_nodes: detection_graph_nodes/graph_nodes
+      fused_topics.exploration_graph_nodes: exploration_graph_nodes/graph_nodes
       max_visited: 200
       timer_period: 0.1
-      weights:
-        det_weight: 1.0
-        map_weight: 1.0
-        mem_sigma: 0.5
-        mem_weight: 1.0
-        proximity_weight: 1.0
+      use_sim_time: true
+      weights.det_weight: 1.0
+      weights.map_weight: 1.0
+      weights.mem_sigma: 0.5
+      weights.mem_weight: 1.0
 
 explorer_relevance_map:
   relevance_map:
     ros__parameters:
-      angular_confidence_sharpness: 0.6
-      base_increment_rate: 0.01
+      angular_confidence_sharpness: 0.1
+      base_increment_rate: 0.5
       camera_info_topic: /camera_info
       debug_mode: true
       decay_factor: 1.0
@@ -155,7 +152,7 @@ explorer_relevance_map:
       qos_overrides./parameter_events.publisher.durability: volatile
       qos_overrides./parameter_events.publisher.history: keep_last
       qos_overrides./parameter_events.publisher.reliability: reliable
-      radial_confidence_sharpness: 1.0
+      radial_confidence_sharpness: 0.2
       raytracing_enabled: true
       relevance_threshold: 1.0
       robot.frame_map: map
