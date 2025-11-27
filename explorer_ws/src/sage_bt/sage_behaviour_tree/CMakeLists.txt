@@ -93,6 +93,7 @@ add_executable(sage_bt_action_node
     src/robot.cpp
     src/decorator.cpp
     src/semantic_prompt.cpp
+    src/observe_graph_nodes.cpp
 )
 
 # Link ROS 2 dependencies

@@ -5,6 +5,7 @@
 #include "sage_behaviour_tree/utils.hpp"
 #include "sage_behaviour_tree/decorator.hpp"
 #include "sage_behaviour_tree/semantic_prompt.hpp"
+#include "sage_behaviour_tree/observe_graph_nodes.hpp"
 
 #include <behaviortree_cpp/xml_parsing.h>
 #include <fstream>
