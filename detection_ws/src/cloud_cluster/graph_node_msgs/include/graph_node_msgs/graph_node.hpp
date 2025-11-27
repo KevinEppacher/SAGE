@@ -22,41 +22,35 @@ public:
     // === Setters ===
 
     /// \brief Sets the ID of the node.
-    /// \param id Integer reference for the node ID
-    void setId(int& id);
+    /// \param id Integer node ID
+    void setId(int id);
 
     /// \brief Sets the 3D position of the node.
-    /// \param position Reference to a geometry_msgs::msg::Point representing the node's centroid
-    void setPosition(geometry_msgs::msg::Point& position);
+    /// \param position geometry_msgs::msg::Point representing the node's centroid
+    void setPosition(const geometry_msgs::msg::Point& position);
 
     /// \brief Sets the semantic score of the node.
-    /// \param score Reference to the score (e.g., derived from color intensity or likelihood)
-    void setScore(double& score);
+    /// \param score Double value representing the score
+    void setScore(double score);
+
+    /// \brief Sets whether the node has been observed.
+    /// \param is_observed Boolean indicating observation status
+    bool getIsObserved() const;
+
+    /// \brief Sets whether the node has been observed.
+    /// \param is_observed Boolean indicating observation status
+    void setIsObserved(bool is_observed);
 
     // === Getters ===
-
-    /// \brief Gets the ID of the node.
-    /// \return Integer node ID
     int getId() const;
-
-    /// @brief Gets the GraphNode message representation.
-    /// @return graph_node_msgs::msg::GraphNode containing the node's data
-    graph_node_msgs::msg::GraphNode getGraphNode() const;
-
-    /// \brief Gets the position of the node.
-    /// \return geometry_msgs::msg::Point with the node's position
     geometry_msgs::msg::Point getPosition() const;
-
-    /// \brief Gets the semantic score of the node.
-    /// \return Double value representing the score
     double getScore() const;
 
-private:
-    // int id = 0;  ///< Unique identifier of the node
-    // geometry_msgs::msg::Point position;  ///< 3D position (e.g., centroid) of the node
-    // double score = 0.0;  ///< Semantic or relevance score
-    graph_node_msgs::msg::GraphNode graphNode;
+    /// \brief Gets the full GraphNode ROS message.
+    graph_node_msgs::msg::GraphNode getGraphNode() const;
 
+private:
+    graph_node_msgs::msg::GraphNode graphNode;
 };
 
 #endif // GRAPHNODE_H

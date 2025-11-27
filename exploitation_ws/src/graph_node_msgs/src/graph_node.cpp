@@ -1,50 +1,57 @@
 #include "graph_node_msgs/graph_node.hpp"
 
-GraphNode::GraphNode() 
+GraphNode::GraphNode()
 {
-    this->graphNode.id = 0;  // Default ID
-    this->graphNode.position.x = 0.0;  // Default position
-    this->graphNode.position.y = 0.0;  // Default position
-    this->graphNode.position.z = 0.0;  // Default position
-    this->graphNode.score = 0.0;  // Default score
+    graphNode.id = 0;
+    graphNode.position.x = 0.0;
+    graphNode.position.y = 0.0;
+    graphNode.position.z = 0.0;
+    graphNode.score = 0.0;
 }
 
-GraphNode::~GraphNode() 
-{
+GraphNode::~GraphNode() = default;
 
+void GraphNode::setId(int id)
+{
+    graphNode.id = id;
 }
 
-void GraphNode::setId(int& id) 
+void GraphNode::setPosition(const geometry_msgs::msg::Point& position)
 {
-    this->graphNode.id = id;
+    graphNode.position = position;
 }
 
-void GraphNode::setPosition(geometry_msgs::msg::Point& position) 
+void GraphNode::setScore(double score)
 {
-    this->graphNode.position = position;
-}
-
-void GraphNode::setScore(double& score) 
-{
-    this->graphNode.score = score;
+    graphNode.score = score;
 }
 
 int GraphNode::getId() const
 {
-    return this->graphNode.id;
+    return graphNode.id;
 }
 
 geometry_msgs::msg::Point GraphNode::getPosition() const
 {
-    return this->graphNode.position;
+    return graphNode.position;
 }
 
 double GraphNode::getScore() const
 {
-    return this->graphNode.score;
+    return graphNode.score;
 }
 
 graph_node_msgs::msg::GraphNode GraphNode::getGraphNode() const
 {
-    return this->graphNode;
+    return graphNode;
+}
+
+bool GraphNode::getIsObserved() const
+{
+    return graphNode.is_observed;
+}
+
+void GraphNode::setIsObserved(bool is_observed)
+{
+    graphNode.is_observed = is_observed;
 }
