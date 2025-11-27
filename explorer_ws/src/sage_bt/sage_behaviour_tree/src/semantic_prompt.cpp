@@ -34,7 +34,7 @@ BT::NodeStatus PublishSemanticPrompt::tick()
         qosSemanticPrompt.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
         qosSemanticPrompt.durability(RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL);
 
-        pub = node->create_publisher<multimodal_query_msgs::msg::SemanticPrompt>(topic_, 10);
+        pub = node->create_publisher<multimodal_query_msgs::msg::SemanticPrompt>(topic_, qosSemanticPrompt);
         RCLCPP_INFO(node->get_logger(),
                     ORANGE "[%s] Publisher created on topic '%s'" RESET,
                     name().c_str(), topic_.c_str());

@@ -6,6 +6,8 @@
       <CallEmptyService service_name="/value_map/clear"/>
       <PublishSemanticPrompt text_query="{text_query}"
                              topic="/user_prompt"/>
+      <PublishSemanticPrompt text_query="{text_query}"
+                             topic="/zero_shot_prompt"/>
       <SetParameterNode value="0.9995"
                         parameter_name="semantic_map.decay_factor"
                         target_node="/value_map/value_map"/>

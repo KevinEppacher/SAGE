@@ -6,6 +6,7 @@
 #include <graph_node_msgs/msg/graph_node_array.hpp>
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <geometry_msgs/msg/pose.hpp>
+#include "sage_behaviour_tree/utils.hpp"
 #include <memory>
 #include <vector>
 #include <string>
@@ -26,14 +27,19 @@ public:
     explicit GraphNodeManager(rclcpp::Node::SharedPtr node);
 
     bool noRecentGraph();
+    bool checkTimeouts();
     std::shared_ptr<graph_node_msgs::msg::GraphNode> getBestScoreNode() const;
     bool allNodesObserved() const;
+    void shutdown();  // Graceful cleanup
+
+    // Accessor for logging
+    rclcpp::Logger getLogger() const { return node->get_logger(); }
 
     graph_node_msgs::msg::GraphNodeArray::SharedPtr latestGraph;
     nav_msgs::msg::OccupancyGrid::SharedPtr latestMap;
 
 private:
-    rclcpp::Node::SharedPtr node;
+    rclcpp::Node::SharedPtr node;  // <-- stays private
     rclcpp::Subscription<graph_node_msgs::msg::GraphNodeArray>::SharedPtr subGraph;
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr subMap;
 
@@ -68,7 +74,7 @@ class SpinController {
 public:
     enum class State { IDLE, SPINNING_MIN, SPINNING_HOME, SPINNING_MAX, DONE };
 
-    explicit SpinController(std::unique_ptr<Robot>& robot);
+    SpinController(std::unique_ptr<Robot>& robot, rclcpp::Node::SharedPtr node);
 
     bool shouldTriggerSpin(const geometry_msgs::msg::Pose& pose, double threshold);
     void configure(double minYaw, double maxYaw);
@@ -80,11 +86,13 @@ public:
 
 private:
     std::unique_ptr<Robot>& robot;
+    rclcpp::Node::SharedPtr node;  // <-- new
     geometry_msgs::msg::Pose lastSpinPose;
     bool lastSpinPoseValid = false;
     double minYaw = 0.0, homeYaw = 0.0, maxYaw = 0.0;
     State state = State::IDLE;
 };
+
 
 // ============================================================
 // VisibilityAnalyzer
@@ -133,13 +141,25 @@ private:
     std::unique_ptr<SpinController> spinCtrl;
     std::unique_ptr<VisibilityAnalyzer> visibility;
 
+    bool checkTimeout(BT::NodeStatus& outStatus);
+    bool setRemoteParameter(const std::string& targetNode,
+                        const std::string& paramName,
+                        double value,
+                        double timeoutSec = 2.0);
+
     // Parameters
     bool performRayTracing = false;
     double sightHorizon = 10.0;
     double spinDistanceThreshold = 1.0;
+    double timeoutSec = 30.0;
     std::string graphNodeTopic = "/fused/exploration_graph_nodes/graph_nodes";
     std::string mapFrame = "map";
     std::string robotFrame = "base_link";
+
+    // Timer
+    rclcpp::Clock steadyClock{RCL_STEADY_TIME};
+    rclcpp::Time startTime;
+    bool timerActive = false;
 };
 
 #endif  // OBSERVE_GRAPH_NODES_HPP
