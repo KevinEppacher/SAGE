@@ -30,6 +30,12 @@ Robot::Robot(rclcpp::Node::SharedPtr nodePtr)
         "/global_costmap/costmap",
         rclcpp::QoS(1).transient_local().reliable(),
         std::bind(&Robot::costmapCallback, this, std::placeholders::_1));
+
+    // Subscribe to /map instead of /global_costmap/costmap
+    mapSub = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
+        "/map",
+        rclcpp::QoS(1).transient_local().reliable(),
+        std::bind(&Robot::mapCallback, this, std::placeholders::_1));
 }
 
 bool Robot::getPose(geometry_msgs::msg::Pose& outPose,
@@ -222,6 +228,11 @@ std::shared_ptr<nav_msgs::msg::OccupancyGrid> Robot::getGlobalCostmap()
 void Robot::costmapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg)
 {
     latestCostmap = msg;
+}
+
+void Robot::mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg)
+{
+    latestMap = msg;
 }
 
 bool Robot::spinRelativeTo(const std::string& frame, double targetYawAbs, double durationSec)

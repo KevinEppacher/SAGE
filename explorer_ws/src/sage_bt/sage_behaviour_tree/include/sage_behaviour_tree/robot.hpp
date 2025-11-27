@@ -46,6 +46,7 @@ public:
 
 private:
     void costmapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
+    void mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
 
     rclcpp::Node::SharedPtr node;
     std::shared_ptr<tf2_ros::Buffer> tfBuffer;
@@ -59,8 +60,10 @@ private:
     rclcpp_action::ResultCode spinResult{rclcpp_action::ResultCode::UNKNOWN};
 
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr costmapSub;
+    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr mapSub;
 
     std::shared_ptr<nav_msgs::msg::OccupancyGrid> latestCostmap;
+    std::shared_ptr<nav_msgs::msg::OccupancyGrid> latestMap;
 
     bool spinDone{false};
     bool halted{false};
