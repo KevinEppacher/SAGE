@@ -151,20 +151,23 @@ private:
     // === Spin state ===
     struct ScanState {
         bool spinningToMin = false;
+        bool spinningHome = false;
         bool spinningToMax = false;
         bool finishedMin = false;
+        bool finishedHome = false;
         bool finishedMax = false;
         double minYaw = 0.0;
+        double homeYaw = 0.0;
         double maxYaw = 0.0;
-    } scan;
+    };
 
-    
+    ScanState scan;
+
     bool shouldTriggerSpin(const geometry_msgs::msg::Pose& pose);
     bool lastSpinPoseValid;
     geometry_msgs::msg::Pose lastSpinPose;
     bool computeVisibleYawSpan(double& outMinYaw, double& outMaxYaw);
     bool isVisible(const graph_node_msgs::msg::GraphNode& n,
                    const geometry_msgs::msg::Pose& pose);
-    std::shared_ptr<graph_node_msgs::msg::GraphNode> computeBestExplorerNode();
-    bool allVisibleNodesObserved();
+    std::shared_ptr<graph_node_msgs::msg::GraphNode> findBestScoringNode() const;
 };
