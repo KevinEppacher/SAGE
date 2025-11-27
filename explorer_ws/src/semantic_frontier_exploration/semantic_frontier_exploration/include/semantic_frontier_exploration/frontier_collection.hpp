@@ -29,6 +29,7 @@ public:
     std::vector<Frontier> clusterFrontierGrid(const nav_msgs::msg::OccupancyGrid::SharedPtr& frontierGrid);
     void publishFrontiers(const std::vector<Frontier>& frontiers);
     void publishGraphNodes(const std::vector<Frontier>& frontiers);
+    void setPreviousCentroids(const std::unordered_map<int, geometry_msgs::msg::Point>& centroids);
 
 private:
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr frontierGridPub;
@@ -48,10 +49,12 @@ private:
     void clockCallback(const rosgraph_msgs::msg::Clock::SharedPtr msg);
 
     void getParameters();
-    void publishGraphNodesMarker(const graph_node_msgs::msg::GraphNodeArray &msg);
-
+    int matchFrontierId(const geometry_msgs::msg::Point& centroid);
 
     rclcpp::Clock::SharedPtr clock; ///< Clock used for timestamping markers
+    std::unordered_map<int, geometry_msgs::msg::Point> previousCentroids;
+    int nextFrontierId = 0;
+    double frontierMatchingDistance;
 
     /// \brief Minimum cluster size (in points)
     int minClusterSize;

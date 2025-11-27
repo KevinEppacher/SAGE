@@ -16,12 +16,15 @@ public:
     void setCentroid(const geometry_msgs::msg::Point& centroid);
     void setScore(double score);
     void setDistanceToRobot(double distance);
+    void setId(int id);
+
     geometry_msgs::msg::Point getPointAt(int index) const;
     geometry_msgs::msg::Point getCentroid() const;
     double getScore() const;
     double getDistanceToRobot() const;
     frontier_msgs::msg::Frontier getFrontier() const;
     void clearFrontier();
+    int getId() const { return frontier.id; }
 
 private:
     // Markers

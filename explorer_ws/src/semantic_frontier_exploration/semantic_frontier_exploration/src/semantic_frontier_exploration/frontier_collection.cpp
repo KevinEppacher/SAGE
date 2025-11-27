@@ -30,9 +30,11 @@ void FrontierCollection::getParameters()
 {
     node->declare_parameter("min_cluster_size", 5);
     node->declare_parameter("max_cluster_size", 150);
+    node->declare_parameter("frontier_matching_distance", 0.1);
 
     node->get_parameter("min_cluster_size", minClusterSize);
     node->get_parameter("max_cluster_size", maxClusterSize);
+    node->get_parameter("frontier_matching_distance", frontierMatchingDistance);
 
     RCLCPP_INFO(node->get_logger(), "Loaded parameters:");
     for (const auto &name : node->list_parameters({}, 10).names)
@@ -220,8 +222,9 @@ std::vector<Frontier> FrontierCollection::clusterFrontierGrid(const nav_msgs::ms
                 centroid.x /= cluster.size();
                 centroid.y /= cluster.size();
                 frontier.setCentroid(centroid);
+                int id = matchFrontierId(centroid);
+                frontier.setId(id);
                 clusteredFrontiers.push_back(frontier);
-                // std::this_thread::sleep_for(std::chrono::seconds(2));
             }
         }
     }
@@ -320,4 +323,41 @@ void FrontierCollection::publishGraphNodes(const std::vector<Frontier>& frontier
 void FrontierCollection::clockCallback(const rosgraph_msgs::msg::Clock::SharedPtr msg)
 {
     latestClock = msg->clock;
+}
+
+int FrontierCollection::matchFrontierId(const geometry_msgs::msg::Point& centroid)
+{
+    double maxDist = frontierMatchingDistance; // meters
+    double bestDist = 1e9;
+    int bestId = -1;
+
+    for (const auto& entry : previousCentroids)
+    {
+        int id = entry.first;
+        const auto& old = entry.second;
+
+        double dx = old.x - centroid.x;
+        double dy = old.y - centroid.y;
+        double dist = std::sqrt(dx*dx + dy*dy);
+
+        if (dist < maxDist && dist < bestDist)
+        {
+            bestDist = dist;
+            bestId = id;
+        }
+    }
+
+    // No match → create new ID
+    if (bestId < 0)
+    {
+        bestId = nextFrontierId++;
+    }
+
+    previousCentroids[bestId] = centroid;
+    return bestId;
+}
+
+void FrontierCollection::setPreviousCentroids(const std::unordered_map<int, geometry_msgs::msg::Point>& centroids)
+{
+    this->previousCentroids = centroids;
 }

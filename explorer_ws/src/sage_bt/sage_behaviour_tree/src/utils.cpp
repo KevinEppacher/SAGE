@@ -5,6 +5,19 @@
 
 using namespace std::chrono_literals;
 
+inline bool cellIsOccupied(const nav_msgs::msg::OccupancyGrid& map, int mx, int my)
+{
+    if (mx < 0 || my < 0) return false;
+    if (mx >= static_cast<int>(map.info.width)) return false;
+    if (my >= static_cast<int>(map.info.height)) return false;
+
+    int idx = my * map.info.width + mx;
+    int8_t value = map.data[idx];
+
+    return value >= 50;   // standard ROS threshold
+}
+
+
 // -------------------- SetParameterNode -------------------- //
 
 SetParameterNode::SetParameterNode(const std::string& name,
@@ -345,3 +358,390 @@ void CallEmptyService::onHalted()
                 YELLOW "[%s] Halted while waiting for '%s'." RESET,
                 name().c_str(), serviceName.c_str());
 }
+
+// -------------------- ObserveGraphNodes -------------------- //
+
+ObserveGraphNodes::ObserveGraphNodes(
+    const std::string& name,
+    const BT::NodeConfiguration& config,
+    rclcpp::Node::SharedPtr nodePtr)
+    : BT::StatefulActionNode(name, config),
+      node(std::move(nodePtr)),
+      robot(std::make_unique<Robot>(node))
+{
+    node->declare_parameter("observe.perform_raytracing", false);
+    node->declare_parameter("observe.sight_horizon", 10.0);
+    node->declare_parameter("observe.graph_node_topic", graphNodeTopic);
+    node->declare_parameter("observe.map_frame", mapFrame);
+    node->declare_parameter("observe.robot_frame", robotFrame);
+    node->declare_parameter("observe.spin_distance_threshold", 1.0);
+
+    performRayTracing = node->get_parameter("observe.perform_raytracing").as_bool();
+    sightHorizon = node->get_parameter("observe.sight_horizon").as_double();
+    graphNodeTopic = node->get_parameter("observe.graph_node_topic").as_string();
+    mapFrame = node->get_parameter("observe.map_frame").as_string();
+    robotFrame = node->get_parameter("observe.robot_frame").as_string();
+    spinDistanceThreshold = node->get_parameter("observe.spin_distance_threshold").as_double();
+
+    // ----------- GraphNodes Subscriber -----------
+    subGraph = node->create_subscription<graph_node_msgs::msg::GraphNodeArray>(
+        graphNodeTopic, 10,
+        [this](graph_node_msgs::msg::GraphNodeArray::SharedPtr msg)
+        {
+            latestGraph = std::move(msg);
+            haveGraph = true;
+            receivedGraph = true;
+            missedGraphTicks = 0;
+        });
+
+    // ----------- Map Subscriber -----------
+    subMap = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
+        "/map",
+        rclcpp::QoS(1).transient_local().reliable(),
+        [this](nav_msgs::msg::OccupancyGrid::SharedPtr msg)
+        {
+            latestMap = std::move(msg);
+            haveMap = true;
+        });
+}
+
+BT::PortsList ObserveGraphNodes::providedPorts()
+{
+    return {
+        BT::OutputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("likiest_explorer_node"),
+        BT::OutputPort<bool>("any_exploration_nodes")
+    };
+}
+
+BT::NodeStatus ObserveGraphNodes::onStart()
+{
+    scan = {};
+
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[%s] Start observing graph nodes..." RESET,
+                name().c_str());
+
+    // ---------------------------
+    // Missed tick handling
+    // ---------------------------
+    if (!receivedGraph)
+    {
+        missedGraphTicks++;
+
+        RCLCPP_INFO(node->get_logger(),
+                    ORANGE "[%s] Waiting for graph nodes... (%d/%d)" RESET,
+                    name().c_str(), missedGraphTicks, maxMissedTicks);
+
+        if (missedGraphTicks > maxMissedTicks)
+        {
+            RCLCPP_WARN(node->get_logger(),
+                        YELLOW "[%s] Graph node stream silent → keep RUNNING" RESET,
+                        name().c_str());
+
+            setOutput("any_exploration_nodes", true);
+            return BT::NodeStatus::RUNNING;
+        }
+
+        return BT::NodeStatus::RUNNING;
+    }
+
+    // We have at least one message
+    receivedGraph = false;
+
+    if (!latestGraph || latestGraph->nodes.empty())
+    {
+        RCLCPP_INFO(node->get_logger(),
+                    ORANGE "[%s] Graph nodes empty → RUNNING" RESET,
+                    name().c_str());
+
+        setOutput("any_exploration_nodes", true);
+        return BT::NodeStatus::RUNNING;
+    }
+
+    // ----------------------------------------------------------------------
+    // Get robot pose
+    // ----------------------------------------------------------------------
+    geometry_msgs::msg::Pose robotPose;
+    if (!robot->getPose(robotPose, mapFrame, robotFrame))
+    {
+        RCLCPP_INFO(node->get_logger(),
+                    ORANGE "[%s] Robot pose not available yet..." RESET,
+                    name().c_str());
+        return BT::NodeStatus::RUNNING;
+    }
+
+    // ----------------------------------------------------------------------
+    // FILTER: UNOBSERVED + VISIBLE nodes only
+    // ----------------------------------------------------------------------
+    std::vector<const graph_node_msgs::msg::GraphNode*> unobservedVisible;
+
+    for (const auto& n : latestGraph->nodes)
+    {
+        if (n.is_observed)
+            continue;
+
+        if (!isVisible(n, robotPose))
+            continue;
+
+        unobservedVisible.push_back(&n);
+    }
+
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[%s] Visible unobserved nodes: %zu" RESET,
+                name().c_str(), unobservedVisible.size());
+
+    // ----------------------------------------------------------------------
+    // If no unobserved visible → SUCCESS (nothing to scan)
+    // ----------------------------------------------------------------------
+    if (unobservedVisible.empty())
+    {
+        RCLCPP_INFO(node->get_logger(),
+                    GREEN "[%s] No unobserved visible nodes → SUCCESS" RESET,
+                    name().c_str());
+
+        // setOutput("any_exploration_nodes", false);
+        return BT::NodeStatus::SUCCESS;
+    }
+
+    // ----------------------------------------------------------------------
+    // Publish any unobserved visible node as "likiest_explorer_node"
+    // ----------------------------------------------------------------------
+    auto bestNode = std::make_shared<graph_node_msgs::msg::GraphNode>(*unobservedVisible.front());
+    setOutput("likiest_explorer_node", bestNode);
+    setOutput("any_exploration_nodes", true);
+
+    // ----------------------------------------------------------------------
+    // Spin Gating
+    // ----------------------------------------------------------------------
+    if (!shouldTriggerSpin(robotPose))
+    {
+        RCLCPP_INFO(node->get_logger(),
+                    GREEN "[%s] Robot did not move enough → skipping spin (SUCCESS)" RESET,
+                    name().c_str());
+        return BT::NodeStatus::SUCCESS;
+    }
+
+    // ----------------------------------------------------------------------
+    // Compute yaw span of unobserved+visible nodes
+    // ----------------------------------------------------------------------
+    double minYaw = 0.0;
+    double maxYaw = 0.0;
+
+    if (!computeVisibleYawSpan(minYaw, maxYaw))
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    YELLOW "[%s] No visible unobserved nodes → SUCCESS" RESET,
+                    name().c_str());
+        return BT::NodeStatus::SUCCESS;
+    }
+
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[%s] Visible yaw span: [%.1f°, %.1f°]" RESET,
+                name().c_str(), minYaw * 180.0/M_PI, maxYaw * 180.0/M_PI);
+
+    scan.minYaw = minYaw;
+    scan.maxYaw = maxYaw;
+
+    // ----------------------------------------------------------------------
+    // Start spinning LEFT first
+    // ----------------------------------------------------------------------
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[%s] Spinning to MIN yaw %.1f° (absolute)..." RESET,
+                name().c_str(), scan.minYaw * 180.0/M_PI);
+
+    robot->spinRelativeTo("map", scan.minYaw, 4.0);
+    scan.spinningToMin = true;
+    return BT::NodeStatus::RUNNING;
+}
+
+BT::NodeStatus ObserveGraphNodes::onRunning()
+{
+    if (scan.spinningToMin)
+    {
+        if (robot->isSpinDone())
+        {
+            RCLCPP_INFO(node->get_logger(),
+                        GREEN "[%s] Finished spin to MIN yaw" RESET,
+                        name().c_str());
+
+            scan.spinningToMin = false;
+            scan.finishedMin = true;
+
+            // Second spin — ABSOLUTE TURN again
+            RCLCPP_INFO(node->get_logger(),
+                        ORANGE "[%s] Spinning to MAX yaw %.1f° (absolute)..." RESET,
+                        name().c_str(), scan.maxYaw * 180.0/M_PI);
+
+            robot->spinRelativeTo("map", scan.maxYaw, 4.0);
+            scan.spinningToMax = true;
+        }
+        return BT::NodeStatus::RUNNING;
+    }
+
+    if (scan.spinningToMax)
+    {
+        if (robot->isSpinDone())
+        {
+            RCLCPP_INFO(node->get_logger(),
+                        GREEN "[%s] Finished spin to MAX yaw → SUCCESS" RESET,
+                        name().c_str());
+
+            scan.spinningToMax = false;
+            scan.finishedMax = true;
+            return BT::NodeStatus::SUCCESS;
+        }
+        return BT::NodeStatus::RUNNING;
+    }
+
+    return BT::NodeStatus::SUCCESS;
+}
+
+void ObserveGraphNodes::onHalted()
+{
+    robot->cancelSpin();
+    RCLCPP_INFO(node->get_logger(),
+                YELLOW "[%s] Spin halted by Behavior Tree." RESET,
+                name().c_str());
+}
+
+bool ObserveGraphNodes::shouldTriggerSpin(const geometry_msgs::msg::Pose& pose)
+{
+    if (!lastSpinPoseValid)
+    {
+        lastSpinPose = pose;
+        lastSpinPoseValid = true;
+        return true;
+    }
+
+    double dx = pose.position.x - lastSpinPose.position.x;
+    double dy = pose.position.y - lastSpinPose.position.y;
+
+    if (std::hypot(dx, dy) > spinDistanceThreshold)
+    {
+        lastSpinPose = pose;
+        return true;
+    }
+
+    return false;
+}
+
+bool ObserveGraphNodes::computeVisibleYawSpan(double& outMinYaw, double& outMaxYaw)
+{
+    if (!latestGraph)
+        return false;
+
+    geometry_msgs::msg::Pose pose;
+    if (!robot->getPose(pose, mapFrame, robotFrame))
+        return false;
+
+    const double rx = pose.position.x;
+    const double ry = pose.position.y;
+
+    std::vector<double> yaws;
+    yaws.reserve(latestGraph->nodes.size());
+
+    for (const auto& n : latestGraph->nodes)
+    {
+        // Only UNOBSERVED nodes
+        if (n.is_observed)
+            continue;
+
+        // Must be visible (raytracing + distance)
+        if (!isVisible(n, pose))
+            continue;
+
+        double dx = n.position.x - rx;
+        double dy = n.position.y - ry;
+
+        // ABSOLUTE yaw in MAP frame
+        double globalYaw = std::atan2(dy, dx);
+
+        yaws.push_back(globalYaw);
+    }
+
+    if (yaws.empty())
+        return false;
+
+    auto [minIt, maxIt] = std::minmax_element(yaws.begin(), yaws.end());
+    outMinYaw = *minIt;
+    outMaxYaw = *maxIt;
+
+    return true;
+}
+
+
+bool ObserveGraphNodes::isVisible(
+    const graph_node_msgs::msg::GraphNode& n,
+    const geometry_msgs::msg::Pose& pose)
+{
+    double dx = n.position.x - pose.position.x;
+    double dy = n.position.y - pose.position.y;
+    double dist = std::hypot(dx, dy);
+
+    if (dist > sightHorizon)
+        return false;
+
+    if (!performRayTracing || !latestMap)
+        return true;
+
+    // Bresenham raytracing
+    const auto& map = *latestMap;
+
+    const double res = map.info.resolution;
+    const double originX = map.info.origin.position.x;
+    const double originY = map.info.origin.position.y;
+
+    auto worldToMap = [&](double wx, double wy, int& mx, int& my)
+    {
+        mx = static_cast<int>((wx - originX) / res);
+        my = static_cast<int>((wy - originY) / res);
+    };
+
+    int rx, ry, tx, ty;
+    worldToMap(pose.position.x, pose.position.y, rx, ry);
+    worldToMap(n.position.x,     n.position.y,     tx, ty);
+
+    if (rx < 0 || ry < 0 || tx < 0 || ty < 0 ||
+        rx >= (int)map.info.width || ry >= (int)map.info.height ||
+        tx >= (int)map.info.width || ty >= (int)map.info.height)
+    {
+        return true;
+    }
+
+    int x0 = rx, y0 = ry;
+    int x1 = tx, y1 = ty;
+
+    int dx_i = std::abs(x1 - x0);
+    int dy_i = std::abs(y1 - y0);
+    int sx = (x0 < x1) ? 1 : -1;
+    int sy = (y0 < y1) ? 1 : -1;
+    int err = dx_i - dy_i;
+
+    while (true)
+    {
+        if (!(x0 == rx && y0 == ry))
+        {
+            if (cellIsOccupied(map, x0, y0))
+                return false;
+        }
+
+        if (x0 == x1 && y0 == y1)
+            break;
+
+        int e2 = 2 * err;
+
+        if (e2 > -dy_i)
+        {
+            err -= dy_i;
+            x0 += sx;
+        }
+        if (e2 < dx_i)
+        {
+            err += dx_i;
+            y0 += sy;
+        }
+    }
+
+    return true;
+}
+

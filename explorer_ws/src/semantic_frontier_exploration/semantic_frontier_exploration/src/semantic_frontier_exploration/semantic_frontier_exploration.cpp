@@ -1,5 +1,12 @@
 #include "semantic_frontier_exploration.hpp"
 
+struct ValueMapInfo
+{
+    bool observed = false;
+    double score = 0.0;
+};
+
+
 SemanticFrontier::SemanticFrontier() : Node("cluster_node") 
 {
     // Constructor implementation
@@ -101,50 +108,53 @@ rcl_interfaces::msg::SetParametersResult SemanticFrontier::onParameterChange(con
 
 void SemanticFrontier::timerCallback()
 {
-    if(occGrid.get() == nullptr) 
+    if (!occGrid)
     {
         RCLCPP_WARN(this->get_logger(), "Occupancy grid is not available yet.");
         return;
     }
 
-    // Process the occupancy grid and detect all frontiers/points
+    // 1. Frontier detection
     nav_msgs::msg::OccupancyGrid frontierGrid = frontiers->detectFrontierGrid(occGrid);
-
     auto frontierGridPtr = std::make_shared<nav_msgs::msg::OccupancyGrid>(frontierGrid);
-    std::vector<Frontier> clusteredFrontiers = frontiers->clusterFrontierGrid(frontierGridPtr);
+    std::vector<Frontier> frontiersFound = frontiers->clusterFrontierGrid(frontierGridPtr);
 
     graphNodes->clear();
-    int i = 0;
-    for (auto& frontier : clusteredFrontiers)
+
+    // 2. Build GraphNodes
+    for (auto& frontier : frontiersFound)
     {
-        int id = i++;
-        GraphNode graphNode;
         geometry_msgs::msg::Point centroid = frontier.getCentroid();
-        graphNode.setPosition(centroid);
-        double score = getScoreFromValueMap(valueMapPcl, centroid);
-        if (score < 0.0) continue;  // Skip frontiers with low scores
-        graphNode.setScore(score);
-        graphNode.setId(id);
-        graphNodes->addNode(graphNode);
-        
+        ValueMapInfo info = getScoreFromValueMap(valueMapPcl, centroid);
+        GraphNode node;
+        int id = frontier.getId();
+        node.setId(id);
+        node.setPosition(centroid);
+        node.setScore(info.score);
+        node.setIsObserved(info.observed);
+
+        graphNodes->addNode(node);
     }
 
+    // 3. Publish
     graphNodes->publishPosMarkers();
-
     graphNodes->publishGraphNodeArray();
-
-    // frontiers->publishFrontiers(scoredFrontiers);
-
-    // frontiers->publishGraphNodes(scoredFrontiers);
 }
 
-float SemanticFrontier::getScoreFromValueMap(const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud, const geometry_msgs::msg::Point& pos)
-{
-    if (!cloud || cloud->empty()) return 0.0f;
 
-    float radius = 0.3;  // Meter
-    float radius_squared = radius * radius;
-    float best_score = 0.0f;
+ValueMapInfo SemanticFrontier::getScoreFromValueMap(
+    const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud,
+    const geometry_msgs::msg::Point& pos)
+{
+    ValueMapInfo info;
+
+    if (!cloud || cloud->empty()) 
+        return info;
+
+    constexpr float radius = 0.3f;
+    const float r2 = radius * radius;
+
+    double best = 0.0;
     bool found = false;
 
     for (const auto& pt : cloud->points)
@@ -153,15 +163,18 @@ float SemanticFrontier::getScoreFromValueMap(const pcl::PointCloud<pcl::PointXYZ
         float dy = pt.y - pos.y;
         float dz = pt.z - pos.z;
 
-        float dist_sq = dx * dx + dy * dy + dz * dz;
-
-        if (dist_sq < radius_squared)
+        if ((dx*dx + dy*dy + dz*dz) < r2)
         {
-            best_score = std::max(best_score, pt.intensity);
+            best = std::max(best, static_cast<double>(pt.intensity));
             found = true;
         }
     }
 
-    return found ? best_score : 0.0f;
-}
+    if (found)
+    {
+        info.observed = true;
+        info.score = best;
+    }
 
+    return info;
+}

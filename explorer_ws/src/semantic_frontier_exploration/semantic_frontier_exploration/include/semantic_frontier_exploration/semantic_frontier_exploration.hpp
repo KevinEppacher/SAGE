@@ -12,8 +12,11 @@
 #include "geometry_msgs/msg/point.hpp"
 #include "frontier_collection.hpp"
 #include <pcl_conversions/pcl_conversions.h>
+#include "graph_node_msgs/msg/graph_node.hpp"
 #include "graph_node_msgs/msg/graph_node_array.hpp"
 #include "graph_node_msgs/graph_node_collection.hpp"
+
+struct ValueMapInfo;
 
 class SemanticFrontier : public rclcpp::Node {
 public:
@@ -41,7 +44,7 @@ private:
 
     // Miscellaneous Functions
     void getParameters();
-    float getScoreFromValueMap(const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud, const geometry_msgs::msg::Point& pos);
+    ValueMapInfo getScoreFromValueMap(const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud, const geometry_msgs::msg::Point& pos);
 
 
     //************ Member Variables ************//
