@@ -189,59 +189,57 @@ BT::PortsList GoToGraphNode::providedPorts()
 
 BT::NodeStatus GoToGraphNode::onStart()
 {
-    // Read the target from blackboard
     auto input = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node");
     if (!input)
     {
         RCLCPP_WARN(node->get_logger(),
-                    "[%s] No graph_node input → FAILURE", name().c_str());
+                    "%s[%s] No graph_node input → %sFAILURE%s",
+                    RED, name().c_str(), RED, RESET);
         return BT::NodeStatus::FAILURE;
     }
 
     target = input.value();
     target->position.z = 0.0;
-
     lastTargetSnapshot = *target;
 
-    // Cancel existing goals
     robot->cancelNavigationGoals();
-
-    // Send initial goal
     robot->publishGoalToTarget(*target, goalTopic, mapFrame);
 
     startTime = node->now();
     lastPublishTime = startTime;
 
     RCLCPP_INFO(node->get_logger(),
-                "[%s] Initial goal → (%.2f, %.2f)",
-                name().c_str(),
-                target->position.x, target->position.y);
+                "%s[%s] Initial goal → (%.2f, %.2f)%s",
+                BLUE, name().c_str(),
+                target->position.x, target->position.y,
+                RESET);
 
     return BT::NodeStatus::RUNNING;
 }
 
 BT::NodeStatus GoToGraphNode::onRunning()
 {
-    // Read the latest target every tick
+    // --- Read latest input ---
     auto input = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node");
     if (!input)
     {
         RCLCPP_WARN(node->get_logger(),
-                    "[%s] Lost graph_node input → FAILURE",
-                    name().c_str());
+                    "%s[%s] Lost graph_node input → %sFAILURE%s",
+                    RED, name().c_str(), RED, RESET);
         return BT::NodeStatus::FAILURE;
     }
 
     auto newTarget = input.value();
     newTarget->position.z = 0.0;
 
-    // Check if target changed
+    // --- Detect target change ---
     if (hasTargetChanged(*newTarget))
     {
         RCLCPP_INFO(node->get_logger(),
-                    "[%s] GraphNode changed → Switching to new target (%.2f, %.2f)",
-                    name().c_str(),
-                    newTarget->position.x, newTarget->position.y);
+                    "%s[%s] GraphNode changed → Switching to new target (%.2f, %.2f)%s",
+                    ORANGE, name().c_str(),
+                    newTarget->position.x, newTarget->position.y,
+                    RESET);
 
         target = newTarget;
         lastTargetSnapshot = *newTarget;
@@ -255,31 +253,38 @@ BT::NodeStatus GoToGraphNode::onRunning()
         return BT::NodeStatus::RUNNING;
     }
 
-    // Timeout check
+    // --- Timeout check ---
     double elapsed = (node->now() - startTime).seconds();
     if (elapsed > timeoutSec)
     {
-        RCLCPP_WARN(node->get_logger(),
-                    "[%s] Timeout %.1f s → FAILURE",
-                    name().c_str(), elapsed);
+        RCLCPP_ERROR(node->get_logger(),
+                     "%s[%s] Timeout after %.1f s (limit %.1f s) → %sFAILURE%s",
+                     RED, name().c_str(), elapsed, timeoutSec, RED, RESET);
         robot->cancelNavigationGoals();
         return BT::NodeStatus::FAILURE;
     }
 
-    // Check arrival
+    // --- Check if goal reached ---
     if (isWithinGoal(*target))
     {
         RCLCPP_INFO(node->get_logger(),
-                    "[%s] Goal reached → SUCCESS", name().c_str());
+                    "%s[%s] Goal reached → %sSUCCESS%s",
+                    GREEN, name().c_str(), GREEN, RESET);
         robot->cancelNavigationGoals();
         return BT::NodeStatus::SUCCESS;
     }
 
-    // Periodic republish
+    // --- Periodic republish ---
     if ((node->now() - lastPublishTime).seconds() > 1.0)
     {
         robot->publishGoalToTarget(*target, goalTopic, mapFrame);
         lastPublishTime = node->now();
+
+        RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 2000,
+                             "%s[%s] Re-publishing goal (%.2f, %.2f) → %sRUNNING%s",
+                             ORANGE, name().c_str(),
+                             target->position.x, target->position.y,
+                             ORANGE, RESET);
     }
 
     return BT::NodeStatus::RUNNING;
@@ -289,8 +294,10 @@ void GoToGraphNode::onHalted()
 {
     robot->cancelNavigationGoals();
     RCLCPP_INFO(node->get_logger(),
-                "[%s] Navigation halted.", name().c_str());
+                "%s[%s] Navigation halted.%s",
+                YELLOW, name().c_str(), RESET);
 }
+
 
 bool GoToGraphNode::hasTargetChanged(const graph_node_msgs::msg::GraphNode &new_target)
 {
