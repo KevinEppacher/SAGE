@@ -32,22 +32,33 @@ GraphNodeManager::GraphNodeManager(rclcpp::Node::SharedPtr nodePtr)
             latestGraph = std::move(msg);
             receivedGraph = true;
             missedTicks = 0;
+            // RCLCPP_INFO(node->get_logger(),
+            //             GREEN "[GraphNodeManager] Received %zu graph nodes." RESET,
+            //             latestGraph->nodes.size());
         });
 
     subMap = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
         "/map", rclcpp::QoS(1).transient_local().reliable(),
         [this](nav_msgs::msg::OccupancyGrid::SharedPtr msg) {
             latestMap = std::move(msg);
+            // RCLCPP_INFO(node->get_logger(), GREEN "[GraphNodeManager] Received updated occupancy map." RESET);
         });
 }
 
 bool GraphNodeManager::noRecentGraph() {
     if (!receivedGraph) {
         missedTicks++;
+        RCLCPP_WARN(node->get_logger(),
+                    ORANGE "[GraphNodeManager] Waiting for graph nodes... (%d/%d)" RESET,
+                    missedTicks, maxMissedTicks);
+
         if (missedTicks > maxMissedTicks) {
+            RCLCPP_ERROR(node->get_logger(),
+                         RED "[GraphNodeManager] No graph nodes received for %d ticks → FAILURE" RESET,
+                         missedTicks);
             return true;
         }
-        return true; // waiting but not yet failing
+        return true; // still waiting
     }
     receivedGraph = false;
     missedTicks = 0;
@@ -68,6 +79,11 @@ std::shared_ptr<graph_node_msgs::msg::GraphNode> GraphNodeManager::getBestScoreN
     }
 
     if (!bestNode) return nullptr;
+
+    // RCLCPP_INFO(node->get_logger(),
+    //             GREEN "[GraphNodeManager] Best node → ID: %d | Score: %.3f" RESET,
+    //             bestNode->id, bestNode->score);
+
     return std::make_shared<graph_node_msgs::msg::GraphNode>(*bestNode);
 }
 
@@ -76,8 +92,25 @@ bool GraphNodeManager::allNodesObserved() const {
     for (const auto& n : latestGraph->nodes) {
         if (!n.is_observed) return false;
     }
+    RCLCPP_INFO(node->get_logger(), GREEN "[GraphNodeManager] All graph nodes observed." RESET);
     return true;
 }
+
+void GraphNodeManager::shutdown() {
+    if (subGraph) {
+        subGraph.reset();
+        RCLCPP_INFO(node->get_logger(),
+                    GREEN "[GraphNodeManager] Graph subscription reset." RESET);
+    }
+    if (subMap) {
+        subMap.reset();
+        RCLCPP_INFO(node->get_logger(),
+                    GREEN "[GraphNodeManager] Map subscription reset." RESET);
+    }
+    latestGraph.reset();
+    latestMap.reset();
+}
+
 
 // ============================================================
 // MapRayTracer
@@ -144,8 +177,9 @@ bool MapRayTracer::performRaytrace(const nav_msgs::msg::OccupancyGrid& map,
 // SpinController
 // ============================================================
 
-SpinController::SpinController(std::unique_ptr<Robot>& robotRef)
-    : robot(robotRef)
+SpinController::SpinController(std::unique_ptr<Robot>& robotRef,
+                               rclcpp::Node::SharedPtr nodePtr)
+    : robot(robotRef), node(std::move(nodePtr))
 {}
 
 bool SpinController::shouldTriggerSpin(const geometry_msgs::msg::Pose& pose, double threshold) {
@@ -174,28 +208,40 @@ void SpinController::configure(double minYawVal, double maxYawVal) {
 void SpinController::startSpinToMin(const std::string& mapFrame) {
     robot->spinRelativeTo(mapFrame, minYaw, 4.0);
     state = State::SPINNING_MIN;
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[SpinController] Starting spin to MIN yaw (%.2f°)" RESET,
+                minYaw * 180.0 / M_PI);
 }
 
 BT::NodeStatus SpinController::updateSpinState(const std::string& mapFrame) {
     switch (state) {
         case State::SPINNING_MIN:
             if (robot->isSpinDone()) {
+                RCLCPP_INFO(node->get_logger(),
+                            GREEN "[SpinController] Spin MIN complete → returning HOME" RESET);
                 robot->spinRelativeTo(mapFrame, homeYaw, 4.0);
                 state = State::SPINNING_HOME;
             }
             break;
+
         case State::SPINNING_HOME:
             if (robot->isSpinDone()) {
+                RCLCPP_INFO(node->get_logger(),
+                            GREEN "[SpinController] Returned HOME → spinning MAX" RESET);
                 robot->spinRelativeTo(mapFrame, maxYaw, 4.0);
                 state = State::SPINNING_MAX;
             }
             break;
+
         case State::SPINNING_MAX:
             if (robot->isSpinDone()) {
+                RCLCPP_INFO(node->get_logger(),
+                            GREEN "[SpinController] Spin MAX complete → DONE" RESET);
                 state = State::DONE;
                 return BT::NodeStatus::SUCCESS;
             }
             break;
+
         default:
             break;
     }
@@ -205,6 +251,8 @@ BT::NodeStatus SpinController::updateSpinState(const std::string& mapFrame) {
 void SpinController::cancel() {
     robot->cancelSpin();
     state = State::IDLE;
+    RCLCPP_WARN(node->get_logger(),
+                YELLOW "[SpinController] Spin canceled by BT halt." RESET);
 }
 
 // ============================================================
@@ -224,10 +272,18 @@ std::vector<const graph_node_msgs::msg::GraphNode*> VisibilityAnalyzer::findUnob
     std::vector<const graph_node_msgs::msg::GraphNode*> result;
     if (!manager.latestGraph) return result;
 
+    int unobservedCount = 0;
     for (const auto& n : manager.latestGraph->nodes) {
-        if (!n.is_observed && rayTracer.isVisible(n, robotPose, manager.latestMap, sightHorizon, performRaytrace))
-            result.push_back(&n);
+        if (!n.is_observed) {
+            unobservedCount++;
+            if (rayTracer.isVisible(n, robotPose, manager.latestMap, sightHorizon, performRaytrace))
+                result.push_back(&n);
+        }
     }
+
+    // RCLCPP_INFO(manager.getLogger(),
+    //             ORANGE "[VisibilityAnalyzer] %d unobserved nodes, %zu visible." RESET,
+    //             unobservedCount, result.size());
     return result;
 }
 
@@ -250,6 +306,10 @@ bool VisibilityAnalyzer::computeYawSpan(
     auto [minIt, maxIt] = std::minmax_element(yaws.begin(), yaws.end());
     outMinYaw = *minIt;
     outMaxYaw = *maxIt;
+
+    RCLCPP_INFO(rclcpp::get_logger("VisibilityAnalyzer"),
+                ORANGE "[VisibilityAnalyzer] Yaw span [%.1f°, %.1f°]" RESET,
+                outMinYaw * 180.0 / M_PI, outMaxYaw * 180.0 / M_PI);
     return true;
 }
 
@@ -266,21 +326,35 @@ ObserveGraphNodes::ObserveGraphNodes(const std::string& name,
 {
     graphManager = std::make_unique<GraphNodeManager>(node);
     rayTracer = std::make_unique<MapRayTracer>();
-    spinCtrl = std::make_unique<SpinController>(robot);
+    spinCtrl = std::make_unique<SpinController>(robot, node);
     visibility = std::make_unique<VisibilityAnalyzer>(*rayTracer);
 
-    // Parameter loading
-    node->declare_parameter("observe.perform_raytracing", false);
-    node->declare_parameter("observe.sight_horizon", 10.0);
-    node->declare_parameter("observe.spin_distance_threshold", 1.0);
-    node->declare_parameter("observe.map_frame", "map");
-    node->declare_parameter("observe.robot_frame", "base_link");
+    // If not declred, declare
+    if(!node->has_parameter("observe.perform_raytracing"))
+        node->declare_parameter("observe.perform_raytracing", false);
+    if(!node->has_parameter("observe.sight_horizon"))
+        node->declare_parameter("observe.sight_horizon", 10.0);
+    if(!node->has_parameter("observe.spin_distance_threshold"))
+        node->declare_parameter("observe.spin_distance_threshold", 1.0);
+    if(!node->has_parameter("observe.map_frame"))
+        node->declare_parameter("observe.map_frame", "map");
+    if(!node->has_parameter("observe.robot_frame"))
+        node->declare_parameter("observe.robot_frame", "base_link");
+    if(!node->has_parameter("observe.timeout_sec"))
+        node->declare_parameter("observe.timeout_sec", 30.0);
 
     performRayTracing = node->get_parameter("observe.perform_raytracing").as_bool();
     sightHorizon = node->get_parameter("observe.sight_horizon").as_double();
     spinDistanceThreshold = node->get_parameter("observe.spin_distance_threshold").as_double();
     mapFrame = node->get_parameter("observe.map_frame").as_string();
     robotFrame = node->get_parameter("observe.robot_frame").as_string();
+    timeoutSec = node->get_parameter("observe.timeout_sec").as_double();
+
+    RCLCPP_INFO(node->get_logger(),
+                GREEN "[ObserveGraphNodes] Configured timeout: %.1f s" RESET,
+                timeoutSec);
+
+    RCLCPP_INFO(node->get_logger(), GREEN "[ObserveGraphNodes] Node initialized successfully." RESET);
 }
 
 BT::PortsList ObserveGraphNodes::providedPorts() {
@@ -291,54 +365,173 @@ BT::PortsList ObserveGraphNodes::providedPorts() {
 }
 
 BT::NodeStatus ObserveGraphNodes::onStart() {
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[ObserveGraphNodes] Starting observation sequence..." RESET);
+
+    startTime = steadyClock.now();
+    timerActive = true;
+
     if (graphManager->noRecentGraph())
         return BT::NodeStatus::RUNNING;
 
     geometry_msgs::msg::Pose robotPose;
-    if (!robot->getPose(robotPose, mapFrame, robotFrame))
+    if (!robot->getPose(robotPose, mapFrame, robotFrame)) {
+        RCLCPP_WARN(node->get_logger(),
+                    ORANGE "[ObserveGraphNodes] Waiting for valid robot pose..." RESET);
         return BT::NodeStatus::RUNNING;
+    }
 
     auto bestNode = graphManager->getBestScoreNode();
     if (bestNode)
         setOutput("likiest_explorer_node", bestNode);
 
     auto visibleNodes = visibility->findUnobservedVisible(*graphManager, robotPose, sightHorizon, performRayTracing);
-    if (graphManager->allNodesObserved())
-        return BT::NodeStatus::SUCCESS;
 
-    if (visibleNodes.empty())
+    if (graphManager->allNodesObserved()) {
+        RCLCPP_INFO(node->get_logger(), GREEN "[ObserveGraphNodes] SUCCESS — all nodes observed." RESET);
+        return BT::NodeStatus::SUCCESS;
+    }
+
+    if (visibleNodes.empty()) {
+        RCLCPP_INFO(node->get_logger(),
+                    ORANGE "[ObserveGraphNodes] No visible unobserved nodes → RUNNING." RESET);
         return BT::NodeStatus::RUNNING;
+    }
 
-    if (!spinCtrl->shouldTriggerSpin(robotPose, spinDistanceThreshold))
+    if (!spinCtrl->shouldTriggerSpin(robotPose, spinDistanceThreshold)) {
+        RCLCPP_INFO(node->get_logger(),
+                    ORANGE "[ObserveGraphNodes] Robot did not move enough for new spin → SUCCESS." RESET);
         return BT::NodeStatus::SUCCESS;
+    }
 
     double minYaw = 0.0, maxYaw = 0.0;
-    if (!visibility->computeYawSpan(visibleNodes, robotPose, minYaw, maxYaw))
+    if (!visibility->computeYawSpan(visibleNodes, robotPose, minYaw, maxYaw)) {
+        RCLCPP_WARN(node->get_logger(),
+                    YELLOW "[ObserveGraphNodes] Could not compute yaw span → RUNNING." RESET);
         return BT::NodeStatus::RUNNING;
+    }
 
     spinCtrl->configure(minYaw, maxYaw);
     spinCtrl->startSpinToMin(mapFrame);
+
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[ObserveGraphNodes] Initiated spin sequence [%.1f°, %.1f°]" RESET,
+                minYaw * 180.0 / M_PI, maxYaw * 180.0 / M_PI);
 
     return BT::NodeStatus::RUNNING;
 }
 
 BT::NodeStatus ObserveGraphNodes::onRunning() {
+
+    // === Timeout check ===
+    BT::NodeStatus timeoutStatus;
+    if (checkTimeout(timeoutStatus))
+        return timeoutStatus;
+
     auto bestNode = graphManager->getBestScoreNode();
     if (bestNode)
         setOutput("likiest_explorer_node", bestNode);
 
     auto state = spinCtrl->updateSpinState(mapFrame);
-    if (state == BT::NodeStatus::SUCCESS) {
-        if (graphManager->allNodesObserved())
+    if (state == BT::NodeStatus::SUCCESS) 
+    {
+        if (graphManager->allNodesObserved()) 
+        {
+            RCLCPP_INFO(node->get_logger(), GREEN "[ObserveGraphNodes] SUCCESS — all nodes now observed." RESET);
             return BT::NodeStatus::SUCCESS;
+        } 
         else
-            return BT::NodeStatus::RUNNING;
+        {
+            RCLCPP_ERROR(node->get_logger(),
+                         RED "[ObserveGraphNodes] FAILURE — unobserved nodes remain after full spin." RESET);
+            return BT::NodeStatus::FAILURE;
+        }
     }
 
     return BT::NodeStatus::RUNNING;
 }
 
 void ObserveGraphNodes::onHalted() {
-    spinCtrl->cancel();
-    RCLCPP_INFO(node->get_logger(), "ObserveGraphNodes halted.");
+    RCLCPP_WARN(node->get_logger(),
+                YELLOW "[ObserveGraphNodes] Observation halted by Behavior Tree." RESET);
+
+    // Gracefully reset all GraphNodeManager subscriptions
+    if (graphManager) {
+        graphManager->shutdown();
+        graphManager.reset();
+        RCLCPP_INFO(node->get_logger(),
+                    GREEN "[ObserveGraphNodes] GraphNodeManager shutdown completed." RESET);
+    }
+
+    if (spinCtrl)
+        spinCtrl->cancel();
 }
+
+bool ObserveGraphNodes::checkTimeout(BT::NodeStatus& outStatus)
+{
+    if (!timerActive)
+        return false;
+
+    const double elapsed = (steadyClock.now() - startTime).seconds();
+
+    if (elapsed >= timeoutSec)
+    {
+        RCLCPP_ERROR(node->get_logger(),
+                     RED "[ObserveGraphNodes] TIMEOUT: exceeded %.1f s (elapsed %.1f s) → FAILURE" RESET,
+                     timeoutSec, elapsed);
+
+
+        timerActive = false;
+        outStatus = BT::NodeStatus::FAILURE;
+        return true;
+    }
+
+    return false;
+}
+
+bool ObserveGraphNodes::setRemoteParameter(const std::string& targetNode,
+                                           const std::string& paramName,
+                                           double value,
+                                           double timeoutSec)
+{
+    auto helperNode = std::make_shared<rclcpp::Node>("observe_graph_nodes_param_client");
+    auto client = helperNode->create_client<rcl_interfaces::srv::SetParameters>(
+        targetNode + "/set_parameters");
+
+    if (!client->wait_for_service(std::chrono::duration<double>(timeoutSec))) {
+        RCLCPP_ERROR(node->get_logger(),
+                     RED "[ObserveGraphNodes] Parameter service not available: %s" RESET,
+                     (targetNode + "/set_parameters").c_str());
+        return false;
+    }
+
+    auto request = std::make_shared<rcl_interfaces::srv::SetParameters::Request>();
+    request->parameters.push_back(rclcpp::Parameter(paramName, value).to_parameter_msg());
+
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[ObserveGraphNodes] Setting %s/%s = %.4f" RESET,
+                targetNode.c_str(), paramName.c_str(), value);
+
+    auto future = client->async_send_request(request);
+    rclcpp::executors::SingleThreadedExecutor exec;
+    exec.add_node(helperNode);
+
+    bool success = false;
+    if (exec.spin_until_future_complete(future, std::chrono::duration<double>(timeoutSec)) ==
+        rclcpp::FutureReturnCode::SUCCESS)
+    {
+        RCLCPP_INFO(node->get_logger(),
+                    GREEN "[ObserveGraphNodes] Parameter %s/%s updated to %.4f" RESET,
+                    targetNode.c_str(), paramName.c_str(), value);
+        success = true;
+    }
+    else {
+        RCLCPP_WARN(node->get_logger(),
+                    YELLOW "[ObserveGraphNodes] Timeout or failure setting %s/%s" RESET,
+                    targetNode.c_str(), paramName.c_str());
+    }
+
+    exec.remove_node(helperNode);
+    return success;
+}
+
