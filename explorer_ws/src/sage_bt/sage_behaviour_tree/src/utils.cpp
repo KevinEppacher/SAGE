@@ -369,13 +369,20 @@ ObserveGraphNodes::ObserveGraphNodes(
       node(std::move(nodePtr)),
       robot(std::make_unique<Robot>(node))
 {
-    node->declare_parameter("observe.perform_raytracing", false);
-    node->declare_parameter("observe.sight_horizon", 10.0);
-    node->declare_parameter("observe.graph_node_topic", graphNodeTopic);
-    node->declare_parameter("observe.map_frame", mapFrame);
-    node->declare_parameter("observe.robot_frame", robotFrame);
-    node->declare_parameter("observe.spin_distance_threshold", 1.0);
-
+    // If not defined, declare and get parameters with defaults
+    if(!node->has_parameter("observe.perform_raytracing"))
+        node->declare_parameter("observe.perform_raytracing", false);
+    if(!node->has_parameter("observe.sight_horizon"))
+        node->declare_parameter("observe.sight_horizon", 10.0);
+    if(!node->has_parameter("observe.graph_node_topic"))
+        node->declare_parameter("observe.graph_node_topic", graphNodeTopic);
+    if(!node->has_parameter("observe.map_frame"))
+        node->declare_parameter("observe.map_frame", mapFrame);
+    if(!node->has_parameter("observe.robot_frame"))
+        node->declare_parameter("observe.robot_frame", robotFrame);
+    if(!node->has_parameter("observe.spin_distance_threshold"))
+        node->declare_parameter("observe.spin_distance_threshold", 1.0);
+        
     performRayTracing = node->get_parameter("observe.perform_raytracing").as_bool();
     sightHorizon = node->get_parameter("observe.sight_horizon").as_double();
     graphNodeTopic = node->get_parameter("observe.graph_node_topic").as_string();
@@ -421,46 +428,42 @@ BT::NodeStatus ObserveGraphNodes::onStart()
                 ORANGE "[%s] Start observing graph nodes..." RESET,
                 name().c_str());
 
-    // ---------------------------
-    // Missed tick handling
-    // ---------------------------
+    // --- Handle missing messages ---
     if (!receivedGraph)
     {
         missedGraphTicks++;
-
         RCLCPP_INFO(node->get_logger(),
-                    ORANGE "[%s] Waiting for graph nodes... (%d/%d)" RESET,
-                    name().c_str(), missedGraphTicks, maxMissedTicks);
+                    ORANGE "[%s] Waiting for graph nodes on %s... (%d/%d)" RESET,
+                    name().c_str(), graphNodeTopic.c_str(), missedGraphTicks, maxMissedTicks);
 
         if (missedGraphTicks > maxMissedTicks)
         {
             RCLCPP_WARN(node->get_logger(),
-                        YELLOW "[%s] Graph node stream silent → keep RUNNING" RESET,
-                        name().c_str());
-
-            setOutput("any_exploration_nodes", true);
-            return BT::NodeStatus::RUNNING;
+                        RED "[%s] No graph nodes received for %d ticks → FAILURE" RESET,
+                        name().c_str(), missedGraphTicks);
+            setOutput("any_exploration_nodes", false);
+            return BT::NodeStatus::FAILURE;
         }
-
         return BT::NodeStatus::RUNNING;
     }
 
-    // We have at least one message
     receivedGraph = false;
+    missedGraphTicks = 0;
 
     if (!latestGraph || latestGraph->nodes.empty())
     {
-        RCLCPP_INFO(node->get_logger(),
-                    ORANGE "[%s] Graph nodes empty → RUNNING" RESET,
+        RCLCPP_WARN(node->get_logger(),
+                    RED "[%s] No graph nodes → FAILURE" RESET,
                     name().c_str());
-
-        setOutput("any_exploration_nodes", true);
-        return BT::NodeStatus::RUNNING;
+        return BT::NodeStatus::FAILURE;
     }
 
-    // ----------------------------------------------------------------------
-    // Get robot pose
-    // ----------------------------------------------------------------------
+    const size_t total = latestGraph->nodes.size();
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[%s] Received %zu graph nodes" RESET,
+                name().c_str(), total);
+
+    // --- Get robot pose ---
     geometry_msgs::msg::Pose robotPose;
     if (!robot->getPose(robotPose, mapFrame, robotFrame))
     {
@@ -470,130 +473,184 @@ BT::NodeStatus ObserveGraphNodes::onStart()
         return BT::NodeStatus::RUNNING;
     }
 
-    // ----------------------------------------------------------------------
-    // FILTER: UNOBSERVED + VISIBLE nodes only
-    // ----------------------------------------------------------------------
-    std::vector<const graph_node_msgs::msg::GraphNode*> unobservedVisible;
+    // --- Select and output the likiest explorer node ---
+    auto bestNode = findBestScoringNode();
+    if (bestNode)
+    {
+        setOutput("likiest_explorer_node", bestNode);
+        RCLCPP_INFO(node->get_logger(),
+                    GREEN "[%s] Best-scoring node ID: %d (score = %.3f)" RESET,
+                    name().c_str(), bestNode->id, bestNode->score);
+    }
+    else
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    YELLOW "[%s] No valid node to output as likiest_explorer_node" RESET,
+                    name().c_str());
+    }
 
+    // --- Collect unobserved visible nodes ---
+    std::vector<const graph_node_msgs::msg::GraphNode*> unobservedVisible;
+    int unobservedTotal = 0;
     for (const auto& n : latestGraph->nodes)
     {
-        if (n.is_observed)
-            continue;
-
-        if (!isVisible(n, robotPose))
-            continue;
-
-        unobservedVisible.push_back(&n);
+        if (!n.is_observed)
+        {
+            unobservedTotal++;
+            if (isVisible(n, robotPose))
+                unobservedVisible.push_back(&n);
+        }
     }
 
     RCLCPP_INFO(node->get_logger(),
-                ORANGE "[%s] Visible unobserved nodes: %zu" RESET,
-                name().c_str(), unobservedVisible.size());
+                ORANGE "[%s] Unobserved nodes total: %d, visible: %zu" RESET,
+                name().c_str(), unobservedTotal, unobservedVisible.size());
 
-    // ----------------------------------------------------------------------
-    // If no unobserved visible → SUCCESS (nothing to scan)
-    // ----------------------------------------------------------------------
+    // --- No unobserved nodes at all → success ---
+    if (unobservedTotal == 0)
+    {
+        RCLCPP_INFO(node->get_logger(),
+                    GREEN "[%s] All graph nodes already observed → SUCCESS" RESET,
+                    name().c_str());
+        return BT::NodeStatus::SUCCESS;
+    }
+
+    // --- Some unobserved nodes exist ---
     if (unobservedVisible.empty())
     {
         RCLCPP_INFO(node->get_logger(),
-                    GREEN "[%s] No unobserved visible nodes → SUCCESS" RESET,
+                    YELLOW "[%s] Unobserved nodes exist but none visible → RUNNING" RESET,
                     name().c_str());
-
-        // setOutput("any_exploration_nodes", false);
-        return BT::NodeStatus::SUCCESS;
+        return BT::NodeStatus::RUNNING;
     }
 
-    // ----------------------------------------------------------------------
-    // Publish any unobserved visible node as "likiest_explorer_node"
-    // ----------------------------------------------------------------------
-    auto bestNode = std::make_shared<graph_node_msgs::msg::GraphNode>(*unobservedVisible.front());
-    setOutput("likiest_explorer_node", bestNode);
-    setOutput("any_exploration_nodes", true);
-
-    // ----------------------------------------------------------------------
-    // Spin Gating
-    // ----------------------------------------------------------------------
+    // --- Spin gating ---
     if (!shouldTriggerSpin(robotPose))
     {
         RCLCPP_INFO(node->get_logger(),
-                    GREEN "[%s] Robot did not move enough → skipping spin (SUCCESS)" RESET,
+                    YELLOW "[%s] Robot did not move enough → RUNNING" RESET,
                     name().c_str());
         return BT::NodeStatus::SUCCESS;
     }
 
-    // ----------------------------------------------------------------------
-    // Compute yaw span of unobserved+visible nodes
-    // ----------------------------------------------------------------------
+    // --- Compute yaw span ---
     double minYaw = 0.0;
     double maxYaw = 0.0;
 
     if (!computeVisibleYawSpan(minYaw, maxYaw))
     {
         RCLCPP_WARN(node->get_logger(),
-                    YELLOW "[%s] No visible unobserved nodes → SUCCESS" RESET,
+                    YELLOW "[%s] No visible unobserved nodes for yaw span → RUNNING" RESET,
                     name().c_str());
-        return BT::NodeStatus::SUCCESS;
+        return BT::NodeStatus::RUNNING;
     }
-
-    RCLCPP_INFO(node->get_logger(),
-                ORANGE "[%s] Visible yaw span: [%.1f°, %.1f°]" RESET,
-                name().c_str(), minYaw * 180.0/M_PI, maxYaw * 180.0/M_PI);
 
     scan.minYaw = minYaw;
     scan.maxYaw = maxYaw;
 
-    // ----------------------------------------------------------------------
-    // Start spinning LEFT first
-    // ----------------------------------------------------------------------
     RCLCPP_INFO(node->get_logger(),
-                ORANGE "[%s] Spinning to MIN yaw %.1f° (absolute)..." RESET,
-                name().c_str(), scan.minYaw * 180.0/M_PI);
+                ORANGE "[%s] Yaw span [%.1f°, %.1f°]" RESET,
+                name().c_str(), minYaw * 180.0 / M_PI, maxYaw * 180.0 / M_PI);
 
-    robot->spinRelativeTo("map", scan.minYaw, 4.0);
+    // --- Spin to minYaw (absolute) ---
+    robot->spinRelativeTo(mapFrame, scan.minYaw, 4.0);
     scan.spinningToMin = true;
+
     return BT::NodeStatus::RUNNING;
 }
 
 BT::NodeStatus ObserveGraphNodes::onRunning()
 {
+    // Continuously output the current likiest node
+    auto bestNode = findBestScoringNode();
+    if (bestNode)
+        setOutput("likiest_explorer_node", bestNode);
+
+    // Phase 1: Spin to MIN yaw
     if (scan.spinningToMin)
     {
         if (robot->isSpinDone())
         {
-            RCLCPP_INFO(node->get_logger(),
-                        GREEN "[%s] Finished spin to MIN yaw" RESET,
-                        name().c_str());
-
             scan.spinningToMin = false;
             scan.finishedMin = true;
 
-            // Second spin — ABSOLUTE TURN again
             RCLCPP_INFO(node->get_logger(),
-                        ORANGE "[%s] Spinning to MAX yaw %.1f° (absolute)..." RESET,
-                        name().c_str(), scan.maxYaw * 180.0/M_PI);
+                        GREEN "[%s] Finished spin to MIN yaw → returning home" RESET,
+                        name().c_str());
 
-            robot->spinRelativeTo("map", scan.maxYaw, 4.0);
+            // Compute home yaw as the midpoint between min and max
+            scan.homeYaw = (scan.minYaw + scan.maxYaw) / 2.0;
+
+            // Spin back to home
+            robot->spinRelativeTo(mapFrame, scan.homeYaw, 4.0);
+            scan.spinningHome = true;
+        }
+        return BT::NodeStatus::RUNNING;
+    }
+
+    // Phase 2: Spin HOME
+    if (scan.spinningHome)
+    {
+        if (robot->isSpinDone())
+        {
+            scan.spinningHome = false;
+            scan.finishedHome = true;
+
+            RCLCPP_INFO(node->get_logger(),
+                        GREEN "[%s] Returned to home yaw → spinning to MAX yaw" RESET,
+                        name().c_str());
+
+            // Now spin left (maxYaw)
+            robot->spinRelativeTo(mapFrame, scan.maxYaw, 4.0);
             scan.spinningToMax = true;
         }
         return BT::NodeStatus::RUNNING;
     }
 
+    // Phase 3: Spin to MAX yaw
     if (scan.spinningToMax)
     {
         if (robot->isSpinDone())
         {
-            RCLCPP_INFO(node->get_logger(),
-                        GREEN "[%s] Finished spin to MAX yaw → SUCCESS" RESET,
-                        name().c_str());
-
             scan.spinningToMax = false;
             scan.finishedMax = true;
-            return BT::NodeStatus::SUCCESS;
+            RCLCPP_INFO(node->get_logger(),
+                        GREEN "[%s] Finished spin to MAX yaw — checking observations" RESET,
+                        name().c_str());
+
+            if (!latestGraph)
+                return BT::NodeStatus::RUNNING;
+
+            bool allObserved = true;
+            for (const auto& n : latestGraph->nodes)
+            {
+                if (!n.is_observed)
+                {
+                    allObserved = false;
+                    break;
+                }
+            }
+
+            if (allObserved)
+            {
+                RCLCPP_INFO(node->get_logger(),
+                            GREEN "[%s] All graph nodes observed → SUCCESS" RESET,
+                            name().c_str());
+                return BT::NodeStatus::SUCCESS;
+            }
+            else
+            {
+                RCLCPP_WARN(node->get_logger(),
+                            YELLOW "[%s] Still unobserved nodes remaining → RUNNING" RESET,
+                            name().c_str());
+                return BT::NodeStatus::RUNNING;
+            }
         }
         return BT::NodeStatus::RUNNING;
     }
 
-    return BT::NodeStatus::SUCCESS;
+    // Default: keep running until spin sequences are complete
+    return BT::NodeStatus::RUNNING;
 }
 
 void ObserveGraphNodes::onHalted()
@@ -668,7 +725,6 @@ bool ObserveGraphNodes::computeVisibleYawSpan(double& outMinYaw, double& outMaxY
 
     return true;
 }
-
 
 bool ObserveGraphNodes::isVisible(
     const graph_node_msgs::msg::GraphNode& n,
@@ -745,3 +801,26 @@ bool ObserveGraphNodes::isVisible(
     return true;
 }
 
+std::shared_ptr<graph_node_msgs::msg::GraphNode> ObserveGraphNodes::findBestScoringNode() const
+{
+    if (!latestGraph || latestGraph->nodes.empty())
+        return nullptr;
+
+    const graph_node_msgs::msg::GraphNode* bestNode = nullptr;
+    double bestScore = -std::numeric_limits<double>::infinity();
+
+    for (const auto& n : latestGraph->nodes)
+    {
+        if (n.score > bestScore)
+        {
+            bestScore = n.score;
+            bestNode = &n;
+        }
+    }
+
+    if (!bestNode)
+        return nullptr;
+
+    // Copy into a shared_ptr so it can be safely passed through BT port
+    return std::make_shared<graph_node_msgs::msg::GraphNode>(*bestNode);
+}
