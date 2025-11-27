@@ -72,7 +72,7 @@ def generate_launch_description():
 
     # Nav2 (mit Timer-Verzögerung)
     delayed_nav2_stack = TimerAction(
-        period=20.0,
+        period=18.0,
         actions=[nav2_stack_launch]
     )
 

@@ -14,6 +14,7 @@
 
 // Custom
 #include "sage_behaviour_tree/robot.hpp"
+using namespace sage_bt_utils;
 
 /// Utility: check if a cell is occupied in occupancy map
 bool cellIsOccupied(const nav_msgs::msg::OccupancyGrid& map, int mx, int my);
@@ -155,6 +156,8 @@ private:
     std::string graphNodeTopic = "/fused/exploration_graph_nodes/graph_nodes";
     std::string mapFrame = "map";
     std::string robotFrame = "base_link";
+    std::string valueMapNode = "/value_map/value_map", decayFactorParam = "semantic_map.decay_factor";
+    float valueMapDecayFactorDefault = 0.9995f;
 
     // Timer
     rclcpp::Clock steadyClock{RCL_STEADY_TIME};

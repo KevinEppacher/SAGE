@@ -18,6 +18,24 @@
 // Custom Class
 #include "sage_behaviour_tree/robot.hpp"
 
+namespace sage_bt_utils
+{
+
+/// \brief Generic helper to set a parameter on another ROS2 node.
+/// \param node Local node used for logging
+/// \param target_node Target node name (without /set_parameters)
+/// \param param_name Parameter name to set
+/// \param value Parameter value (double)
+/// \param timeout_sec Timeout in seconds (default 2.0)
+/// \return true if parameter successfully updated
+bool set_remote_parameter(const rclcpp::Node::SharedPtr& node,
+                          const std::string& target_node,
+                          const std::string& param_name,
+                          double value,
+                          double timeout_sec = 2.0);
+
+}  // namespace sage_bt_utils
+
 // -------------------- SetParameterNode -------------------- //
 
 class SetParameterNode : public BT::SyncActionNode

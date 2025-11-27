@@ -341,7 +341,13 @@ ObserveGraphNodes::ObserveGraphNodes(const std::string& name,
     if(!node->has_parameter("observe.robot_frame"))
         node->declare_parameter("observe.robot_frame", "base_link");
     if(!node->has_parameter("observe.timeout_sec"))
-        node->declare_parameter("observe.timeout_sec", 30.0);
+        node->declare_parameter("observe.timeout_sec", 90.0);
+    if(!node->has_parameter("observe.value_map_node"))
+        node->declare_parameter("observe.value_map_node", "/value_map/value_map");
+    if(!node->has_parameter("observe.decay_factor_param"))
+        node->declare_parameter("observe.decay_factor_param", "semantic_map.decay_factor");
+    if(!node->has_parameter("observe.decay_factor_default"))
+        node->declare_parameter("observe.decay_factor_default", 0.9995);
 
     performRayTracing = node->get_parameter("observe.perform_raytracing").as_bool();
     sightHorizon = node->get_parameter("observe.sight_horizon").as_double();
@@ -349,6 +355,10 @@ ObserveGraphNodes::ObserveGraphNodes(const std::string& name,
     mapFrame = node->get_parameter("observe.map_frame").as_string();
     robotFrame = node->get_parameter("observe.robot_frame").as_string();
     timeoutSec = node->get_parameter("observe.timeout_sec").as_double();
+    valueMapNode = node->get_parameter("observe.value_map_node").as_string();
+    decayFactorParam = node->get_parameter("observe.decay_factor_param").as_string();
+    valueMapDecayFactorDefault = static_cast<float>(
+        node->get_parameter("observe.decay_factor_default").as_double());
 
     RCLCPP_INFO(node->get_logger(),
                 GREEN "[ObserveGraphNodes] Configured timeout: %.1f s" RESET,
@@ -404,6 +414,13 @@ BT::NodeStatus ObserveGraphNodes::onStart() {
         return BT::NodeStatus::SUCCESS;
     }
 
+    bool success = set_remote_parameter(node, valueMapNode, decayFactorParam, 1.0);
+    if (!success) 
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    YELLOW "[ObserveGraphNodes] Warning: could not set decay_factor parameter." RESET);
+    }
+
     double minYaw = 0.0, maxYaw = 0.0;
     if (!visibility->computeYawSpan(visibleNodes, robotPose, minYaw, maxYaw)) {
         RCLCPP_WARN(node->get_logger(),
@@ -438,6 +455,12 @@ BT::NodeStatus ObserveGraphNodes::onRunning() {
         if (graphManager->allNodesObserved()) 
         {
             RCLCPP_INFO(node->get_logger(), GREEN "[ObserveGraphNodes] SUCCESS — all nodes now observed." RESET);
+            bool success = set_remote_parameter(node, valueMapNode, decayFactorParam, valueMapDecayFactorDefault);
+            if (!success) 
+            {
+                RCLCPP_WARN(node->get_logger(),
+                            YELLOW "[ObserveGraphNodes] Warning: could not reset decay_factor parameter." RESET);
+            }
             return BT::NodeStatus::SUCCESS;
         } 
         else
@@ -455,13 +478,13 @@ void ObserveGraphNodes::onHalted() {
     RCLCPP_WARN(node->get_logger(),
                 YELLOW "[ObserveGraphNodes] Observation halted by Behavior Tree." RESET);
 
-    // Gracefully reset all GraphNodeManager subscriptions
-    if (graphManager) {
-        graphManager->shutdown();
-        graphManager.reset();
-        RCLCPP_INFO(node->get_logger(),
-                    GREEN "[ObserveGraphNodes] GraphNodeManager shutdown completed." RESET);
-    }
+    // // Gracefully reset all GraphNodeManager subscriptions
+    // if (graphManager) {
+    //     graphManager->shutdown();
+    //     graphManager.reset();
+    //     RCLCPP_INFO(node->get_logger(),
+    //                 GREEN "[ObserveGraphNodes] GraphNodeManager shutdown completed." RESET);
+    // }
 
     if (spinCtrl)
         spinCtrl->cancel();
