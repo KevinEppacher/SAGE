@@ -6,17 +6,6 @@
       <CallEmptyService service_name="/value_map/clear"/>
       <PublishSemanticPrompt text_query="{text_query}"
                              topic="/user_prompt"/>
-      <SeekoutGraphNodes max_yaw="{turn_right_angle}"
-                         min_yaw="{turn_left_angle}"
-                         max_yaw_default="1.570796"
-                         min_yaw_default="-1.570796"
-                         sight_horizon="10.000000"
-                         robot_frame="base_link"
-                         map_frame="map"
-                         graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"/>
-      <Spin spin_duration="5"
-            turn_right_angle="{turn_right_angle}"
-            turn_left_angle="{turn_left_angle}"/>
       <SetParameterNode value="0.9995"
                         parameter_name="semantic_map.decay_factor"
                         target_node="/value_map/value_map"/>
@@ -48,11 +37,8 @@
                            output_key="object_found"/>
           </Sequence>
           <ReactiveSequence>
-            <IsDetected name="Already explored all available GraphNodes?"
-                        graph_nodes="{likiest_explorer_node}"
-                        detection_graph_node_topic="/fused/exploration_graph_nodes/graph_nodes"
-                        time_threshold="0.0"
-                        detection_threshold="0.0"/>
+            <ObserveGraphNodes any_exploration_nodes="{any_exploration_nodes}"
+                               likiest_explorer_node="{likiest_explorer_node}"/>
             <GoToGraphNode name="Go to likiest GraphNode"
                            graph_node="{likiest_explorer_node}"/>
           </ReactiveSequence>
@@ -95,6 +81,12 @@
       <input_port name="object_found"/>
       <input_port name="any_exploration_nodes"/>
     </Decorator>
+    <Action ID="ObserveGraphNodes">
+      <output_port name="any_exploration_nodes"
+                   type="bool"/>
+      <output_port name="likiest_explorer_node"
+                   type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;"/>
+    </Action>
     <Action ID="PublishSemanticPrompt"
             editable="true">
       <input_port name="text_query"/>
@@ -110,27 +102,6 @@
       <input_port name="imageTopic"/>
       <input_port name="savePath"/>
     </Action>
-    <Action ID="SeekoutGraphNodes">
-      <output_port name="max_yaw"
-                   type="double"/>
-      <output_port name="min_yaw"
-                   type="double"/>
-      <input_port name="max_yaw_default"
-                  default="1.570796"
-                  type="double">Default max yaw (rad)</input_port>
-      <input_port name="min_yaw_default"
-                  default="-1.570796"
-                  type="double">Default min yaw (rad)</input_port>
-      <input_port name="sight_horizon"
-                  default="10.000000"
-                  type="double">Horizon distance (m)</input_port>
-      <input_port name="robot_frame"
-                  type="std::string">base_link</input_port>
-      <input_port name="map_frame"
-                  type="std::string">map</input_port>
-      <input_port name="graph_node_topic"
-                  type="std::string">/fused/exploration_graph_nodes/graph_nodes</input_port>
-    </Action>
     <Action ID="SetParameterNode">
       <input_port name="value"
                   type="double">Value to set for the parameter</input_port>
@@ -138,17 +109,6 @@
                   type="std::string">Name of the parameter to set</input_port>
       <input_port name="target_node"
                   type="std::string">Node name to set parameter on</input_port>
-    </Action>
-    <Action ID="Spin">
-      <input_port name="spin_duration"
-                  default="10.000000"
-                  type="double">Duration per spin</input_port>
-      <input_port name="turn_right_angle"
-                  default="0.000000"
-                  type="double">CW angle (radians)</input_port>
-      <input_port name="turn_left_angle"
-                  default="0.000000"
-                  type="double">CCW angle (radians)</input_port>
     </Action>
   </TreeNodesModel>
 

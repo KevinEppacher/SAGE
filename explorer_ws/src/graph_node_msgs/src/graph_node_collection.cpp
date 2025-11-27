@@ -171,6 +171,7 @@ void GraphNodeCollection::publishGraphNodeArray()
         graphNodeMsg.id = node.getId();
         graphNodeMsg.position = node.getPosition();
         graphNodeMsg.score = node.getScore();
+        graphNodeMsg.is_observed = node.getIsObserved();
         msg.nodes.push_back(graphNodeMsg);
     }
 
