@@ -45,21 +45,25 @@ tmux select-layout -t $SESSION:0 tiled
 
 # Pane 0 — LAVIS
 tmux send-keys -t $SESSION:0.0 "docker exec -it ros2_lavis_container bash" C-m
+tmux send-keys -t $SESSION:0.0 "clear" C-m
 tmux send-keys -t $SESSION:0.0 "echo -e '\033[1;36m[Starting LAVIS...]\033[0m'" C-m
 tmux send-keys -t $SESSION:0.0 "ros2 launch blip2_ros blip2_ros.launch.py"
 
 # Pane 1 — EXPLOITATION
 tmux send-keys -t $SESSION:0.1 "docker exec -it ros2_exploitation_container bash" C-m
+tmux send-keys -t $SESSION:0.1 "clear" C-m
 tmux send-keys -t $SESSION:0.1 "echo -e '\033[1;36m[Starting Memory...]\033[0m'" C-m
 tmux send-keys -t $SESSION:0.1 "ros2 launch sage_commander exploitation_ws.launch.py"
 
 # Pane 2 — EXPLORER
 tmux send-keys -t $SESSION:0.2 "docker exec -it ros2_explorer_container bash" C-m
+tmux send-keys -t $SESSION:0.2 "clear" C-m
 tmux send-keys -t $SESSION:0.2 "echo -e '\033[1;36m[Starting Explorer...]\033[0m'" C-m
 tmux send-keys -t $SESSION:0.2 "ros2 launch sage_commander explorer_ws.launch.py"
 
 # Pane 3 — DETECTION
 tmux send-keys -t $SESSION:0.3 "docker exec -it ros2_detection_container bash" C-m
+tmux send-keys -t $SESSION:0.3 "clear" C-m
 tmux send-keys -t $SESSION:0.3 "echo -e '\033[1;36m[Starting Detection...]\033[0m'" C-m
 tmux send-keys -t $SESSION:0.3 "ros2 launch sage_commander detection_ws.launch.py"
 
@@ -76,10 +80,12 @@ tmux split-window -v -t $SESSION:development.1      # Split right side verticall
 
 # Pane 0 (isaac window) — enter isaac_sim_container
 tmux send-keys -t $SESSION:development.0 "docker exec -it ros2_explorer_container bash" C-m
+tmux send-keys -t $SESSION:development.0 "clear" C-m
 tmux send-keys -t $SESSION:development.0 "echo -e '\033[1;36m[Starting Behaviour Tree...]\033[0m'" C-m
 tmux send-keys -t $SESSION:development.0 "ros2 launch sage_behaviour_tree sage_bt_action_server.launch.py"
 
 tmux send-keys -t $SESSION:development.1 "docker exec -it ros2_exploitation_container bash" C-m
+tmux send-keys -t $SESSION:development.1 "clear" C-m
 tmux send-keys -t $SESSION:development.1 "echo -e '\033[1;36m[Starting Evaluator...]\033[0m'" C-m
 tmux send-keys -t $SESSION:development.1 "ros2 launch sage_evaluator evaluate.launch.py"
 tmux send-keys -t $SESSION:development.2 "nvtop" C-m
