@@ -19,7 +19,7 @@ tmux set-option -g status-left '#[fg=colour39]#[bg=colour39,fg=black] SAGE #[
 tmux set-option -g status-right '#[fg=colour250]#H #[fg=colour239]| #[fg=colour39]%Y-%m-%d %H:%M'
 tmux set-option -g mouse on
 tmux set-option -g status-left '#[fg=colour33]#[bg=colour33,fg=black] 🧠 SAGE #[fg=colour33,bg=colour236,nobold,nounderscore,noitalics]'
-tmux set-option -g status-right '#[fg=colour39]  #H #[fg=colour240]| #[fg=colour245]  %H:%M #[fg=colour240]| #[fg=colour39]%Y-%m-%d'
+tmux set -g status-right '#[fg=colour39]⚙  SAGE │  #(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits | head -1)% │  %H:%M │ %Y-%m-%d '
 
 
 echo "Starting new tmux session '${SESSION}'..."
