@@ -108,3 +108,8 @@ void Frontier::clearFrontier()
 {
     frontier.points.clear();
 }
+
+void Frontier::setId(int id)
+{
+    frontier.id = id;
+}

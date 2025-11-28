@@ -5,6 +5,71 @@
 
 using namespace std::chrono_literals;
 
+namespace sage_bt_utils
+{
+
+bool set_remote_parameter(const rclcpp::Node::SharedPtr& node,
+                          const std::string& target_node,
+                          const std::string& param_name,
+                          double value,
+                          double timeout_sec)
+{
+    auto helper_node = std::make_shared<rclcpp::Node>("param_client_helper");
+    auto client = helper_node->create_client<rcl_interfaces::srv::SetParameters>(
+        target_node + "/set_parameters");
+
+    if (!client->wait_for_service(std::chrono::duration<double>(timeout_sec))) {
+        RCLCPP_ERROR(node->get_logger(),
+                     RED "[set_remote_parameter] Parameter service not available for %s" RESET,
+                     target_node.c_str());
+        return false;
+    }
+
+    RCLCPP_INFO(node->get_logger(),
+                ORANGE "[set_remote_parameter] Setting %s/%s = %.4f" RESET,
+                target_node.c_str(), param_name.c_str(), value);
+
+    auto request = std::make_shared<rcl_interfaces::srv::SetParameters::Request>();
+    request->parameters.push_back(rclcpp::Parameter(param_name, value).to_parameter_msg());
+
+    rclcpp::executors::SingleThreadedExecutor exec;
+    exec.add_node(helper_node);
+    auto future = client->async_send_request(request);
+
+    bool success = false;
+    if (exec.spin_until_future_complete(future, std::chrono::duration<double>(timeout_sec))
+        == rclcpp::FutureReturnCode::SUCCESS)
+    {
+        RCLCPP_INFO(node->get_logger(),
+                    GREEN "[set_remote_parameter] Successfully updated %s/%s to %.4f" RESET,
+                    target_node.c_str(), param_name.c_str(), value);
+        success = true;
+    }
+    else {
+        RCLCPP_WARN(node->get_logger(),
+                    YELLOW "[set_remote_parameter] Timeout or failure setting %s/%s" RESET,
+                    target_node.c_str(), param_name.c_str());
+    }
+
+    exec.remove_node(helper_node);
+    return success;
+}
+
+}  // namespace sage_bt_utils
+
+inline bool cellIsOccupied(const nav_msgs::msg::OccupancyGrid& map, int mx, int my)
+{
+    if (mx < 0 || my < 0) return false;
+    if (mx >= static_cast<int>(map.info.width)) return false;
+    if (my >= static_cast<int>(map.info.height)) return false;
+
+    int idx = my * map.info.width + mx;
+    int8_t value = map.data[idx];
+
+    return value >= 50;   // standard ROS threshold
+}
+
+
 // -------------------- SetParameterNode -------------------- //
 
 SetParameterNode::SetParameterNode(const std::string& name,
@@ -38,44 +103,12 @@ BT::NodeStatus SetParameterNode::tick()
         return BT::NodeStatus::FAILURE;
     }
 
-    auto helper_node = std::make_shared<rclcpp::Node>("param_client_helper");
-    auto client = helper_node->create_client<rcl_interfaces::srv::SetParameters>(
-        target_node + "/set_parameters");
+    bool ok = sage_bt_utils::set_remote_parameter(node_ptr_,
+                                                  target_node,
+                                                  param_name,
+                                                  value);
 
-    if (!client->wait_for_service(2s)) {
-        RCLCPP_ERROR(node_ptr_->get_logger(),
-                     RED "[%s] Parameter service not available for %s" RESET,
-                     name().c_str(), target_node.c_str());
-        return BT::NodeStatus::FAILURE;
-    }
-
-    RCLCPP_INFO(node_ptr_->get_logger(),
-                ORANGE "[%s] Setting %s/%s = %.3f" RESET,
-                name().c_str(), target_node.c_str(), param_name.c_str(), value);
-
-    auto request = std::make_shared<rcl_interfaces::srv::SetParameters::Request>();
-    request->parameters.push_back(rclcpp::Parameter(param_name, value).to_parameter_msg());
-
-    auto future = client->async_send_request(request);
-    rclcpp::executors::SingleThreadedExecutor exec;
-    exec.add_node(helper_node);
-
-    if (exec.spin_until_future_complete(future, 2s) == rclcpp::FutureReturnCode::SUCCESS)
-    {
-        RCLCPP_INFO(node_ptr_->get_logger(),
-                    GREEN "[%s] Successfully updated parameter %s to %.3f" RESET,
-                    name().c_str(), param_name.c_str(), value);
-        exec.remove_node(helper_node);
-        return BT::NodeStatus::SUCCESS;
-    }
-    else
-    {
-        RCLCPP_WARN(node_ptr_->get_logger(),
-                    YELLOW "[%s] Timeout or failure setting parameter %s on %s" RESET,
-                    name().c_str(), param_name.c_str(), target_node.c_str());
-        exec.remove_node(helper_node);
-        return BT::NodeStatus::FAILURE;
-    }
+    return ok ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 

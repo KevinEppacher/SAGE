@@ -75,7 +75,7 @@ class GoToGraphNode : public BT::StatefulActionNode
 public:
     GoToGraphNode(const std::string &name,
                   const BT::NodeConfiguration &config,
-                  rclcpp::Node::SharedPtr node);
+                  rclcpp::Node::SharedPtr nodePtr);
 
     static BT::PortsList providedPorts();
 
@@ -85,9 +85,11 @@ public:
 
 private:
     bool isWithinGoal(const graph_node_msgs::msg::GraphNode &node);
+    bool hasTargetChanged(const graph_node_msgs::msg::GraphNode &new_target);
 
     rclcpp::Node::SharedPtr node;
     std::shared_ptr<Robot> robot;
+
     std::shared_ptr<graph_node_msgs::msg::GraphNode> target;
 
     std::string mapFrame{"map"};
@@ -96,8 +98,12 @@ private:
 
     double approachRadius{2.0};
     double timeoutSec{60.0};
-    rclcpp::Time lastPublishTime;
+
     rclcpp::Time startTime;
+    rclcpp::Time lastPublishTime;
+
+    // snapshot used to detect target changes
+    graph_node_msgs::msg::GraphNode lastTargetSnapshot;
 };
 
 // ============================ RealignToObject ============================ //
@@ -129,62 +135,3 @@ private:
 
 
 // -------------------- End of navigation.hpp -------------------- //
-
-// class Spin : public BT::StatefulActionNode
-// {
-// public:
-//     Spin(const std::string &name,
-//          const BT::NodeConfiguration &config,
-//          rclcpp::Node::SharedPtr node);
-
-//     static BT::PortsList providedPorts();
-
-//     BT::NodeStatus onStart() override;
-//     BT::NodeStatus onRunning() override;
-//     void onHalted() override;
-
-// private:
-//     // Internal helpers
-//     double shortestReturn(double angle);
-//     void cosineCallback(const std_msgs::msg::Float32::SharedPtr msg);
-//     double findLikeliestYaw() const;
-//     void publishCosineProfile();
-
-//     // Marker publishing
-//     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr markerPub;
-//     std::string markerFrame{"map"};
-//     int markerId{0};
-
-//     // Yaw tracking (update per sample)
-//     double currentYaw{0.0};
-
-//     // Helper
-//     void publishDirectionMarker(double yaw, float cosineVal);
-
-//     // Core ROS & behaviour objects
-//     rclcpp::Node::SharedPtr node;
-//     std::shared_ptr<Robot> robot;
-//     rclcpp_action::ResultCode navResult{};
-
-//     // Spin configuration
-//     double turnLeftAngle{0.0};
-//     double turnRightAngle{0.0};
-//     double spinDuration{15.0};
-//     double spinTimeout{30.0};
-//     double originYaw{0.0};   // yaw at onStart()
-//     int phase{0};
-//     bool done{false};
-//     std::deque<double> sweepTargetsAbs;   // absolute yaws in 'map'
-//     const double yaw_epsilon = 0.03;      // ~1.7 deg; treat as reached
-
-//     // Time tracking
-//     rclcpp::Clock steadyClock{RCL_STEADY_TIME};
-//     rclcpp::Time startTimeSteady;
-
-//     // Cosine similarity behaviour
-//     bool returnToLikeliest{false};
-//     std::string cosineTopic{"/value_map/cosine_similarity"};
-//     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr cosineSub;
-//     std::vector<std::pair<double, float>> cosineSamples;
-//     float lastCosine{0.0f};
-// };
