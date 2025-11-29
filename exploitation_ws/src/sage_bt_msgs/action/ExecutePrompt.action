@@ -1,5 +1,6 @@
 # Goal
 string prompt
+string zero_shot_prompt
 string experiment_id
 string save_directory
 float64 timeout   # timeout in minutes

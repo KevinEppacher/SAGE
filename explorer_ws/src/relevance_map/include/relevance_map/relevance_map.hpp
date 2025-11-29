@@ -57,6 +57,7 @@ private:
     bool raytracingEnabled;
     double angularSharpness = 0.25;
     double radialSharpness = 0.5;
+    double ignoreHighScoreThreshold = 0.8;
 
     std::string inputMapTopic;
     std::string inputGraphTopic;

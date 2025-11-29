@@ -180,39 +180,11 @@ void SageBtActionNode::create_behavior_tree(const std::shared_ptr<GoalHandle> go
     publisher_ptr_ = std::make_unique<BT::Groot2Publisher>(tree_, 1668);
 }
 
-BT::NodeStatus SageBtActionNode::run_behavior_tree(const std::shared_ptr<GoalHandle> goal_handle)
-{
-    BT::NodeStatus status = BT::NodeStatus::RUNNING;
-    rclcpp::Rate rate(1000.0 / bt_tick_rate_ms_);
-
-    while (rclcpp::ok() && status == BT::NodeStatus::RUNNING)
-    {
-        // Check if goal has been canceled
-        if (goal_handle->is_canceling())
-        {
-            RCLCPP_WARN(get_logger(), "BT execution interrupted by cancel request");
-            break;
-        }
-
-        status = tree_.tickOnce();
-        rate.sleep();
-    }
-
-    return status;
-}
-
-
 void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
 {
     auto goal = goal_handle->get_goal();
     auto feedback = std::make_shared<ExecutePrompt::Feedback>();
     auto result   = std::make_shared<ExecutePrompt::Result>();
-
-    // if (!robot_)
-    // {
-    //     rclcpp::sleep_for(100ms);
-    //     robot_ = std::make_unique<Robot>(shared_from_this());
-    // }
 
     RCLCPP_INFO(get_logger(),
         "Starting Behavior Tree execution with prompt: %s (timeout: %.1f min)",
@@ -226,6 +198,7 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
 
     blackboard_ = BT::Blackboard::create();
     blackboard_->set("text_query", goal->prompt);
+    blackboard_->set("zero_shot_query", goal->zero_shot_prompt);
     blackboard_->set("image_path", goal->save_directory);
     blackboard_->set<std::shared_ptr<graph_node_msgs::msg::GraphNode>>(
         "detected_graph_node", std::make_shared<graph_node_msgs::msg::GraphNode>());
