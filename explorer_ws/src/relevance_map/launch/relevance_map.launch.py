@@ -60,6 +60,19 @@ def generate_launch_description():
         ],
     )
 
+    exploitation_relevance_map_node = Node(
+        package='relevance_map',
+        executable='relevance_map_node',
+        name='relevance_map',
+        namespace='detection_relevance_map',
+        output='screen',
+        emulate_tty=True,
+        parameters=[
+            {'use_sim_time': use_sim_time},
+            config_path
+        ],
+    )
+
     #---------------------- Launch Description ------------------------------#
 
     ld  = LaunchDescription()

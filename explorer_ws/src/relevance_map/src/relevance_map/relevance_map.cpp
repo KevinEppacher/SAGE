@@ -29,7 +29,7 @@ RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
     // --- Slider Parameter mit Ranges deklarieren --- //
     ParamDesc rateDesc;
     rateDesc.description = "Base increment rate (alpha)";
-    rateDesc.floating_point_range = {FloatingRange().set__from_value(0.0).set__to_value(0.5).set__step(0.01)};
+    rateDesc.floating_point_range = {FloatingRange().set__from_value(0.0).set__to_value(0.5).set__step(0.0001)};
     this->declare_parameter("base_increment_rate", 0.1, rateDesc);
 
     ParamDesc decayDesc;
@@ -62,6 +62,13 @@ RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
     radialSharpnessDesc.floating_point_range = {FloatingRange().set__from_value(0.0).set__to_value(1.0).set__step(0.05)};
     this->declare_parameter("radial_confidence_sharpness", 0.5, radialSharpnessDesc);
 
+    ParamDesc ignoreHighScoreDesc;
+    ignoreHighScoreDesc.description = "Score threshold above which graph nodes are ignored for relevance filtering and directly republished";
+    ignoreHighScoreDesc.floating_point_range = {
+        FloatingRange().set__from_value(0.0).set__to_value(1.0).set__step(0.01)};
+    this->declare_parameter("ignore_high_score_threshold", 0.8, ignoreHighScoreDesc);
+
+
     // Load parameters
     this->get_parameter("input_map_topic", inputMapTopic);
     this->get_parameter("input_graph_topic", inputGraphTopic);
@@ -81,6 +88,7 @@ RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
     this->get_parameter("prompt_topic", promptTopic);
     this->get_parameter("angular_confidence_sharpness", angularSharpness);
     this->get_parameter("radial_confidence_sharpness", radialSharpness);
+    this->get_parameter("ignore_high_score_threshold", ignoreHighScoreThreshold);
 
     // TF
     tfBuffer = std::make_shared<tf2_ros::Buffer>(this->get_clock());
@@ -379,6 +387,19 @@ void RelevanceMapNode::graphNodeCallback(
 
     for (auto &node : msg->nodes)
     {
+        // --- Skip and republish directly if above ignore threshold ---
+        if (node.score >= ignoreHighScoreThreshold)
+        {
+            if (debugMode)
+                RCLCPP_INFO_THROTTLE(
+                    this->get_logger(), *this->get_clock(), 5000,
+                    "[RelevanceMapNode] Ignoring high-score node (%.2f ≥ %.2f) → Direct republish.",
+                    node.score, ignoreHighScoreThreshold);
+
+            out.nodes.push_back(node);
+            continue;
+        }
+
         float col = (node.position.x - map->info.origin.position.x) / map->info.resolution;
         float row = (node.position.y - map->info.origin.position.y) / map->info.resolution;
 
@@ -455,6 +476,10 @@ rcl_interfaces::msg::SetParametersResult RelevanceMapNode::onParameterChange(
         } else if (name == "radial_confidence_sharpness") {
             radialSharpness = p.as_double();
             RCLCPP_INFO(this->get_logger(), "Updated radial_confidence_sharpness: %.3f", radialSharpness);
+        } else if (name == "ignore_high_score_threshold") {
+            ignoreHighScoreThreshold = p.as_double();
+            RCLCPP_INFO(this->get_logger(),
+                        "Updated ignore_high_score_threshold: %.3f", ignoreHighScoreThreshold);
         }
     }
 

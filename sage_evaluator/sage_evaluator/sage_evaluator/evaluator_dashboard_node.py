@@ -238,8 +238,9 @@ class EvaluatorDashboard(Node):
         save_path = os.path.join(det_dir, filename)
         goal.save_directory = save_path
         goal.timeout = 30.0
+        goal.zero_shot_prompt = self.prompts_data["zero_shot"][self.prompts_train.index(query)]
 
-        self.get_logger().info(f"Executing BT for prompt '{query}' → save {save_path}")
+        self.get_logger().info(f"Executing BT for prompt '{query}' and zero_shot_prompt '{goal.zero_shot_prompt}' → save {save_path}")
         send_future = self.bt_action_client.send_goal_async(goal, feedback_callback=self._feedback_cb)
         rclpy.spin_until_future_complete(self, send_future)
         goal_handle = send_future.result()
