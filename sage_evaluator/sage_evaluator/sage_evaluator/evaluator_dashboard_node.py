@@ -313,7 +313,7 @@ class EvaluatorDashboard(Node):
         with open(os.path.join(det_dir, "sr.json"), "w") as f:
             json.dump({"SR": metrics.sr, "confidence": confidence}, f, indent=2)
         with open(os.path.join(det_dir, "spl.json"), "w") as f:
-            json.dump({"SPL": metrics.spl}, f, indent=2)
+            json.dump({"SPL": metrics.spl, "shortest_path": metrics.shortest_path, "actual_path": metrics.actual_path}, f, indent=2)
         self.get_logger().info(f"Saved per-prompt metrics for '{prompt}' → {det_dir}")
 
     # ------------------------------------------------------------

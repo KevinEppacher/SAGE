@@ -114,7 +114,7 @@ tmux send-keys -t $SESSION:pre_evaluation.1 "docker exec -it ros2_exploitation_c
 tmux send-keys -t $SESSION:pre_evaluation.1 "clear" C-m
 tmux send-keys -t $SESSION:pre_evaluation.1 "echo -e '\033[1;36m[Saving Semantic Map from openfusion_ros...]\033[0m'" C-m
 tmux send-keys -t $SESSION:pre_evaluation.1 "echo -e Keep in mind configuring openfusion_ros properly before running this command: root_dir, scene_name, annotation_version, voxel_size, block_resolution" C-m
-tmux send-keys -t $SESSION:pre_evaluation.1 "ros2 launch sage_evaluator evaluate.launch.py"
+tmux send-keys -t $SESSION:pre_evaluation.1 "ros2 topic pub --once /user_prompt multimodal_query_msgs/msg/SemanticPrompt "{text_query: chair}""
 
 tmux send-keys -t $SESSION:pre_evaluation.2 "docker exec -it ros2_exploitation_container bash" C-m
 tmux send-keys -t $SESSION:pre_evaluation.2 "clear" C-m
@@ -132,7 +132,7 @@ tmux send-keys -t $SESSION:pre_evaluation.3 "ros2 launch openfusion_ros openfusi
 
 tmux send-keys -t $SESSION:pre_evaluation.4 "docker exec -it ros2_exploitation_container bash" C-m
 tmux send-keys -t $SESSION:pre_evaluation.4 "clear" C-m
-tmux send-keys -t $SESSION:pre_evaluation.4 "ros2 run teleop_twist_keyboard teleop_twist_keyboard"
+tmux send-keys -t $SESSION:pre_evaluation.4 "ros2 topic pub --once /evaluator/prompt multimodal_query_msgs/msg/SemanticPrompt "{text_query: chair}""
 
 tmux select-layout -t $SESSION:pre_evaluation tiled
 
