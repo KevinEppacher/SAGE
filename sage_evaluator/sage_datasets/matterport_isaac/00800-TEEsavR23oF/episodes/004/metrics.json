@@ -1,0 +1,32 @@
+{
+  "chair": {
+    "SR": 0.0,
+    "SPL": 0.0,
+    "shortest_path_length": 4.2714659583289,
+    "actual_path_length": 23.859398285700248
+  },
+  "table": {
+    "SR": 0.0,
+    "SPL": 0.0,
+    "shortest_path_length": 0.0,
+    "actual_path_length": 0.0
+  },
+  "sofa": {
+    "SR": 0.0,
+    "SPL": 0.0,
+    "shortest_path_length": 0.0,
+    "actual_path_length": 0.0
+  },
+  "bed": {
+    "SR": 0.0,
+    "SPL": 0.0,
+    "shortest_path_length": 0.0,
+    "actual_path_length": 0.0
+  },
+  "tv": {
+    "SR": 0.0,
+    "SPL": 0.0,
+    "shortest_path_length": 0.0,
+    "actual_path_length": 0.0
+  }
+}

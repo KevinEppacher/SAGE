@@ -52,7 +52,7 @@ sage_behaviour_tree:
         goal_topic: /goal_pose
         map_frame: map
         robot_frame: base_link
-        timeout: 10.0             # double: timeout for go to graph action in seconds
+        timeout: 30.0             # double: timeout for go to graph action in seconds
       # Startup requirements for the BT action server
       startup:
         required_topics:

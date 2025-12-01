@@ -404,8 +404,8 @@ BT::NodeStatus ObserveGraphNodes::onStart() {
 
     if (visibleNodes.empty()) {
         RCLCPP_INFO(node->get_logger(),
-                    ORANGE "[ObserveGraphNodes] No visible unobserved nodes → RUNNING." RESET);
-        return BT::NodeStatus::RUNNING;
+                    ORANGE "[ObserveGraphNodes] No visible unobserved nodes → SUCCESS." RESET);
+        return BT::NodeStatus::SUCCESS;
     }
 
     if (!spinCtrl->shouldTriggerSpin(robotPose, spinDistanceThreshold)) {
