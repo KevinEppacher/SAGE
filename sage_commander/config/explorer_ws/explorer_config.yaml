@@ -151,7 +151,7 @@ exploitation_relevance_map:
       frame_robot: base_link
       input_graph_topic: /exploitation_graph_nodes/graph_nodes
       input_map_topic: /map
-      max_range: 5.0
+      max_range: 3.5
       output_graph_topic: /filtered/exploitation_graph_nodes/graph_nodes
       qos_overrides./clock.subscription.depth: 1
       qos_overrides./clock.subscription.durability: volatile
