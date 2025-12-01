@@ -8,7 +8,7 @@
                              topic="/user_prompt"/>
       <PublishSemanticPrompt text_query="{zero_shot_query}"
                              topic="/zero_shot_prompt"/>
-      <SetParameterNode value="0.9995"
+      <SetParameterNode value="0.999"
                         parameter_name="semantic_map.decay_factor"
                         target_node="/value_map/value_map"/>
       <KeepRunningUntilObjectFound object_found="{object_found}"
@@ -19,7 +19,9 @@
                         graph_nodes="{detected_graph_node}"
                         detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
                         time_threshold="1.000000"
-                        detection_threshold="0.50"/>
+                        detection_threshold="0.40"/>
+            <PublishSemanticPrompt text_query="{text_query}"
+                                   topic="/user_prompt"/>
             <ApproachPoseAdjustor search_radius="2.5"
                                   reachable_graph_node="{reachable_detection_graph_node}"
                                   graph_node="{detected_graph_node}">
@@ -32,7 +34,7 @@
                         graph_nodes="{detected_graph_node}"
                         detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
                         time_threshold="0"
-                        detection_threshold="0.75"/>
+                        detection_threshold="0.6"/>
             <SaveImageAction imageTopic="/yoloe/overlay"
                              savePath="{image_path}"/>
             <SetBlackboard value="true"

@@ -184,7 +184,7 @@ class EvaluatorDashboard(Node):
             self.get_logger().info(f"Metrics for '{train_prompt}': {metrics.to_dict()}")
 
             # --- 5. Save per-prompt metrics JSON ---
-            self._save_prompt_metrics(train_prompt, metrics)
+            self._save_prompt_metrics(train_prompt, metrics, confidence)
 
         # --- 6. Save episode summary metrics ---
         self._save_summary_metrics()
@@ -306,12 +306,12 @@ class EvaluatorDashboard(Node):
         #     )
 
     # ------------------------------------------------------------
-    def _save_prompt_metrics(self, prompt, metrics: Metrics):
+    def _save_prompt_metrics(self, prompt, metrics: Metrics, confidence: float):
         """Save SR and SPL per prompt as JSON in its folder."""
         det_dir = os.path.join(self.episode_dir, "detections", prompt)
         os.makedirs(det_dir, exist_ok=True)
         with open(os.path.join(det_dir, "sr.json"), "w") as f:
-            json.dump({"SR": metrics.sr}, f, indent=2)
+            json.dump({"SR": metrics.sr, "confidence": confidence}, f, indent=2)
         with open(os.path.join(det_dir, "spl.json"), "w") as f:
             json.dump({"SPL": metrics.spl}, f, indent=2)
         self.get_logger().info(f"Saved per-prompt metrics for '{prompt}' → {det_dir}")
