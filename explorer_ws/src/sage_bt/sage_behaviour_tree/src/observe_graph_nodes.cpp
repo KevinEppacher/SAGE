@@ -452,15 +452,15 @@ BT::NodeStatus ObserveGraphNodes::onRunning() {
     auto state = spinCtrl->updateSpinState(mapFrame);
     if (state == BT::NodeStatus::SUCCESS) 
     {
+        bool success = set_remote_parameter(node, valueMapNode, decayFactorParam, valueMapDecayFactorDefault);
+        if (!success) 
+        {
+            RCLCPP_WARN(node->get_logger(),
+                        YELLOW "[ObserveGraphNodes] Warning: could not reset decay_factor parameter." RESET);
+        }
         if (graphManager->allNodesObserved()) 
         {
             RCLCPP_INFO(node->get_logger(), GREEN "[ObserveGraphNodes] SUCCESS — all nodes now observed." RESET);
-            bool success = set_remote_parameter(node, valueMapNode, decayFactorParam, valueMapDecayFactorDefault);
-            if (!success) 
-            {
-                RCLCPP_WARN(node->get_logger(),
-                            YELLOW "[ObserveGraphNodes] Warning: could not reset decay_factor parameter." RESET);
-            }
             return BT::NodeStatus::SUCCESS;
         } 
         else
@@ -477,6 +477,7 @@ BT::NodeStatus ObserveGraphNodes::onRunning() {
 void ObserveGraphNodes::onHalted() {
     RCLCPP_WARN(node->get_logger(),
                 YELLOW "[ObserveGraphNodes] Observation halted by Behavior Tree." RESET);
+    bool success = set_remote_parameter(node, valueMapNode, decayFactorParam, valueMapDecayFactorDefault);
 
     // // Gracefully reset all GraphNodeManager subscriptions
     // if (graphManager) {

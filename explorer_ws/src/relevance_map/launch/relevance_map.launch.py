@@ -60,7 +60,7 @@ def generate_launch_description():
         ],
     )
 
-    exploitation_relevance_map_node = Node(
+    detection_relevance_map_node = Node(
         package='relevance_map',
         executable='relevance_map_node',
         name='relevance_map',
@@ -80,4 +80,5 @@ def generate_launch_description():
     ld.add_action(config_path_arg)
     ld.add_action(explorer_relevance_map_node)
     ld.add_action(exploitation_relevance_map_node)
+    ld.add_action(detection_relevance_map_node)
     return ld
