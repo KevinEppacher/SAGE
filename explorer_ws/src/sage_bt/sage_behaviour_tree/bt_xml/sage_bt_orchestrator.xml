@@ -34,7 +34,7 @@
                         graph_nodes="{detected_graph_node}"
                         detection_graph_node_topic="/fused/detection_graph_nodes/graph_nodes"
                         time_threshold="0"
-                        detection_threshold="0.6"/>
+                        detection_threshold="0.8"/>
             <SaveImageAction imageTopic="/yoloe/overlay"
                              savePath="{image_path}"/>
             <SetBlackboard value="true"

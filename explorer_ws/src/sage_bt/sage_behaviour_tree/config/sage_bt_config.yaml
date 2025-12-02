@@ -53,6 +53,15 @@ sage_behaviour_tree:
         map_frame: map
         robot_frame: base_link
         timeout: 30.0             # double: timeout for go to graph action in seconds
+      observe:
+        perform_raytracing: false  # bool: disable raytracing during observation
+        sight_horizon: 5.0        # double: limit sight distance for observation
+        spin_distance_threshold: 1.5  # double: min distance before allowing another spin
+        map_frame: map
+        robot_frame: base_link
+        timeout_seconds: 90.0   # double: timeout for observe action in seconds
+        decay_factor_param: "semantic_map.decay_factor"
+        decay_factor_default: 0.9999
       # Startup requirements for the BT action server
       startup:
         required_topics:

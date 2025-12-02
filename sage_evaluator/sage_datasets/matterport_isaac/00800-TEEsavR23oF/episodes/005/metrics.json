@@ -1,0 +1,32 @@
+{
+  "bed": {
+    "SR": 1.0,
+    "SPL": 0.7112979790464055,
+    "shortest_path_length": 33.69973549830579,
+    "actual_path_length": 47.37780296168563
+  },
+  "refrigerator": {
+    "SR": 1.0,
+    "SPL": 0.3856286852640957,
+    "shortest_path_length": 13.473644326650248,
+    "actual_path_length": 34.93942448140987
+  },
+  "oven and stove": {
+    "SR": 1.0,
+    "SPL": 0.6145371987717683,
+    "shortest_path_length": 9.260419758087902,
+    "actual_path_length": 15.068932810895816
+  },
+  "wardrobe": {
+    "SR": 1.0,
+    "SPL": 0.8418142683723687,
+    "shortest_path_length": 13.671935351976101,
+    "actual_path_length": 16.241035422707338
+  },
+  "light": {
+    "SR": 0.0,
+    "SPL": 0.0,
+    "shortest_path_length": 3.537509236847261,
+    "actual_path_length": 27.056153287546376
+  }
+}

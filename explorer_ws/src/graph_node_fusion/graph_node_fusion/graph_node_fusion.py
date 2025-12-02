@@ -385,7 +385,6 @@ class GraphNodeFusion(Node):
 
         # --- Parameters ---
         self.declare_parameter("approach_radius", 1.0)
-        self.declare_parameter("max_visited", 200)
         self.declare_parameter("debug_distance", True)
         self.declare_parameter("exploration_topic", "/exploration_graph_nodes/graph_nodes")
         self.declare_parameter("exploitation_topic", "/exploitation_graph_nodes/graph_nodes")
@@ -396,7 +395,6 @@ class GraphNodeFusion(Node):
 
         gp = self.get_parameter
         self.approach_radius = gp("approach_radius").value
-        self.max_visited = gp("max_visited").value
         self.debug_distance = gp("debug_distance").value
         self.exploration_topic = gp("exploration_topic").value
         self.exploitation_topic = gp("exploitation_topic").value
