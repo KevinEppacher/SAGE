@@ -98,20 +98,19 @@ fused:
       fused_topics:
         detection_graph_nodes: detection_graph_nodes/graph_nodes
         exploration_graph_nodes: exploration_graph_nodes/graph_nodes
-      max_visited: 200
       timer_period: 0.1
       weights.det_weight: 1.0
       weights.map_weight: 1.0
       weights.mem_sigma: 0.5
       weights.mem_weight: 1.0
-      weights.proximity_radius: 2.0
-      weights.proximity_weight: 1.0
-      weights.source_balance: 0.2
+      weights.proximity_radius: 5.0
+      weights.proximity_weight: 0.2
+      weights.source_balance: 0.1
 
 explorer_relevance_map:
   relevance_map:
     ros__parameters:
-      angular_confidence_sharpness: 0.1
+      angular_confidence_sharpness: 0.25
       base_increment_rate: 0.5
       camera_info_topic: /camera_info
       debug_mode: true
