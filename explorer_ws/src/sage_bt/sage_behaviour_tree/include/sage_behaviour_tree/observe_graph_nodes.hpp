@@ -27,7 +27,6 @@ class GraphNodeManager {
 public:
     explicit GraphNodeManager(rclcpp::Node::SharedPtr node);
 
-    bool noRecentGraph();
     std::shared_ptr<graph_node_msgs::msg::GraphNode> getBestScoreNode() const;
     bool allNodesObserved() const;
     void shutdown();  // Graceful cleanup
