@@ -4,6 +4,18 @@ static inline float pack_rgb_u32_to_float(uint32_t rgb_u32) {
   union { uint32_t u; float f; } c; c.u = rgb_u32; return c.f;
 }
 
+
+bool hasRobotMoved(const geometry_msgs::msg::Pose& last,
+                        const geometry_msgs::msg::Pose& current,
+                        double moveThresh)
+{
+    const double dx = current.position.x - last.position.x;
+    const double dy = current.position.y - last.position.y;
+    const double dist = std::hypot(dx, dy);
+    return dist > moveThresh;
+}
+
+
 SemanticValueMap::SemanticValueMap(rclcpp_lifecycle::LifecycleNode* node)
 : node(node)
 {
@@ -33,6 +45,7 @@ bool SemanticValueMap::on_configure()
     node->declare_parameter<float>("semantic_map.update_gain", 0.3f);
     node->declare_parameter<bool>("semantic_map.use_camera_info_fov", true);
     node->declare_parameter<double>("semantic_map.fov", 30.0);
+    node->declare_parameter<double>("semantic_map.move_threshold", 0.05);
 
     // --- Load parameters (existing code) ---
     node->get_parameter("semantic_map.confidence_sharpness", confidenceSharpness);
@@ -44,6 +57,7 @@ bool SemanticValueMap::on_configure()
     node->get_parameter("semantic_map.update_gain", updateGain);
     node->get_parameter("semantic_map.use_camera_info_fov", useCameraInfoFov);
     node->get_parameter("semantic_map.fov", fovDeg);
+    node->get_parameter("semantic_map.move_threshold", moveThreshold);
 
     // --- Service creation ---
     clearValueMapService = node->create_service<std_srvs::srv::Empty>(
@@ -106,6 +120,9 @@ rcl_interfaces::msg::SetParametersResult SemanticValueMap::onParameterChange(con
         } else if (param.get_name() == "semantic_map.fov") {
             fovDeg = param.as_double();
             RCLCPP_INFO(node->get_logger(), "Updated fov to %.2f", fovDeg);
+        } else if (param.get_name() == "semantic_map.move_threshold") {
+            moveThreshold = param.as_double();
+            RCLCPP_INFO(node->get_logger(), "Updated move_threshold to %.2f", moveThreshold);
         }
     }
 
@@ -152,62 +169,76 @@ bool SemanticValueMap::on_shutdown()
   return true;
 }
 
-void SemanticValueMap::updateSemanticMap(const SemanticScore& semScore, const geometry_msgs::msg::PoseStamped& pose)
+void SemanticValueMap::updateSemanticMap(const SemanticScore& semScore,
+                                         const geometry_msgs::msg::PoseStamped& pose)
 {
     if (!map)
     {
-    RCLCPP_WARN(node->get_logger(), "No occupancy grid map received yet.");
-    return;
+        RCLCPP_WARN(node->get_logger(), "No occupancy grid map received yet.");
+        return;
     }
 
-    if(useCameraInfoFov)
+    if (useCameraInfoFov)
         fovDeg = getHorizontalFOV(camInfo);
 
-    // --- Step 1: Decay previous values ---
-    valueMap *= decayFactor;
-    confidenceMap *= decayFactor;
+    // --- Step 0: Decide if robot moved in XY --- //
+    bool moved = true;
+    if (lastPoseValid)
+        moved = hasRobotMoved(lastPose, pose.pose, moveThreshold);
 
-    // --- Step 2: Generate FOV cone mask ---
+    if (!moved)
+    {
+        RCLCPP_DEBUG(node->get_logger(),
+                     "Robot only rotated or barely moved (Δ < %.2fm) → skipping decay.",
+                     moveThreshold);
+    }
+
+    // --- Step 1: Apply decay only if translation occurred --- //
+    if (moved)
+    {
+        valueMap *= decayFactor;
+        confidenceMap *= decayFactor;
+    }
+
+    // Save pose for next iteration
+    lastPose = pose.pose;
+    lastPoseValid = true;
+
+    // --- Continue with your existing logic --- //
     cv::Mat fovMask = generateTopdownConeMask(pose.pose, *map, fovDeg, maxRange);
-
-    // --- Step 3: Compute confidence values ---
     cv::Mat confidence = computeConfidenceMap(pose.pose, *map, fovDeg, fovMask);
 
     int width = map->info.width;
     int height = map->info.height;
-
     float newValue = semScore.getScore();
 
-    int updates = 0;
     for (int row = 0; row < height; ++row)
     {
         for (int col = 0; col < width; ++col)
-            {
-                if (fovMask.at<uint8_t>(row, col) == 0)
-                    continue;
+        {
+            if (fovMask.at<uint8_t>(row, col) == 0)
+                continue;
 
-                float prevValue = valueMap.at<float>(row, col);
-                float prevConf = confidenceMap.at<float>(row, col);
-                float newConf = confidence.at<float>(row, col);
+            float prevValue = valueMap.at<float>(row, col);
+            float prevConf  = confidenceMap.at<float>(row, col);
+            float newConf   = confidence.at<float>(row, col);
 
-                if ((prevConf + newConf) == 0.0f)
-                    continue;
+            if ((prevConf + newConf) == 0.0f)
+                continue;
 
-                // confidence only affects how much to blend, not what value we blend in
-                float effConf = newConf * updateGain;        // update strength
-                float fusedValue = prevValue + effConf * (newValue - prevValue);
-                float fusedConf  = std::max(prevConf * static_cast<float>(decayFactor), newConf);
+            float effConf = newConf * updateGain;
+            float fusedValue = prevValue + effConf * (newValue - prevValue);
+            float fusedConf  = std::max(prevConf * static_cast<float>(decayFactor), newConf);
 
-                valueMap.at<float>(row, col) = fusedValue;
-                confidenceMap.at<float>(row, col) = fusedConf;
-                
-                ++updates;
-            }
+            valueMap.at<float>(row, col) = fusedValue;
+            confidenceMap.at<float>(row, col) = fusedConf;
+        }
     }
 
     publishValueMapRaw();
     publishValueMapInferno();
 }
+
 
 void SemanticValueMap::mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg) 
 {

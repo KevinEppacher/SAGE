@@ -28,10 +28,17 @@ public:
     explicit GraphNodeManager(rclcpp::Node::SharedPtr node);
 
     bool noRecentGraph();
-    bool checkTimeouts();
     std::shared_ptr<graph_node_msgs::msg::GraphNode> getBestScoreNode() const;
     bool allNodesObserved() const;
     void shutdown();  // Graceful cleanup
+
+    enum class GraphStatus {
+        OK,
+        WAITING,
+        TIMEOUT
+    };
+
+    GraphStatus checkGraphStatus();
 
     // Accessor for logging
     rclcpp::Logger getLogger() const { return node->get_logger(); }
@@ -46,7 +53,7 @@ private:
 
     bool receivedGraph = false;
     int missedTicks = 0;
-    const int maxMissedTicks = 8;
+    int maxMissedTicks = 8;
 };
 
 // ============================================================
@@ -156,8 +163,8 @@ private:
     std::string graphNodeTopic = "/fused/exploration_graph_nodes/graph_nodes";
     std::string mapFrame = "map";
     std::string robotFrame = "base_link";
-    std::string valueMapNode = "/value_map/value_map", decayFactorParam = "semantic_map.decay_factor";
-    float valueMapDecayFactorDefault = 0.9995f;
+    // std::string valueMapNode = "/value_map/value_map", decayFactorParam = "semantic_map.decay_factor";
+    // float valueMapDecayFactorDefault = 0.9995f;
 
     // Timer
     rclcpp::Clock steadyClock{RCL_STEADY_TIME};
