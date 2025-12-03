@@ -105,20 +105,21 @@ value_map:
   value_map:
     ros__parameters:
       vlm_target_namespace: "/blip2_ros" # Namespace for the Value Map Node
-      timer_frequency: 100.0  # Default timer frequency in ms
+      timer_frequency: 10.0  # Default timer frequency in ms
       semantic_prompt_topic: "/zero_shot_prompt"  # Topic for semantic prompts
       semantic_map:
-        confidence_sharpness: 4.0   # cs < 2.0 smoothens the map, cs > 2.0 sharpens it
-        decay_factor: 0.9          # decay factor for previous values | at start 1.0, then eg. 0.99
+        confidence_sharpness: 6.0   # cs < 2.0 smoothens the map, cs > 2.0 sharpens it
+        decay_factor: 0.99          # decay factor for previous values | at start 1.0, then eg. 0.99
         max_range: 10.0           # Maximum range for semantic mapping
         map_topic: "/map"  # Topic for the occupancy grid map
         camera_info_topic: "/camera_info"  # Topic for the camera info
         visualize_confidence_map: false  # Flag to visualize the confidence map
         clear_service_name: "/value_map/clear"
-        update_gain: 0.05   # Gain for updating the value map with its current observation
-        use_camera_info_fov: true  # Flag to use FOV from camera info
-        fov: 5.0  # FOV in degrees if not using camera info
+        update_gain: 0.5   # Gain for updating the value map with its current observation
+        use_camera_info_fov: false  # Flag to use FOV from camera info
+        fov: 30.0  # FOV in degrees if not using camera info
+        move_threshold: 0.01
       robot:
         map_frame: "map" # Parent frame for the robot
         camera_link_frame: "carter_camera_stereo_right" # Frame of the RGB camera
-      rgb_topic: "/rgb"  # Topic for the RGB images
+      rgb_topic: "/rgb/throttled"  # Topic for the RGB images

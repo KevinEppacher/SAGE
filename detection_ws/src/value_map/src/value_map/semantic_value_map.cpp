@@ -328,8 +328,8 @@ double SemanticValueMap::getHorizontalFOV(const sensor_msgs::msg::CameraInfo::Sh
   if(!cameraInfo)
   {
     RCLCPP_WARN(node->get_logger(), "Camera Info not set. Did /camera_info publishished yet?");
-    RCLCPP_INFO(node->get_logger(), "Using FOV Fallback angle 45°.");
-    return 45.0;
+    RCLCPP_INFO(node->get_logger(), "Using FOV Fallback default %f", fovDeg);
+    return fovDeg;
   }
   double width = cameraInfo->width;
   double fx = cameraInfo->k[0];
