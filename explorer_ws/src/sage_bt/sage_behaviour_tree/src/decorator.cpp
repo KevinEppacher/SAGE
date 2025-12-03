@@ -493,10 +493,6 @@ void SageBtOrchestrator::loadParameters()
     required_services = node->get_parameter("sage_bt.startup.required_services").as_string_array();
 }
 
-// =======================================
-// STARTUP CHECK CALLBACK
-// =======================================
-
 void SageBtOrchestrator::onStartupRequest(
     const std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Request>,
     std::shared_ptr<sage_bt_msgs::srv::StartupCheck::Response> resp)
@@ -539,10 +535,6 @@ void SageBtOrchestrator::onStartupRequest(
             name().c_str(), resp->report.c_str());
     }
 }
-
-// =======================================
-// ACTION SERVER CALLBACKS
-// =======================================
 
 rclcpp_action::GoalResponse SageBtOrchestrator::handleGoal(
     const rclcpp_action::GoalUUID &,
@@ -747,10 +739,6 @@ void SageBtOrchestrator::executeGoal(const std::shared_ptr<GoalHandle> goal_hand
     // Ros shutdown or executor stopped
     activeGoal = false;
 }
-
-// =======================================
-// DECORATOR TICK
-// =======================================
 
 BT::NodeStatus SageBtOrchestrator::tick()
 {

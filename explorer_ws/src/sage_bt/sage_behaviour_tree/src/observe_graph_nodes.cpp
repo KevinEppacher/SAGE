@@ -32,38 +32,47 @@ GraphNodeManager::GraphNodeManager(rclcpp::Node::SharedPtr nodePtr)
             latestGraph = std::move(msg);
             receivedGraph = true;
             missedTicks = 0;
-            // RCLCPP_INFO(node->get_logger(),
-            //             GREEN "[GraphNodeManager] Received %zu graph nodes." RESET,
-            //             latestGraph->nodes.size());
         });
 
     subMap = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
         "/map", rclcpp::QoS(1).transient_local().reliable(),
         [this](nav_msgs::msg::OccupancyGrid::SharedPtr msg) {
             latestMap = std::move(msg);
-            // RCLCPP_INFO(node->get_logger(), GREEN "[GraphNodeManager] Received updated occupancy map." RESET);
         });
+
+    if (!node->has_parameter("observe.max_missed_ticks"))
+        node->declare_parameter("observe.max_missed_ticks", 8);
+    maxMissedTicks = node->get_parameter("observe.max_missed_ticks").as_int();
 }
 
-bool GraphNodeManager::noRecentGraph() {
-    if (!receivedGraph) {
+GraphNodeManager::GraphStatus GraphNodeManager::checkGraphStatus()
+{
+    if (!receivedGraph)
+    {
         missedTicks++;
-        RCLCPP_WARN(node->get_logger(),
-                    ORANGE "[GraphNodeManager] Waiting for graph nodes... (%d/%d)" RESET,
-                    missedTicks, maxMissedTicks);
 
-        if (missedTicks > maxMissedTicks) {
+        if (missedTicks > maxMissedTicks)
+        {
             RCLCPP_ERROR(node->get_logger(),
-                         RED "[GraphNodeManager] No graph nodes received for %d ticks → FAILURE" RESET,
+                         RED "[GraphNodeManager] No graph nodes for %d consecutive ticks → TIMEOUT" RESET,
                          missedTicks);
-            return true;
+            return GraphStatus::TIMEOUT;
         }
-        return true; // still waiting
+        else
+        {
+            RCLCPP_WARN(node->get_logger(),
+                        ORANGE "[GraphNodeManager] Waiting for graph nodes... (%d/%d)" RESET,
+                        missedTicks, maxMissedTicks);
+            return GraphStatus::WAITING;
+        }
     }
+
+    // fresh data arrived
     receivedGraph = false;
     missedTicks = 0;
-    return false;
+    return GraphStatus::OK;
 }
+
 
 std::shared_ptr<graph_node_msgs::msg::GraphNode> GraphNodeManager::getBestScoreNode() const {
     if (!latestGraph || latestGraph->nodes.empty()) return nullptr;
@@ -79,10 +88,6 @@ std::shared_ptr<graph_node_msgs::msg::GraphNode> GraphNodeManager::getBestScoreN
     }
 
     if (!bestNode) return nullptr;
-
-    // RCLCPP_INFO(node->get_logger(),
-    //             GREEN "[GraphNodeManager] Best node → ID: %d | Score: %.3f" RESET,
-    //             bestNode->id, bestNode->score);
 
     return std::make_shared<graph_node_msgs::msg::GraphNode>(*bestNode);
 }
@@ -281,9 +286,6 @@ std::vector<const graph_node_msgs::msg::GraphNode*> VisibilityAnalyzer::findUnob
         }
     }
 
-    // RCLCPP_INFO(manager.getLogger(),
-    //             ORANGE "[VisibilityAnalyzer] %d unobserved nodes, %zu visible." RESET,
-    //             unobservedCount, result.size());
     return result;
 }
 
@@ -342,12 +344,6 @@ ObserveGraphNodes::ObserveGraphNodes(const std::string& name,
         node->declare_parameter("observe.robot_frame", "base_link");
     if(!node->has_parameter("observe.timeout_sec"))
         node->declare_parameter("observe.timeout_sec", 90.0);
-    if(!node->has_parameter("observe.value_map_node"))
-        node->declare_parameter("observe.value_map_node", "/value_map/value_map");
-    if(!node->has_parameter("observe.decay_factor_param"))
-        node->declare_parameter("observe.decay_factor_param", "semantic_map.decay_factor");
-    if(!node->has_parameter("observe.decay_factor_default"))
-        node->declare_parameter("observe.decay_factor_default", 0.9995);
 
     performRayTracing = node->get_parameter("observe.perform_raytracing").as_bool();
     sightHorizon = node->get_parameter("observe.sight_horizon").as_double();
@@ -355,10 +351,6 @@ ObserveGraphNodes::ObserveGraphNodes(const std::string& name,
     mapFrame = node->get_parameter("observe.map_frame").as_string();
     robotFrame = node->get_parameter("observe.robot_frame").as_string();
     timeoutSec = node->get_parameter("observe.timeout_sec").as_double();
-    valueMapNode = node->get_parameter("observe.value_map_node").as_string();
-    decayFactorParam = node->get_parameter("observe.decay_factor_param").as_string();
-    valueMapDecayFactorDefault = static_cast<float>(
-        node->get_parameter("observe.decay_factor_default").as_double());
 
     RCLCPP_INFO(node->get_logger(),
                 GREEN "[ObserveGraphNodes] Configured timeout: %.1f s" RESET,
@@ -381,8 +373,17 @@ BT::NodeStatus ObserveGraphNodes::onStart() {
     startTime = steadyClock.now();
     timerActive = true;
 
-    if (graphManager->noRecentGraph())
-        return BT::NodeStatus::RUNNING;
+    switch (graphManager->checkGraphStatus())
+    {
+        case GraphNodeManager::GraphStatus::WAITING:
+            return BT::NodeStatus::RUNNING;
+        case GraphNodeManager::GraphStatus::TIMEOUT:
+            RCLCPP_ERROR(node->get_logger(),
+                         RED "[ObserveGraphNodes] No graph data received → FAILURE" RESET);
+            return BT::NodeStatus::FAILURE;
+        case GraphNodeManager::GraphStatus::OK:
+            break;
+    }
 
     geometry_msgs::msg::Pose robotPose;
     if (!robot->getPose(robotPose, mapFrame, robotFrame)) {
@@ -412,13 +413,6 @@ BT::NodeStatus ObserveGraphNodes::onStart() {
         RCLCPP_INFO(node->get_logger(),
                     ORANGE "[ObserveGraphNodes] Robot did not move enough for new spin → SUCCESS." RESET);
         return BT::NodeStatus::SUCCESS;
-    }
-
-    bool success = set_remote_parameter(node, valueMapNode, decayFactorParam, 1.0);
-    if (!success) 
-    {
-        RCLCPP_WARN(node->get_logger(),
-                    YELLOW "[ObserveGraphNodes] Warning: could not set decay_factor parameter." RESET);
     }
 
     double minYaw = 0.0, maxYaw = 0.0;
@@ -452,12 +446,6 @@ BT::NodeStatus ObserveGraphNodes::onRunning() {
     auto state = spinCtrl->updateSpinState(mapFrame);
     if (state == BT::NodeStatus::SUCCESS) 
     {
-        bool success = set_remote_parameter(node, valueMapNode, decayFactorParam, valueMapDecayFactorDefault);
-        if (!success) 
-        {
-            RCLCPP_WARN(node->get_logger(),
-                        YELLOW "[ObserveGraphNodes] Warning: could not reset decay_factor parameter." RESET);
-        }
         if (graphManager->allNodesObserved()) 
         {
             RCLCPP_INFO(node->get_logger(), GREEN "[ObserveGraphNodes] SUCCESS — all nodes now observed." RESET);
@@ -477,14 +465,13 @@ BT::NodeStatus ObserveGraphNodes::onRunning() {
 void ObserveGraphNodes::onHalted() {
     RCLCPP_WARN(node->get_logger(),
                 YELLOW "[ObserveGraphNodes] Observation halted by Behavior Tree." RESET);
-    bool success = set_remote_parameter(node, valueMapNode, decayFactorParam, valueMapDecayFactorDefault);
 
     // // Gracefully reset all GraphNodeManager subscriptions
     // if (graphManager) {
     //     graphManager->shutdown();
     //     graphManager.reset();
-    //     RCLCPP_INFO(node->get_logger(),
-    //                 GREEN "[ObserveGraphNodes] GraphNodeManager shutdown completed." RESET);
+    //     // RCLCPP_INFO(node->get_logger(),
+    //     //             GREEN "[ObserveGraphNodes] GraphNodeManager shutdown completed." RESET);
     // }
 
     if (spinCtrl)
@@ -512,50 +499,3 @@ bool ObserveGraphNodes::checkTimeout(BT::NodeStatus& outStatus)
 
     return false;
 }
-
-bool ObserveGraphNodes::setRemoteParameter(const std::string& targetNode,
-                                           const std::string& paramName,
-                                           double value,
-                                           double timeoutSec)
-{
-    auto helperNode = std::make_shared<rclcpp::Node>("observe_graph_nodes_param_client");
-    auto client = helperNode->create_client<rcl_interfaces::srv::SetParameters>(
-        targetNode + "/set_parameters");
-
-    if (!client->wait_for_service(std::chrono::duration<double>(timeoutSec))) {
-        RCLCPP_ERROR(node->get_logger(),
-                     RED "[ObserveGraphNodes] Parameter service not available: %s" RESET,
-                     (targetNode + "/set_parameters").c_str());
-        return false;
-    }
-
-    auto request = std::make_shared<rcl_interfaces::srv::SetParameters::Request>();
-    request->parameters.push_back(rclcpp::Parameter(paramName, value).to_parameter_msg());
-
-    RCLCPP_INFO(node->get_logger(),
-                ORANGE "[ObserveGraphNodes] Setting %s/%s = %.4f" RESET,
-                targetNode.c_str(), paramName.c_str(), value);
-
-    auto future = client->async_send_request(request);
-    rclcpp::executors::SingleThreadedExecutor exec;
-    exec.add_node(helperNode);
-
-    bool success = false;
-    if (exec.spin_until_future_complete(future, std::chrono::duration<double>(timeoutSec)) ==
-        rclcpp::FutureReturnCode::SUCCESS)
-    {
-        RCLCPP_INFO(node->get_logger(),
-                    GREEN "[ObserveGraphNodes] Parameter %s/%s updated to %.4f" RESET,
-                    targetNode.c_str(), paramName.c_str(), value);
-        success = true;
-    }
-    else {
-        RCLCPP_WARN(node->get_logger(),
-                    YELLOW "[ObserveGraphNodes] Timeout or failure setting %s/%s" RESET,
-                    targetNode.c_str(), paramName.c_str());
-    }
-
-    exec.remove_node(helperNode);
-    return success;
-}
-

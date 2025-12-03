@@ -170,26 +170,26 @@ GoToGraphNode::GoToGraphNode(const std::string &name,
         node->declare_parameter<std::string>("go_to_graph_node.robot_frame", robotFrame);
     if (!node->has_parameter("go_to_graph_node.map_frame"))
         node->declare_parameter<std::string>("go_to_graph_node.map_frame", mapFrame);
-    if (!node->has_parameter("go_to_graph_node.approach_radius"))
-        node->declare_parameter<double>("go_to_graph_node.approach_radius", approachRadius);
 
     timeoutSec = node->get_parameter("go_to_graph_node.timeout").as_double();
     goalTopic = node->get_parameter("go_to_graph_node.goal_topic").as_string();
     robotFrame = node->get_parameter("go_to_graph_node.robot_frame").as_string();
     mapFrame   = node->get_parameter("go_to_graph_node.map_frame").as_string();
-    approachRadius = node->get_parameter("go_to_graph_node.approach_radius").as_double();
 }
 
 BT::PortsList GoToGraphNode::providedPorts()
 {
     return {
-        BT::InputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node")
+        BT::InputPort<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node"),
+        BT::InputPort<double>("approach_radius")
     };
 }
 
 BT::NodeStatus GoToGraphNode::onStart()
 {
     auto input = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node");
+    approachRadius = getInput<double>("approach_radius").value_or(approachRadius);
+
     if (!input)
     {
         RCLCPP_WARN(node->get_logger(),
@@ -221,6 +221,7 @@ BT::NodeStatus GoToGraphNode::onRunning()
 {
     // --- Read latest input ---
     auto input = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node");
+    approachRadius = getInput<double>("approach_radius").value_or(approachRadius);
     if (!input)
     {
         RCLCPP_WARN(node->get_logger(),

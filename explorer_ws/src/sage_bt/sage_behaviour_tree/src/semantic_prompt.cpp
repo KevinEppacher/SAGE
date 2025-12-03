@@ -49,15 +49,6 @@ BT::NodeStatus PublishSemanticPrompt::tick()
         return BT::NodeStatus::FAILURE;
     }
 
-    // Optional: only republish if query changed
-    static std::string last_query;
-    if (text == last_query) {
-        RCLCPP_INFO(node->get_logger(),
-                    GREEN "[%s] Query unchanged — skipping publish." RESET,
-                    name().c_str());
-        return BT::NodeStatus::SUCCESS;
-    }
-
     // Build and publish message
     multimodal_query_msgs::msg::SemanticPrompt msg;
     msg.header.stamp = node->now();
@@ -68,6 +59,5 @@ BT::NodeStatus PublishSemanticPrompt::tick()
                 GREEN "[%s] Published SemanticPrompt: '%s'" RESET,
                 name().c_str(), text.c_str());
 
-    last_query = text;
     return BT::NodeStatus::SUCCESS;
 }

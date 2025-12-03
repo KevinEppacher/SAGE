@@ -102,6 +102,10 @@ class SemanticValueMap {
     std::string clearValueMapServiceName = "/clear_value_map";
     bool useCameraInfoFov = true;  // Flag to use camera info FOV
     double fovDeg = 30.0;  // Default FOV in degrees if not
+
+    geometry_msgs::msg::Pose lastPose;
+    bool lastPoseValid = false;
+    double moveThreshold = 0.05;  // meters
 };
 
 #endif // SEMANTIC_VALUE_MAP_HPP
