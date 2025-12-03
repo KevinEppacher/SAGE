@@ -84,27 +84,33 @@ public:
     void onHalted() override;
 
 private:
-    bool isWithinGoal(const graph_node_msgs::msg::GraphNode &node);
-    bool hasTargetChanged(const graph_node_msgs::msg::GraphNode &new_target);
+    // Nav2 action interface
+    using NavigateToPose = nav2_msgs::action::NavigateToPose;
+    using GoalHandleNav = rclcpp_action::ClientGoalHandle<NavigateToPose>;
 
     rclcpp::Node::SharedPtr node;
+    rclcpp_action::Client<NavigateToPose>::SharedPtr navClient;
     std::shared_ptr<Robot> robot;
 
     std::shared_ptr<graph_node_msgs::msg::GraphNode> target;
-
+    std::shared_future<typename GoalHandleNav::SharedPtr> goalFuture;
+    typename GoalHandleNav::SharedPtr goalHandle;
+    std::shared_future<typename GoalHandleNav::WrappedResult> resultFuture;
+    
+    // Parameters
     std::string mapFrame{"map"};
     std::string robotFrame{"base_link"};
-    std::string goalTopic{"/goal_pose"};
-
-    double approachRadius{2.0};
-    double timeoutSec{60.0};
+    double approachRadius{0.5};
+    double timeoutSec{120.0};
 
     rclcpp::Time startTime;
-    rclcpp::Time lastPublishTime;
+    bool goalSent = false;
+    bool goalDone = false;
+    bool goalSucceeded = false;
 
-    // snapshot used to detect target changes
-    graph_node_msgs::msg::GraphNode lastTargetSnapshot;
+    bool isGoalReached();
 };
+
 
 // ============================ RealignToObject ============================ //
 
