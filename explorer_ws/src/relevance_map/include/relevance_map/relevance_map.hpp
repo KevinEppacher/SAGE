@@ -7,9 +7,9 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
+#include <std_srvs/srv/empty.hpp>
 
 #include <graph_node_msgs/msg/graph_node_array.hpp>
-#include <multimodal_query_msgs/msg/semantic_prompt.hpp>
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
@@ -26,11 +26,13 @@ private:
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr mapSub;
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cameraInfoSub;
     rclcpp::Subscription<graph_node_msgs::msg::GraphNodeArray>::SharedPtr graphNodeSub;
-    rclcpp::Subscription<multimodal_query_msgs::msg::SemanticPrompt>::SharedPtr promptSub;
 
     // Publisher for filtered graph nodes
     rclcpp::Publisher<graph_node_msgs::msg::GraphNodeArray>::SharedPtr graphNodeFilteredPub;
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr relevanceMapPub;
+
+    // Service to clear relevance map
+    rclcpp::Service<std_srvs::srv::Empty>::SharedPtr clearRelevanceService;
 
     // TF buffer
     std::shared_ptr<tf2_ros::Buffer> tfBuffer;
@@ -39,6 +41,9 @@ private:
     // Parameter callback
     rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr paramCallbackHandle;
     rcl_interfaces::msg::SetParametersResult onParameterChange(const std::vector<rclcpp::Parameter> &params);
+    void handleClearRelevanceMap(
+        const std::shared_ptr<std_srvs::srv::Empty::Request> request,
+        std::shared_ptr<std_srvs::srv::Empty::Response> response);
 
     // Data
     nav_msgs::msg::OccupancyGrid::SharedPtr map;
@@ -66,7 +71,6 @@ private:
 
     std::string frameMap;
     std::string frameRobot;
-    std::string promptTopic;
 
     std::shared_ptr<Robot> robot;
 
@@ -74,7 +78,6 @@ private:
     void mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
     void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
     void graphNodeCallback(const graph_node_msgs::msg::GraphNodeArray::SharedPtr msg);
-    void promptCallback(const multimodal_query_msgs::msg::SemanticPrompt::SharedPtr msg);
 
     double computeFovFromCameraInfo() const;
     void resizeRelevanceMap(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
@@ -84,8 +87,6 @@ private:
     double computeDistanceGaussian(double dist, double sigma) const;
     float getYaw(const geometry_msgs::msg::Pose &pose) const;
     void publishRelevanceMap();
-
-    void resetRelevanceMap();
 
 };
 

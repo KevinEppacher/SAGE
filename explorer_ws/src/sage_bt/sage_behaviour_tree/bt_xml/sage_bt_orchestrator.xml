@@ -2,8 +2,6 @@
 <root BTCPP_format="4">
   <BehaviorTree ID="SAGE_SingleObject">
     <Sequence>
-      <CallEmptyService service_name="/exploration_map/clear"/>
-      <CallEmptyService service_name="/value_map/clear"/>
       <PublishSemanticPrompt text_query="{text_query}"
                              topic="/user_prompt"/>
       <PublishSemanticPrompt text_query="{zero_shot_query}"
@@ -62,10 +60,6 @@
       <output_port name="reachable_graph_node"/>
       <input_port name="graph_node"/>
     </Decorator>
-    <Action ID="CallEmptyService"
-            editable="true">
-      <input_port name="service_name"/>
-    </Action>
     <Action ID="GoToGraphNode">
       <input_port name="approach_radius"
                   type="double"/>
