@@ -47,31 +47,42 @@ GraphNodeManager::GraphNodeManager(rclcpp::Node::SharedPtr nodePtr)
 
 GraphNodeManager::GraphStatus GraphNodeManager::checkGraphStatus()
 {
-    if (!receivedGraph)
-    {
+    if (!latestGraph) {
         missedTicks++;
-
-        if (missedTicks > maxMissedTicks)
-        {
+        if (missedTicks > maxMissedTicks) {
             RCLCPP_ERROR(node->get_logger(),
-                         RED "[GraphNodeManager] No graph nodes for %d consecutive ticks → TIMEOUT" RESET,
+                         RED "[GraphNodeManager] No graph data for %d ticks → TIMEOUT" RESET,
                          missedTicks);
             return GraphStatus::TIMEOUT;
         }
-        else
-        {
-            RCLCPP_WARN(node->get_logger(),
-                        ORANGE "[GraphNodeManager] Waiting for graph nodes... (%d/%d)" RESET,
-                        missedTicks, maxMissedTicks);
-            return GraphStatus::WAITING;
-        }
+        RCLCPP_WARN(node->get_logger(),
+                    ORANGE "[GraphNodeManager] Waiting for first graph... (%d/%d)" RESET,
+                    missedTicks, maxMissedTicks);
+        return GraphStatus::WAITING;
     }
 
-    // fresh data arrived
-    receivedGraph = false;
-    missedTicks = 0;
-    return GraphStatus::OK;
+    if (receivedGraph) {
+        // Got fresh data recently
+        receivedGraph = false;    // consume one “fresh” event
+        missedTicks = 0;
+        return GraphStatus::OK;
+    }
+
+    // No new data, but we still have a valid graph
+    missedTicks++;
+    if (missedTicks > maxMissedTicks) {
+        RCLCPP_ERROR(node->get_logger(),
+                     RED "[GraphNodeManager] Stale graph (> %d ticks) → TIMEOUT" RESET,
+                     missedTicks);
+        return GraphStatus::TIMEOUT;
+    }
+
+    RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 2000,
+                         ORANGE "[GraphNodeManager] Using cached graph (no new msgs, %d/%d)" RESET,
+                         missedTicks, maxMissedTicks);
+    return GraphStatus::OK;   // continue working with cached graph
 }
+
 
 
 std::shared_ptr<graph_node_msgs::msg::GraphNode> GraphNodeManager::getBestScoreNode() const {
