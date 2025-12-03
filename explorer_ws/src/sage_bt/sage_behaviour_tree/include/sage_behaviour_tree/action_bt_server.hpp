@@ -18,12 +18,10 @@ public:
 
     explicit SageBtActionNode();
     void setup_action_server();
-    void init_robot();
 
 private:
     // --- Core BT lifecycle ---
     void create_behavior_tree(const std::shared_ptr<GoalHandle> goal_handle);
-    BT::NodeStatus run_behavior_tree(const std::shared_ptr<GoalHandle> goal_handle);
 
     // --- Action callbacks ---
     rclcpp_action::GoalResponse handle_goal(
@@ -53,7 +51,6 @@ private:
     // --- ROS action server ---
     rclcpp_action::Server<ExecutePrompt>::SharedPtr action_server_;
     
-    // in class SageBtActionNode
     std::unique_ptr<BT::Groot2Publisher> publisher_ptr_;
     bool groot_initialized_ = false;
 
@@ -62,6 +59,9 @@ private:
     bool startup_ready_ = false;
     std::vector<std::string> required_topics_;
     std::vector<std::string> required_services_;
+
+    void clear_all_maps();
+    bool call_empty_service(const std::string &service_name, double timeout_sec = 3.0);
 
     std::unique_ptr<Robot> robot_;
 

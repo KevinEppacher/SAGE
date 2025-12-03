@@ -21,7 +21,6 @@ RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
     this->declare_parameter("frame_robot", "base_link");
     this->declare_parameter("debug_mode", false);
     this->declare_parameter("raytracing_enabled", true);
-    this->declare_parameter("prompt_topic", "/user_prompt");
     
     using FloatingRange = rcl_interfaces::msg::FloatingPointRange;
     using ParamDesc = rcl_interfaces::msg::ParameterDescriptor;
@@ -85,7 +84,6 @@ RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
     this->get_parameter("relevance_threshold", relevanceThreshold);
     this->get_parameter("debug_mode", debugMode);
     this->get_parameter("raytracing_enabled", raytracingEnabled);
-    this->get_parameter("prompt_topic", promptTopic);
     this->get_parameter("angular_confidence_sharpness", angularSharpness);
     this->get_parameter("radial_confidence_sharpness", radialSharpness);
     this->get_parameter("ignore_high_score_threshold", ignoreHighScoreThreshold);
@@ -109,13 +107,15 @@ RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
         rclcpp::QoS(10),
         std::bind(&RelevanceMapNode::graphNodeCallback, this, std::placeholders::_1));
 
-    promptSub = this->create_subscription<multimodal_query_msgs::msg::SemanticPrompt>(
-        promptTopic, rclcpp::QoS(10),
-        std::bind(&RelevanceMapNode::promptCallback, this, std::placeholders::_1));
-
     // Publisher
     graphNodeFilteredPub = this->create_publisher<graph_node_msgs::msg::GraphNodeArray>(
         outputGraphTopic, rclcpp::QoS(10));
+
+    clearRelevanceService = this->create_service<std_srvs::srv::Empty>(
+        "clear",
+        std::bind(&RelevanceMapNode::handleClearRelevanceMap, this, std::placeholders::_1, std::placeholders::_2)
+    );
+
 
     
     if (debugMode) {
@@ -141,21 +141,6 @@ void RelevanceMapNode::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::Sh
 {
     camInfo = msg;
     fovDeg = computeFovFromCameraInfo();
-}
-
-
-void RelevanceMapNode::promptCallback(const multimodal_query_msgs::msg::SemanticPrompt::SharedPtr)
-{
-    resetRelevanceMap();
-}
-
-void RelevanceMapNode::resetRelevanceMap()
-{
-    if (!mapInitialized)
-        return;
-
-    relevanceMap.setTo(0.0f);
-    RCLCPP_INFO(this->get_logger(), "Relevance map cleared due to new prompt.");
 }
 
 void RelevanceMapNode::resizeRelevanceMap(const nav_msgs::msg::OccupancyGrid::SharedPtr msg)
@@ -502,4 +487,19 @@ double RelevanceMapNode::computeFovFromCameraInfo() const
     double fov_rad = 2.0 * std::atan(width / (2.0 * fx));
     double fov_deg = fov_rad * 180.0 / M_PI;
     return fov_deg;
+}
+
+void RelevanceMapNode::handleClearRelevanceMap(
+    const std::shared_ptr<std_srvs::srv::Empty::Request>,
+    std::shared_ptr<std_srvs::srv::Empty::Response>)
+{
+    if (!mapInitialized)
+    {
+        RCLCPP_WARN(this->get_logger(), "Cannot clear relevance map: not yet initialized.");
+        return;
+    }
+
+    relevanceMap.setTo(0.0f);
+    RCLCPP_INFO(this->get_logger(),
+                "\033[1;32m[RelevanceMapNode]\033[0m Relevance map cleared via service call.");
 }

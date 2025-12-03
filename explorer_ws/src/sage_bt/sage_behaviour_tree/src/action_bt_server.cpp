@@ -9,6 +9,7 @@
 
 #include <behaviortree_cpp/xml_parsing.h>
 #include <fstream>
+#include <std_srvs/srv/empty.hpp>
 
 using namespace std::chrono_literals;
 
@@ -185,6 +186,8 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
     auto goal = goal_handle->get_goal();
     auto feedback = std::make_shared<ExecutePrompt::Feedback>();
     auto result   = std::make_shared<ExecutePrompt::Result>();
+
+    clear_all_maps();
 
     RCLCPP_INFO(get_logger(),
         "Starting Behavior Tree execution with prompt: %s (timeout: %.1f min)",
@@ -371,4 +374,54 @@ bool SageBtActionNode::check_required_interfaces(std::stringstream& report)
     }
 
     return all_ok;
+}
+
+// ------------------------------------------------------------
+// Clear all relevance maps before a new BT execution
+// ------------------------------------------------------------
+void SageBtActionNode::clear_all_maps()
+{
+    std::vector<std::string> services = {
+        "/detection_relevance_map/clear",
+        "/exploitation_relevance_map/clear",
+        "/exploration_map/clear",
+        "/explorer_relevance_map/clear",
+        "/value_map/clear"
+    };
+
+    RCLCPP_INFO(get_logger(),
+        "\033[1;36m[BehaviorTree]\033[0m Clearing all relevance maps before execution...");
+
+    for (const auto &srv_name : services)
+    {
+        if (call_empty_service(srv_name))
+            RCLCPP_INFO(get_logger(), "✓ Cleared %s", srv_name.c_str());
+        else
+            RCLCPP_WARN(get_logger(), "✗ Failed to call %s (timeout or unavailable)", srv_name.c_str());
+    }
+
+    RCLCPP_INFO(get_logger(),
+        "\033[1;32m[BehaviorTree]\033[0m All clear-map service calls completed.");
+}
+
+// ------------------------------------------------------------
+// Helper: Generic Empty service call with timeout
+// ------------------------------------------------------------
+bool SageBtActionNode::call_empty_service(const std::string &service_name, double timeout_sec)
+{
+    auto client = this->create_client<std_srvs::srv::Empty>(service_name);
+
+    if (!client->wait_for_service(std::chrono::duration<double>(timeout_sec)))
+    {
+        RCLCPP_WARN(get_logger(), "Service %s not available within %.1f s", service_name.c_str(), timeout_sec);
+        return false;
+    }
+
+    auto request = std::make_shared<std_srvs::srv::Empty::Request>();
+
+    auto future = client->async_send_request(request);
+    if (future.wait_for(std::chrono::duration<double>(timeout_sec)) == std::future_status::ready)
+        return true;
+
+    return false;
 }
