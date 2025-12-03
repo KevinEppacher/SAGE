@@ -61,6 +61,7 @@ private:
     bool haveCachedReachable{false};
     bool debugMarkers{false};
     graph_node_msgs::msg::GraphNode cachedReachable;
+    std::optional<graph_node_msgs::msg::GraphNode> lastTargetNode;
     BT::NodeStatus lastChildStatus{BT::NodeStatus::IDLE};
     std::vector<geometry_msgs::msg::Point> lastSamples;
     graph_node_msgs::msg::GraphNode lastTarget;

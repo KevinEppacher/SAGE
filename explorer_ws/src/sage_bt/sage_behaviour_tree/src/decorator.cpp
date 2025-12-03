@@ -149,7 +149,31 @@ BT::NodeStatus ApproachPoseAdjustor::tick()
         return BT::NodeStatus::FAILURE;
     }
 
-    // Compute only once per activation
+    // ----------------------------------------------------
+    // Detect change in target node (id or significant move)
+    // ----------------------------------------------------
+    bool targetChanged = false;
+    if (lastTargetNode)
+    {
+        const auto &prev = *lastTargetNode;
+        const double dist = std::hypot(prev.position.x - target.position.x,
+                                       prev.position.y - target.position.y);
+        if (prev.id != target.id || dist > 0.05)
+            targetChanged = true;
+    }
+    lastTargetNode = target;
+
+    if (targetChanged)
+    {
+        haveCachedReachable = false;
+        RCLCPP_INFO(node->get_logger(),
+                    ORANGE "[%s] Target changed → recalculating reachable pose." RESET,
+                    name().c_str());
+    }
+
+    // ----------------------------------------------------
+    // Compute reachable pose if not cached or target changed
+    // ----------------------------------------------------
     if (!haveCachedReachable)
     {
         graph_node_msgs::msg::GraphNode reachable = target;
@@ -157,12 +181,22 @@ BT::NodeStatus ApproachPoseAdjustor::tick()
 
         if (!found)
         {
+            // Use original target, keep node RUNNING
+            cachedReachable = target;
+            haveCachedReachable = true;
+
             RCLCPP_WARN(node->get_logger(),
-                        YELLOW "[%s] No reachable approach pose found inside radius %.2f m → FAILURE" RESET,
+                        YELLOW "[%s] No reachable approach pose found inside radius %.2f m → using original target (RUNNING)" RESET,
                         name().c_str(), searchRadius);
+
+            // Still output the target node to keep child active
+            setOutput("reachable_graph_node", std::make_shared<graph_node_msgs::msg::GraphNode>(target));
+
             if (debugMarkers)
                 publishMarkers(robotPose, target, nullptr, "ApproachPoseAdjustor");
-            setOutput("reachable_graph_node", inputNodeRes.value());
+
+            // Continue trying → RUNNING
+            return BT::NodeStatus::RUNNING;
         }
 
         cachedReachable = reachable;
@@ -174,26 +208,31 @@ BT::NodeStatus ApproachPoseAdjustor::tick()
                     cachedReachable.position.x, cachedReachable.position.y);
     }
 
-    // Always publish markers so RViz stays updated
+    // ----------------------------------------------------
+    // Always publish RViz markers for visualization
+    // ----------------------------------------------------
     if (debugMarkers)
         publishMarkers(robotPose, target,
                        haveCachedReachable ? &cachedReachable : nullptr,
                        "ApproachPoseAdjustor");
 
-    // Always keep output port updated while running
+    // Update output port continuously
     if (haveCachedReachable)
         setOutput("reachable_graph_node",
                   std::make_shared<graph_node_msgs::msg::GraphNode>(cachedReachable));
 
+    // ----------------------------------------------------
     // Tick child node
+    // ----------------------------------------------------
     lastChildStatus = child_node_->executeTick();
 
-    // When done, reset cache
+    // Reset cache when child stops running
     if (lastChildStatus != BT::NodeStatus::RUNNING)
         haveCachedReachable = false;
 
     return lastChildStatus;
 }
+
 
 bool ApproachPoseAdjustor::findReachablePoint(const graph_node_msgs::msg::GraphNode &target,
                                               graph_node_msgs::msg::GraphNode &reachable)
