@@ -109,7 +109,7 @@ value_map:
       semantic_prompt_topic: "/zero_shot_prompt"  # Topic for semantic prompts
       semantic_map:
         confidence_sharpness: 4.0   # cs < 2.0 smoothens the map, cs > 2.0 sharpens it
-        decay_factor: 0.9999          # decay factor for previous values | at start 1.0, then eg. 0.99
+        decay_factor: 0.9          # decay factor for previous values | at start 1.0, then eg. 0.99
         max_range: 10.0           # Maximum range for semantic mapping
         map_topic: "/map"  # Topic for the occupancy grid map
         camera_info_topic: "/camera_info"  # Topic for the camera info

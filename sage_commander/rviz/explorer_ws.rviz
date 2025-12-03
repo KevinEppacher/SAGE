@@ -6,7 +6,6 @@ Panels:
       Expanded:
         - /detection_ws1/yolo1
         - /detection_ws1/yolo1/PointCloud21/Topic1
-        - /exploitation_ws1/openfusion_ros1
         - /exploitation_ws1/openfusion_ros1/PoseArray1/Topic1
         - /Image1/Topic1
         - /Image2/Topic1
@@ -136,7 +135,8 @@ Visualization Manager:
               Enabled: true
               Name: MarkerArray
               Namespaces:
-                {}
+                ApproachPoseAdjustor: true
+                ApproachPoseAdjustor_samples: true
               Topic:
                 Depth: 5
                 Durability Policy: Volatile
@@ -194,9 +194,9 @@ Visualization Manager:
               Enabled: true
               Invert Rainbow: false
               Max Color: 255; 255; 255
-              Max Intensity: -999999
+              Max Intensity: 0.7222286462783813
               Min Color: 0; 0; 0
-              Min Intensity: 999999
+              Min Intensity: 0.7222286462783813
               Name: PointCloud2
               Position Transformer: XYZ
               Selectable: true
@@ -605,30 +605,7 @@ Visualization Manager:
           Enabled: true
           Name: MarkerArray
           Namespaces:
-            armchair: true
-            bed: true
-            ceiling: true
-            chair: true
-            curtain: true
-            door: true
-            floor: true
-            kitchen cabinet: true
-            kitchen shelf: true
-            light: true
-            oven and stove: true
-            refrigerator: true
-            room plant: true
-            semantic_centroids: true
-            semantic_labels: true
-            sink: true
-            sofa: true
-            table: true
-            tv: true
-            tv shelf: true
-            vase: true
-            wall: true
-            wall paint: true
-            wardrobe: true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -1167,7 +1144,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Best Effort
-        Value: /depth
+        Value: /depth/throttled
       Value: true
   Enabled: true
   Global Options:
@@ -1215,25 +1192,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 12.663555145263672
+      Distance: 12.629298210144043
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.04713207483291626
-        Y: 0.05176115781068802
-        Z: 0.41875138878822327
+        X: -0.07329923659563065
+        Y: -0.030242247506976128
+        Z: 0.8522358536720276
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5497963428497314
+      Pitch: 1.5697963237762451
       Target Frame: base_link
       Value: Orbit (rviz_default_plugins)
-      Yaw: 0.6685671806335449
+      Yaw: 3.5535731315612793
     Saved: ~
 Window Geometry:
   Displays:

@@ -316,7 +316,7 @@ class EvaluatorDashboard(Node):
     def _feedback_cb(self, feedback_msg):
         if self.debug:
             fb = feedback_msg.feedback
-            self.get_logger().info(f"[BT] active_node={fb.active_node}, status={fb.status}")
+            # self.get_logger().info(f"[BT] active_node={fb.active_node}, status={fb.status}")
 
 
     # ============================================================

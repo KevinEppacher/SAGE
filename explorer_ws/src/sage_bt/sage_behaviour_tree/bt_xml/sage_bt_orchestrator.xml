@@ -8,9 +8,6 @@
                              topic="/user_prompt"/>
       <PublishSemanticPrompt text_query="{zero_shot_query}"
                              topic="/zero_shot_prompt"/>
-      <SetParameterNode value="0.999"
-                        parameter_name="semantic_map.decay_factor"
-                        target_node="/value_map/value_map"/>
       <KeepRunningUntilObjectFound object_found="{object_found}"
                                    any_exploration_nodes="{any_exploration_nodes}">
         <ReactiveFallback>
@@ -26,6 +23,7 @@
                                   reachable_graph_node="{reachable_detection_graph_node}"
                                   graph_node="{detected_graph_node}">
               <GoToGraphNode name="Go to detected GraphNode"
+                             approach_radius="2.0"
                              graph_node="{reachable_detection_graph_node}"/>
             </ApproachPoseAdjustor>
             <RealignToObject detected_graph_node="{detected_graph_node}"
@@ -43,8 +41,13 @@
           <ReactiveSequence>
             <ObserveGraphNodes any_exploration_nodes="{any_exploration_nodes}"
                                likiest_explorer_node="{likiest_explorer_node}"/>
-            <GoToGraphNode name="Go to likiest GraphNode"
-                           graph_node="{likiest_explorer_node}"/>
+            <ApproachPoseAdjustor search_radius="0.5"
+                                  reachable_graph_node="{reachable_detection_graph_node}"
+                                  graph_node="{likiest_explorer_node}">
+              <GoToGraphNode name="Go to likiest GraphNode"
+                             approach_radius="1.0"
+                             graph_node="{reachable_detection_graph_node}"/>
+            </ApproachPoseAdjustor>
           </ReactiveSequence>
         </ReactiveFallback>
       </KeepRunningUntilObjectFound>
@@ -64,8 +67,10 @@
       <input_port name="service_name"/>
     </Action>
     <Action ID="GoToGraphNode">
+      <input_port name="approach_radius"
+                  type="double"/>
       <input_port name="graph_node"
-                  type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;">Target GraphNode</input_port>
+                  type="std::shared_ptr&lt;graph_node_msgs::msg::GraphNode_&lt;std::allocator&lt;void&gt; &gt; &gt;"/>
     </Action>
     <Condition ID="IsDetected">
       <output_port name="graph_nodes"
@@ -105,14 +110,6 @@
             editable="true">
       <input_port name="imageTopic"/>
       <input_port name="savePath"/>
-    </Action>
-    <Action ID="SetParameterNode">
-      <input_port name="value"
-                  type="double">Value to set for the parameter</input_port>
-      <input_port name="parameter_name"
-                  type="std::string">Name of the parameter to set</input_port>
-      <input_port name="target_node"
-                  type="std::string">Node name to set parameter on</input_port>
     </Action>
   </TreeNodesModel>
 
