@@ -47,17 +47,18 @@ GraphNodeManager::GraphNodeManager(rclcpp::Node::SharedPtr nodePtr)
 
 GraphNodeManager::GraphStatus GraphNodeManager::checkGraphStatus()
 {
-    if (!latestGraph) {
+    if (!latestGraph) 
+    {
+        RCLCPP_WARN(node->get_logger(),ORANGE 
+            "[GraphNodeManager] Waiting for first graph... (%d/%d)" RESET,
+            missedTicks, maxMissedTicks);
         missedTicks++;
         if (missedTicks > maxMissedTicks) {
-            RCLCPP_ERROR(node->get_logger(),
-                         RED "[GraphNodeManager] No graph data for %d ticks → TIMEOUT" RESET,
-                         missedTicks);
+            RCLCPP_ERROR(node->get_logger(),RED 
+                "[GraphNodeManager] No graph data for (%d/%d) ticks → TIMEOUT" RESET,
+                missedTicks, maxMissedTicks);
             return GraphStatus::TIMEOUT;
         }
-        RCLCPP_WARN(node->get_logger(),
-                    ORANGE "[GraphNodeManager] Waiting for first graph... (%d/%d)" RESET,
-                    missedTicks, maxMissedTicks);
         return GraphStatus::WAITING;
     }
 

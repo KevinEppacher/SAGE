@@ -29,7 +29,6 @@ private:
     graph_node_msgs::msg::GraphNodeArray::SharedPtr latestMsg;
 
     bool receivedMessage = false;
-    int missedTicks = 8;
 
     bool aboveThreshold = false;
     rclcpp::Clock steadyClock{RCL_STEADY_TIME};
