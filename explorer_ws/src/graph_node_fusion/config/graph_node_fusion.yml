@@ -1,25 +1,26 @@
 fused:
   graph_node_fusion:
     ros__parameters:
-      # approach_radius: 1.8
-      approach_radius: 0.0
       debug_distance: true
-      detection_topic: /detection_graph_nodes/graph_nodes
+      detection_topic: /filtered/detection_graph_nodes/graph_nodes
       exploitation_topic: /filtered/exploitation_graph_nodes/graph_nodes
       exploration_topic: /filtered/exploration_graph_nodes/graph_nodes
       exploration_weight: 0.5
       fused_topics:
         detection_graph_nodes: detection_graph_nodes/graph_nodes
         exploration_graph_nodes: exploration_graph_nodes/graph_nodes
-      max_visited: 200
       timer_period: 0.1
-      weights:
-        det_weight: 1.0
-        map_weight: 1.0
-        mem_sigma: 0.5
-        mem_weight: 1.0
-        proximity_weight: 1.0
-        
+      weights.det_weight: 1.0
+      weights.map_weight: 1.0
+      weights.mem_sigma: 0.5
+      weights.mem_weight: 1.0
+      weights.proximity_radius: 5.0
+      weights.proximity_weight: 0.2
+      weights.source_balance: 0.1
+      weights.costmap_weight: 1.0
+      weights.costmap_radius: 0.5
+      weights.debug_costmap: true
+
 
 # fused:
 #   graph_node_fusion:

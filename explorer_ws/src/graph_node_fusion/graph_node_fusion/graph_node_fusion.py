@@ -15,6 +15,7 @@ from sensor_msgs.msg import PointCloud2
 from rcl_interfaces.msg import SetParametersResult
 from tf_transformations import euler_from_quaternion
 from rcl_interfaces.msg import ParameterDescriptor, FloatingPointRange
+from nav_msgs.msg import OccupancyGrid
 
 # ===============================================================
 # Robot class: handles TF lookup and provides robot position
@@ -179,74 +180,60 @@ class Markers:
 class NodeWeighter:
     def __init__(self, node):
         self.node = node
-        self.value_map_points = None  # numpy array (x, y, intensity)
+        self.value_map_points = None
+        self.costmap = None
+        self.costmap_info = None
 
-        # --- Dynamic parameters ---
+        # --- Default dynamic weights ---
         self.det_weight = 1.0
         self.map_weight = 1.0
         self.mem_weight = 1.0
-        self.mem_sigma = 0.5  # spatial falloff [m]
+        self.mem_sigma = 0.5
         self.proximity_weight = 1.0
         self.proximity_radius = 2.0
+        self.source_balance = 0.7
+        self.costmap_weight = 1.0
+        self.costmap_radius = 0.5  # meters
 
         range_0_3 = [FloatingPointRange(from_value=0.0, to_value=3.0, step=0.001)]
         range_0_5 = [FloatingPointRange(from_value=0.0, to_value=5.0, step=0.001)]
 
-        node.declare_parameter(
-            "weights.det_weight",
-            1.0,
-            ParameterDescriptor(floating_point_range=range_0_3)
-        )
-        node.declare_parameter(
-            "weights.map_weight",
-            1.0,
-            ParameterDescriptor(floating_point_range=range_0_3)
-        )
-        node.declare_parameter(
-            "weights.mem_weight",
-            1.0,
-            ParameterDescriptor(floating_point_range=range_0_3)
-        )
-        node.declare_parameter(
-            "weights.mem_sigma",
-            0.5,
-            ParameterDescriptor(floating_point_range=range_0_5)
-        )
-        node.declare_parameter(
-            "weights.proximity_weight",
-            1.0,
-            ParameterDescriptor(floating_point_range=range_0_3)
-        )
-        node.declare_parameter(
-            "weights.proximity_radius",
-            2.0,
-            ParameterDescriptor(floating_point_range=range_0_5)
-        )
+        # --- Declare dynamic parameters ---
+        node.declare_parameter("weights.det_weight", 1.0, ParameterDescriptor(floating_point_range=range_0_3))
+        node.declare_parameter("weights.map_weight", 1.0, ParameterDescriptor(floating_point_range=range_0_3))
+        node.declare_parameter("weights.mem_weight", 1.0, ParameterDescriptor(floating_point_range=range_0_3))
+        node.declare_parameter("weights.mem_sigma", 0.5, ParameterDescriptor(floating_point_range=range_0_5))
+        node.declare_parameter("weights.proximity_weight", 1.0, ParameterDescriptor(floating_point_range=range_0_3))
+        node.declare_parameter("weights.proximity_radius", 2.0, ParameterDescriptor(floating_point_range=range_0_5))
+        node.declare_parameter("weights.source_balance", 0.7, ParameterDescriptor(floating_point_range=[FloatingPointRange(from_value=0.0, to_value=1.0, step=0.001)]))
+        node.declare_parameter("weights.debug_costmap", True)
 
-        node.declare_parameter(
-            "weights.source_balance",
-            0.7,
-            ParameterDescriptor(
-                floating_point_range=[FloatingPointRange(from_value=0.0, to_value=1.0, step=0.001)]
-            )
-        )
-        self.source_balance = 0.7
+        self.debug_costmap = node.get_parameter("weights.debug_costmap").value
 
+        # new parameters for costmap penalty
+        node.declare_parameter("weights.costmap_weight", 1.0, ParameterDescriptor(floating_point_range=range_0_3))
+        node.declare_parameter("weights.costmap_radius", 0.5, ParameterDescriptor(floating_point_range=range_0_5))
 
         node.add_on_set_parameters_callback(self._param_callback)
 
-        qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=1,
-        )
-
-        # Subscribe to the value map
         node.create_subscription(
             PointCloud2,
             "/value_map/value_map_raw",
             self._cb_value_map,
-            qos,
+            10
+        )
+
+        node.create_subscription(
+            OccupancyGrid,
+            "/global_costmap/costmap",
+            self._cb_costmap,
+            10
+        )
+
+        self.costmap_marker_pub = node.create_publisher(
+            MarkerArray,
+            "/graph_node_costmap_penalties",
+            10
         )
 
     # ----------------------------------------------------------------------
@@ -256,21 +243,77 @@ class NodeWeighter:
         for p in params:
             if p.name == "weights.det_weight":
                 self.det_weight = max(0.0, min(1.0, p.value))
+                self.node.get_logger().info(f"Updated det_weight: {self.det_weight}")
             elif p.name == "weights.map_weight":
                 self.map_weight = max(0.0, min(1.0, p.value))
+                self.node.get_logger().info(f"Updated map_weight: {self.map_weight}")
             elif p.name == "weights.mem_weight":
                 self.mem_weight = max(0.0, min(1.0, p.value))
+                self.node.get_logger().info(f"Updated mem_weight: {self.mem_weight}")
             elif p.name == "weights.mem_sigma":
                 self.mem_sigma = max(0.05, float(p.value))
+                self.node.get_logger().info(f"Updated mem_sigma: {self.mem_sigma}")
             elif p.name == "weights.proximity_weight":
                 self.proximity_weight = max(0.0, float(p.value))
+                self.node.get_logger().info(f"Updated proximity_weight: {self.proximity_weight}")
             elif p.name == "weights.proximity_radius":
                 self.proximity_radius = max(0.1, float(p.value))
+                self.node.get_logger().info(f"Updated proximity_radius: {self.proximity_radius}")
             elif p.name == "weights.source_balance":
                 self.source_balance = max(0.0, min(1.0, float(p.value)))
+                self.node.get_logger().info(f"Updated source_balance: {self.source_balance}")
+            elif p.name == "weights.costmap_weight":
+                self.costmap_weight = max(0.0, min(1.0, float(p.value)))
+                self.node.get_logger().info(f"Updated costmap_weight: {self.costmap_weight}")
+            elif p.name == "weights.costmap_radius":
+                self.costmap_radius = max(0.1, float(p.value))
+                self.node.get_logger().info(f"Updated costmap_radius: {self.costmap_radius}")
+            elif p.name == "weights.debug_costmap":
+                self.debug_costmap = bool(p.value)
+                self.node.get_logger().info(f"Updated debug_costmap: {self.debug_costmap}")
         res = SetParametersResult()
         res.successful = True
         return res
+    
+    def _publish_costmap_debug_markers(self, nodes):
+        """Visualize costmap penalties for each node as colored spheres."""
+        if not self.debug_costmap or not nodes:
+            return
+
+        marker_array = MarkerArray()
+        t_now = self.node.get_clock().now().to_msg()
+
+        # Clear old markers
+        clear_marker = Marker()
+        clear_marker.header.frame_id = "map"
+        clear_marker.header.stamp = t_now
+        clear_marker.action = Marker.DELETEALL
+        marker_array.markers.append(clear_marker)
+
+        for idx, n in enumerate(nodes):
+            penalty = self._get_costmap_penalty(n.position.x, n.position.y)
+
+            # Map penalty to color: red (bad) → blue (good)
+            r = 1.0 - penalty
+            g = 0.0
+            b = penalty
+            a = 0.9
+
+            m = Marker()
+            m.header.frame_id = "map"
+            m.header.stamp = t_now
+            m.ns = "costmap_penalty"
+            m.id = idx
+            m.type = Marker.SPHERE
+            m.action = Marker.ADD
+            m.pose.position = n.position
+            m.pose.orientation.w = 1.0
+            m.scale.x = m.scale.y = m.scale.z = 0.12
+            m.color = ColorRGBA(r=r, g=g, b=b, a=a)
+            m.lifetime.sec = 1
+            marker_array.markers.append(m)
+
+        self.costmap_marker_pub.publish(marker_array)
 
     # ----------------------------------------------------------------------
     # Parse PointCloud2 manually (no ros_numpy)
@@ -289,6 +332,62 @@ class NodeWeighter:
                 self.value_map_points = np.array(pts, dtype=np.float32)
         except Exception as e:
             self.node.get_logger().warn(f"Failed to parse /value_map/value_map_raw: {e}")
+
+    # ----------------------------------------------------------------------
+    # Parse costmap
+    # ----------------------------------------------------------------------
+    def _cb_costmap(self, msg: OccupancyGrid):
+        try:
+            self.costmap_info = msg.info
+            data = np.array(msg.data, dtype=np.int8).reshape(msg.info.height, msg.info.width)
+            # Flip because costmap origin is bottom-left
+            # self.costmap = np.flipud(data)
+            self.costmap = data
+        except Exception as e:
+            self.node.get_logger().warn(f"Failed to parse costmap: {e}")
+
+    # ----------------------------------------------------------------------
+    # Costmap penalty sampling
+    # ----------------------------------------------------------------------
+    def _get_costmap_penalty(self, x, y):
+        if self.costmap is None or self.costmap_info is None:
+            return 1.0
+
+        res = self.costmap_info.resolution
+        ox = self.costmap_info.origin.position.x
+        oy = self.costmap_info.origin.position.y
+        gx = int(round((x - ox) / res))
+        gy = int(round((y - oy) / res))
+        h, w = self.costmap.shape
+        if gx < 0 or gy < 0 or gx >= w or gy >= h:
+            return 1.0
+
+        radius_cells = int(self.costmap_radius / res)
+        x0, x1 = max(0, gx - radius_cells), min(w, gx + radius_cells)
+        y0, y1 = max(0, gy - radius_cells), min(h, gy + radius_cells)
+        region = self.costmap[y0:y1, x0:x1]
+
+        if region.size == 0:
+            return 1.0
+
+        # Build coordinate grid centered on the node
+        ys, xs = np.mgrid[y0:y1, x0:x1]
+        dx = (xs - gx) * res
+        dy = (ys - gy) * res
+        dist2 = dx * dx + dy * dy
+        mask = region >= 0  # ignore unknown cells
+
+        if not np.any(mask):
+            return 1.0
+
+        weights = np.exp(-0.5 * dist2 / (self.costmap_radius * 0.5) ** 2)
+        weights *= mask
+        weighted_cost = np.sum(region * weights) / np.sum(weights)
+        norm_cost = np.clip(weighted_cost / 100.0, 0.0, 1.0)
+
+        penalty = 1.0 - self.costmap_weight * norm_cost
+        penalty = np.clip(penalty, 0.3, 1.0)
+        return float(penalty)
 
     # ----------------------------------------------------------------------
     # Mean intensity around (x, y)
@@ -327,19 +426,19 @@ class NodeWeighter:
     def weight_nodes(self, exploration_nodes, exploitation_nodes, detection_nodes, robot_pose):
         fused_exploration, fused_detection = [], []
 
-        # --- Exploration vs exploitation weighting ---
         for n in exploration_nodes:
-            # add small bias
             if n.score < 0.1:
                 n.score = 0.1
-            n.score *= self.source_balance
-            n.score *= self._get_proximity_persistence(
-                n.position.x,
-                n.position.y,
-                robot_pose,
-                gain=self.proximity_weight,             # now dynamic
-                radius=self.proximity_radius            # now dynamic
+
+            proximity_factor = self._get_proximity_persistence(
+                n.position.x, n.position.y, robot_pose,
+                gain=self.proximity_weight, radius=self.proximity_radius
             )
+
+            costmap_penalty = self._get_costmap_penalty(n.position.x, n.position.y)
+
+            n.score *= self.source_balance * proximity_factor * costmap_penalty
+
         for n in exploitation_nodes:
             n.score *= (1.0 - self.source_balance)
 
@@ -347,7 +446,6 @@ class NodeWeighter:
         all_exp.sort(key=lambda n: n.score, reverse=True)
         fused_exploration.extend(all_exp)
 
-        # --- Fuse detections using semantic + memory priors ---
         for n in detection_nodes:
             s_det = max(0.0, min(1.0, n.score))
             s_map = self._get_score_from_value_map(n.position.x, n.position.y)
@@ -358,6 +456,11 @@ class NodeWeighter:
             n.score = min(max(s_fused, 0.0), 1.0)
 
         fused_detection = sorted(detection_nodes, key=lambda n: n.score, reverse=True)
+
+        if self.debug_costmap:
+            # visualize exploration nodes (since those are affected by costmap)
+            self._publish_costmap_debug_markers(exploration_nodes)
+
         return fused_exploration, fused_detection
 
     # ----------------------------------------------------------------------
@@ -384,7 +487,6 @@ class GraphNodeFusion(Node):
         super().__init__("graph_node_fusion")
 
         # --- Parameters ---
-        self.declare_parameter("approach_radius", 1.0)
         self.declare_parameter("debug_distance", True)
         self.declare_parameter("exploration_topic", "/exploration_graph_nodes/graph_nodes")
         self.declare_parameter("exploitation_topic", "/exploitation_graph_nodes/graph_nodes")
@@ -394,7 +496,6 @@ class GraphNodeFusion(Node):
         self.declare_parameter("timer_period", 0.1)
 
         gp = self.get_parameter
-        self.approach_radius = gp("approach_radius").value
         self.debug_distance = gp("debug_distance").value
         self.exploration_topic = gp("exploration_topic").value
         self.exploitation_topic = gp("exploitation_topic").value

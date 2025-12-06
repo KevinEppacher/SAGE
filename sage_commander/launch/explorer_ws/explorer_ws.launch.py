@@ -178,6 +178,6 @@ def generate_launch_description():
     ld.add_action(rviz_node)
     ld.add_action(nav2_stack_launch)
     ld.add_action(robot_description_launch)
-    ld.add_action(graph_node_fusion_launch)
+    # ld.add_action(graph_node_fusion_launch)
     ld.add_action(relevance_map_launch)
     return ld
