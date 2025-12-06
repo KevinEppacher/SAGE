@@ -106,6 +106,9 @@ fused:
       weights.proximity_radius: 5.0
       weights.proximity_weight: 0.2
       weights.source_balance: 0.1
+      weights.costmap_weight: 1.0
+      weights.costmap_radius: 0.5
+      weights.debug_costmap: false
 
 explorer_relevance_map:
   relevance_map:
@@ -144,7 +147,7 @@ exploitation_relevance_map:
       base_increment_rate: 0.03
       camera_info_topic: /camera_info
       debug_mode: true
-      decay_factor: 0.999
+      decay_factor: 1.0
       fov_deg: 70.0
       frame_map: map
       frame_robot: base_link

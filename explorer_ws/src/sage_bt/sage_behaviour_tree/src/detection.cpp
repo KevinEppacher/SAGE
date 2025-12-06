@@ -22,7 +22,6 @@ IsDetected::IsDetected(const std::string& name,
         {
             latestMsg = msg;
             receivedMessage = true;
-            missedTicks = 0;
         });
 
     RCLCPP_INFO(this->nodePtr->get_logger(),
