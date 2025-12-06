@@ -106,6 +106,8 @@ class SemanticValueMap {
     geometry_msgs::msg::Pose lastPose;
     bool lastPoseValid = false;
     double moveThreshold = 0.05;  // meters
+    float distanceSigma = 3.0f;  // in meters
+    float distanceSigmaPx = 0.0f;  // in pixels
 };
 
 #endif // SEMANTIC_VALUE_MAP_HPP

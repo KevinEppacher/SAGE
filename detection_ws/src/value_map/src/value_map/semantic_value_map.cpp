@@ -15,6 +15,11 @@ bool hasRobotMoved(const geometry_msgs::msg::Pose& last,
     return dist > moveThresh;
 }
 
+inline float gaussianDistanceWeight(float dx, float dy, float sigma_dist)
+{
+    float d2 = dx*dx + dy*dy;
+    return std::exp(-0.5f * d2 / (sigma_dist * sigma_dist));
+}
 
 SemanticValueMap::SemanticValueMap(rclcpp_lifecycle::LifecycleNode* node)
 : node(node)
@@ -46,6 +51,7 @@ bool SemanticValueMap::on_configure()
     node->declare_parameter<bool>("semantic_map.use_camera_info_fov", true);
     node->declare_parameter<double>("semantic_map.fov", 30.0);
     node->declare_parameter<double>("semantic_map.move_threshold", 0.05);
+    node->declare_parameter<float>("semantic_map.distance_sigma", 3.0f);
 
     // --- Load parameters (existing code) ---
     node->get_parameter("semantic_map.confidence_sharpness", confidenceSharpness);
@@ -58,6 +64,7 @@ bool SemanticValueMap::on_configure()
     node->get_parameter("semantic_map.use_camera_info_fov", useCameraInfoFov);
     node->get_parameter("semantic_map.fov", fovDeg);
     node->get_parameter("semantic_map.move_threshold", moveThreshold);
+    node->get_parameter("semantic_map.distance_sigma", distanceSigma);
 
     // --- Service creation ---
     clearValueMapService = node->create_service<std_srvs::srv::Empty>(
@@ -123,6 +130,9 @@ rcl_interfaces::msg::SetParametersResult SemanticValueMap::onParameterChange(con
         } else if (param.get_name() == "semantic_map.move_threshold") {
             moveThreshold = param.as_double();
             RCLCPP_INFO(node->get_logger(), "Updated move_threshold to %.2f", moveThreshold);
+        } else if (param.get_name() == "semantic_map.distance_sigma") {
+            distanceSigma = param.as_double();
+            RCLCPP_INFO(node->get_logger(), "Updated distance_sigma to %.2f", distanceSigma);
         }
     }
 
@@ -211,6 +221,8 @@ void SemanticValueMap::updateSemanticMap(const SemanticScore& semScore,
     int width = map->info.width;
     int height = map->info.height;
     float newValue = semScore.getScore();
+    float resolution = map->info.resolution;
+    distanceSigmaPx = distanceSigma / resolution;
 
     for (int row = 0; row < height; ++row)
     {
@@ -227,7 +239,12 @@ void SemanticValueMap::updateSemanticMap(const SemanticScore& semScore,
                 continue;
 
             float effConf = newConf * updateGain;
-            float fusedValue = prevValue + effConf * (newValue - prevValue);
+            // Here newValue = cosine similarity from SEEM
+            // Normalize to [0,1] if desired:
+            float reward = (newValue + 1.0f) * 0.5f;
+
+            // incremental reward accumulation
+            float fusedValue = prevValue + effConf * reward;
             float fusedConf  = std::max(prevConf * static_cast<float>(decayFactor), newConf);
 
             valueMap.at<float>(row, col) = fusedValue;
@@ -517,53 +534,65 @@ cv::Mat SemanticValueMap::computeConfidenceMap(
     float cameraFovDeg,
     const cv::Mat& fovMask)
 {
-  int height = fovMask.rows;
-  int width = fovMask.cols;
+    int height = fovMask.rows;
+    int width = fovMask.cols;
 
-  cv::Mat confidenceMap = cv::Mat::zeros(height, width, CV_32FC1);
+    cv::Mat confidenceMap = cv::Mat::zeros(height, width, CV_32FC1);
 
-  float resolution = grid.info.resolution;
-  const auto& origin = grid.info.origin;
+    float resolution = grid.info.resolution;
+    const auto& origin = grid.info.origin;
 
-  // Robot position in map pixels
-  float robotX = (pose.position.x - origin.position.x) / resolution;
-  float robotY = (pose.position.y - origin.position.y) / resolution;
+    // Robot position in map pixels
+    float robotX = (pose.position.x - origin.position.x) / resolution;
+    float robotY = (pose.position.y - origin.position.y) / resolution;
 
-  float yaw = getYawAngle(pose);
-  float halfFov = (cameraFovDeg * M_PI / 180.0f) / 2.0f;
+    float yaw = getYawAngle(pose);
+    float halfFov = (cameraFovDeg * M_PI / 180.0f) / 2.0f;
 
     float sigma = (halfFov) / confidenceSharpness;  // smaller sharpness → wider bell
+
     for (int row = 0; row < height; ++row) {
-    for (int col = 0; col < width; ++col) {
-        if (fovMask.at<uint8_t>(row, col) == 0)
-        continue;
+        for (int col = 0; col < width; ++col) {
 
-        float dx = static_cast<float>(col) - robotX;
-        float dy = static_cast<float>(row) - robotY;
-        float angle = std::atan2(dy, dx);
-        float angleDiff = normalizeAngle(angle - yaw);
+            if (fovMask.at<uint8_t>(row, col) == 0)
+                continue;
 
-        if (std::abs(angleDiff) <= halfFov) {
-        // Gaussian bell-curve weighting
-        float weight = std::exp(-0.5f * std::pow(angleDiff / sigma, 2.0f));
-        confidenceMap.at<float>(row, col) = weight;
+            float dx = static_cast<float>(col) - robotX;
+            float dy = static_cast<float>(row) - robotY;
+
+            float angle = std::atan2(dy, dx);
+            float angleDiff = normalizeAngle(angle - yaw);
+
+            // --- Skip cells outside camera FOV --- //
+            if (std::abs(angleDiff) > halfFov)
+                continue;
+
+            // --- ANGLE WEIGHT (existing) --- //
+            float angleW = std::exp(-0.5f * std::pow(angleDiff / sigma, 2.0f));
+
+            // --- DISTANCE WEIGHT (new) --- //
+            float distW = gaussianDistanceWeight(dx, dy, distanceSigmaPx);
+
+            // --- Combined final weight --- //
+            float weight = angleW * distW;
+
+            confidenceMap.at<float>(row, col) = weight;
         }
     }
-    }
 
-  if (visualizeConfidenceMap) {
-    cv::Mat vis;
-    confidenceMap.convertTo(vis, CV_8UC1, 255.0);
-    cv::flip(vis, vis, 0);
-    cv::resize(vis, vis, cv::Size(), 3.0, 3.0, cv::INTER_NEAREST);
-    cv::imshow("Confidence Map", vis);
-    cv::waitKey(1);
-    confidenceWindowOpen = true;
-  } else if (confidenceWindowOpen) {
-    cv::destroyWindow("Confidence Map");
-    confidenceWindowOpen = false;
-  }
-  return confidenceMap;
+    if (visualizeConfidenceMap) {
+        cv::Mat vis;
+        confidenceMap.convertTo(vis, CV_8UC1, 255.0);
+        cv::flip(vis, vis, 0);
+        cv::resize(vis, vis, cv::Size(), 3.0, 3.0, cv::INTER_NEAREST);
+        cv::imshow("Confidence Map", vis);
+        cv::waitKey(1);
+        confidenceWindowOpen = true;
+    } else if (confidenceWindowOpen) {
+        cv::destroyWindow("Confidence Map");
+        confidenceWindowOpen = false;
+    }
+    return confidenceMap;
 }
 
 float SemanticValueMap::getYawAngle(const geometry_msgs::msg::Pose& pose) const
@@ -579,9 +608,9 @@ return tf2::getYaw(q) + M_PI_2;
 
 float SemanticValueMap::normalizeAngle(float angle) const
 {
-  while (angle > M_PI) angle -= 2.0f * M_PI;
-  while (angle < -M_PI) angle += 2.0f * M_PI;
-  return angle;
+    while (angle > M_PI) angle -= 2.0f * M_PI;
+    while (angle < -M_PI) angle += 2.0f * M_PI;
+    return angle;
 }
 
 void SemanticValueMap::handleClearValueMap(
