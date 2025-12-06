@@ -42,6 +42,7 @@ setup(
             # Tests
             'test_nav2_path_action = sage_evaluator.test.test_nav2_path_action:main',
             'test_execute_prompt = sage_evaluator.test.test_execute_prompt:main',
+            'gradient_ascent_visualizer = sage_evaluator.test.gradient_ascent_visualizer:main',
         ],
     },
 )
