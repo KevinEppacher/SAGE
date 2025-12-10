@@ -60,7 +60,7 @@ yoloe:
 
       # --- Inference ---
       imgsz: 640                        # inference resolution
-      conf: 0.25                        # confidence threshold
+      conf: 0.1                        # confidence threshold
       iou: 0.50                         # NMS IoU threshold
 
       # --- Publishers toggles ---
@@ -107,6 +107,7 @@ value_map:
       vlm_target_namespace: "/blip2_ros" # Namespace for the Value Map Node
       timer_frequency: 10.0  # Default timer frequency in ms
       semantic_prompt_topic: "/zero_shot_prompt"  # Topic for semantic prompts
+      # semantic_prompt_topic: "/user_prompt"  # Topic for semantic prompts
       semantic_map:
         confidence_sharpness: 6.0   # cs < 2.0 smoothens the map, cs > 2.0 sharpens it
         decay_factor: 0.99          # decay factor for previous values | at start 1.0, then eg. 0.99
