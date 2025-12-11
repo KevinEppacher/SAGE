@@ -228,6 +228,46 @@ BT::NodeStatus GoToGraphNode::onStart()
 
 BT::NodeStatus GoToGraphNode::onRunning()
 {
+    // ============================================================
+    // Check distance to target first (Approach Radius)
+    // ============================================================
+    geometry_msgs::msg::Pose robotPose;
+    if (robot->getPose(robotPose, mapFrame, robotFrame))
+    {
+        double dx = target->position.x - robotPose.position.x;
+        double dy = target->position.y - robotPose.position.y;
+        double dist = std::hypot(dx, dy);
+
+        if (dist <= approachRadius)
+        {
+            RCLCPP_INFO(node->get_logger(),
+                        "[%s] Within approach radius (%.2f ≤ %.2f). Stopping and succeeding.",
+                        name().c_str(), dist, approachRadius);
+
+            // Cancel current Nav2 goal if any
+            if (goalHandle)
+            {
+                try {
+                    navClient->async_cancel_goal(goalHandle);
+                    RCLCPP_INFO(node->get_logger(),
+                                "[%s] Active Nav2 goal canceled due to proximity.", name().c_str());
+                } catch (const std::exception &e) {
+                    RCLCPP_WARN(node->get_logger(),
+                                "[%s] Exception during cancel: %s", name().c_str(), e.what());
+                }
+                goalHandle.reset();
+            }
+
+            // Optionally stop robot directly (safety)
+            robot->cancelNavigationGoals();
+
+            goalSent = false;
+            goalDone = false;
+            goalSucceeded = true;
+            return BT::NodeStatus::SUCCESS;
+        }
+    }
+
     auto input = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node");
     if (input && target)
     {
