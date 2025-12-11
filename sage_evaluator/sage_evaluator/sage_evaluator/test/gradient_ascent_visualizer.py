@@ -2,149 +2,155 @@
 import rclpy
 from rclpy.node import Node
 
-from std_msgs.msg import Float32
+from graph_node_msgs.msg import GraphNodeArray
 
+import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import numpy as np
+from scipy.interpolate import griddata
 
 from tf2_ros import Buffer, TransformListener
+from matplotlib import cm
 
 
-class GradientAscentVisualizer(Node):
+class ValueMapSurfaceVisualizer(Node):
 
     def __init__(self):
-        super().__init__("gradient_ascent_visualizer")
+        super().__init__("value_map_surface_visualizer")
 
-        # TF Buffer + Listener
+        # TF for robot tracking
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
+        # Storage
+        self.graph_x = None
+        self.graph_y = None
+        self.graph_score = None
+
+        self.robot_x = None
+        self.robot_y = None
+
         # Subscribers
-        self.score_sub = self.create_subscription(
-            Float32,
-            "/value_map/cosine_similarity",
-            self.score_callback,
+        self.graph_sub = self.create_subscription(
+            GraphNodeArray,
+            "/fused/exploration_graph_nodes/graph_nodes",
+            self.graph_callback,
             10
         )
 
-        # Data storage
-        self.raw_scores = []
-        self.scores = []   # smoothed scores
-        self.xs = []
-        self.ys = []
-
-        # Smoothing length
-        self.smooth_window = 10
-
         # Matplotlib setup
         plt.ion()
-        self.fig = plt.figure(figsize=(10, 6))
-        self.ax3d = self.fig.add_subplot(121, projection='3d')
-        self.ax2d = self.fig.add_subplot(122)
+        self.fig = plt.figure(figsize=(10, 7))
+        self.ax = self.fig.add_subplot(111, projection="3d")
 
-        # Create persistent line artists
-        self.line3d, = self.ax3d.plot([], [], [], color='blue', linewidth=2)
-        self.line2d, = self.ax2d.plot([], [], color='red')
+        # No lines yet—the plot will create them after first update
+        self.surface = None
+        self.robot_marker = None
 
-        # Labels always stay
-        self.ax3d.set_xlabel("X [m]")
-        self.ax3d.set_ylabel("Y [m]")
-        self.ax3d.set_zlabel("Cosine Similarity")
-        self.ax3d.set_title("Semantic Gradient-Ascent Trajectory")
-
-        self.ax2d.set_xlabel("Timestep")
-        self.ax2d.set_ylabel("Cosine Similarity")
-        self.ax2d.set_title("Semantic Reward Over Time")
-
-        # Timer for plot updates
-        self.timer = self.create_timer(0.3, self.update_plot)
-        self.get_logger().info("Gradient Ascent Visualizer started.")
-
-        self.current_score = None
+        self.timer = self.create_timer(0.01, self.update_plot)
+        self.get_logger().info("3D Value Surface Visualizer started.")
 
 
-    # --------------------------
-    # SMOOTHING FUNCTION (correct)
-    # --------------------------
-    def smooth(self, data):
-        n = len(data)
-        if n < self.smooth_window:
-            return np.array(data)
-
-        kernel = np.ones(self.smooth_window) / self.smooth_window
-        smoothed = np.convolve(data, kernel, mode='valid')
-
-        pad_length = n - len(smoothed)
-        pad = np.array(data[:pad_length])
-
-        return np.concatenate([pad, smoothed])
-
-
-    # --------------------------
+    # -------------------------------
     # CALLBACKS
-    # --------------------------
-    def score_callback(self, msg: Float32):
-        self.current_score = max(0.0, min(1.0, float(msg.data)))
-        self.record_tf_pose()
+    # -------------------------------
+    def graph_callback(self, msg: GraphNodeArray):
+        xs = []
+        ys = []
+        scores = []
+
+        for n in msg.nodes:
+            xs.append(n.position.x)
+            ys.append(n.position.y)
+            scores.append(n.score)
+
+        self.graph_x = np.array(xs)
+        self.graph_y = np.array(ys)
+        self.graph_score = np.array(scores)
+
+        # Get robot position when graph nodes update
+        self.update_robot_pose()
 
 
-    def record_tf_pose(self):
-        if self.current_score is None:
-            return
-
+    def update_robot_pose(self):
         try:
             tf = self.tf_buffer.lookup_transform("map", "base_link", rclpy.time.Time())
-
-            x = tf.transform.translation.x
-            y = tf.transform.translation.y
-
-            self.xs.append(x)
-            self.ys.append(y)
-
-            # add raw score
-            self.raw_scores.append(self.current_score)
-
-            # recompute smoothed
-            self.scores = self.smooth(self.raw_scores)
-
+            self.robot_x = tf.transform.translation.x
+            self.robot_y = tf.transform.translation.y
         except Exception:
             pass
 
 
-    # --------------------------
-    # PLOT UPDATING (with proper autoscaling)
-    # --------------------------
+    # -------------------------------
+    # VISUALIZATION
+    # -------------------------------
     def update_plot(self):
-        if len(self.scores) < 2:
+
+        if self.graph_x is None:
             return
 
-        xs = np.array(self.xs)
-        ys = np.array(self.ys)
-        zs = np.array(self.scores)
+        self.ax.clear()
 
-        # --- Update 3D line ---
-        self.line3d.set_data(xs, ys)
-        self.line3d.set_3d_properties(zs)
+        # --- 1. Create landscape surface ---
+        grid_x, grid_y = np.mgrid[
+            np.min(self.graph_x):np.max(self.graph_x):200j,
+            np.min(self.graph_y):np.max(self.graph_y):200j,
+        ]
 
-        # IMPORTANT: dynamic autoscale for 3D
-        self.ax3d.set_xlim(np.min(xs), np.max(xs))
-        self.ax3d.set_ylim(np.min(ys), np.max(ys))
-        self.ax3d.set_zlim(np.min(zs), np.max(zs) + 0.05)
+        grid_z = griddata(
+            (self.graph_x, self.graph_y),
+            self.graph_score,
+            (grid_x, grid_y),
+            method="cubic"
+        )
 
-        # --- Update 2D plot ---
-        self.line2d.set_xdata(np.arange(len(zs)))
-        self.line2d.set_ydata(zs)
+        self.ax.plot_surface(
+            grid_x,
+            grid_y,
+            grid_z,
+            cmap="viridis",
+            alpha=0.7,
+            linewidth=0,
+            antialiased=True
+        )
 
-        self.ax2d.relim()
-        self.ax2d.autoscale_view()
+        # --- 2. Draw graph nodes as round markers ---
+        for x, y, s in zip(self.graph_x, self.graph_y, self.graph_score):
+
+            self.ax.scatter3D(
+                x,
+                y,
+                s + 0.01,
+                s=100,        # size scales with score
+                color=cm.viridis(s),
+                alpha=1.0,
+                depthshade=True       # gives spherical shading
+            )
+
+        # --- 3. Draw robot marker ---
+        if self.robot_x is not None:
+            self.ax.scatter3D(
+                self.robot_x,
+                self.robot_y,
+                np.max(self.graph_score) + 0.02,
+                s=300,
+                color="red",
+                alpha=1.0,
+                depthshade=True
+            )
+
+        # --- Labels ---
+        self.ax.set_xlabel("X [m]")
+        self.ax.set_ylabel("Y [m]")
+        self.ax.set_zlabel("Semantic Score")
+        self.ax.set_title("Graph Nodes + Robot on Semantic Value Landscape")
 
         plt.pause(0.01)
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = GradientAscentVisualizer()
+    node = ValueMapSurfaceVisualizer()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
