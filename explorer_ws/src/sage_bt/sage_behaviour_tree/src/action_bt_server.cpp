@@ -6,6 +6,7 @@
 #include "sage_behaviour_tree/decorator.hpp"
 #include "sage_behaviour_tree/semantic_prompt.hpp"
 #include "sage_behaviour_tree/observe_graph_nodes.hpp"
+#include "sage_behaviour_tree/bt_registration_utils.hpp"
 
 #include <behaviortree_cpp/xml_parsing.h>
 #include <fstream>
@@ -131,21 +132,19 @@ void SageBtActionNode::create_behavior_tree(const std::shared_ptr<GoalHandle> go
     // --- Node registration ---
     auto robot = std::make_shared<Robot>(shared_from_this());
     factory.registerNodeType<IsDetected>("IsDetected", shared_from_this());
-    factory.registerBuilder<GoToGraphNode>(
-        "GoToGraphNode",
-        [this, robot](const std::string& name, const BT::NodeConfiguration& config) {
-            return std::make_unique<GoToGraphNode>(name, config, shared_from_this(), robot);
-        });
-    factory.registerNodeType<Spin>("Spin", shared_from_this());
     factory.registerNodeType<SetParameterNode>("SetParameterNode", shared_from_this());
     factory.registerNodeType<SeekoutGraphNodes>("SeekoutGraphNodes", shared_from_this());
     factory.registerNodeType<SaveImageAction>("SaveImageAction", shared_from_this());
     factory.registerNodeType<KeepRunningUntilObjectFound>("KeepRunningUntilObjectFound");
-    factory.registerNodeType<RealignToObject>("RealignToObject", shared_from_this());
     factory.registerNodeType<CallEmptyService>("CallEmptyService", shared_from_this());
     factory.registerNodeType<PublishSemanticPrompt>("PublishSemanticPrompt", shared_from_this());
-    factory.registerNodeType<ApproachPoseAdjustor>("ApproachPoseAdjustor", shared_from_this());
     factory.registerNodeType<ObserveGraphNodes>("ObserveGraphNodes", shared_from_this());
+
+    // Register additional nodes
+    registerNodeWithArgs<GoToGraphNode>(factory, "GoToGraphNode", shared_from_this(), robot);
+    registerNodeWithArgs<Spin>(factory, "Spin", shared_from_this(), robot);
+    registerNodeWithArgs<ApproachPoseAdjustor>(factory, "ApproachPoseAdjustor", shared_from_this(), robot);
+    registerNodeWithArgs<RealignToObject>(factory, "RealignToObject", shared_from_this(), robot);
 
     // --- Export XML model for Groot2 ---
     try 

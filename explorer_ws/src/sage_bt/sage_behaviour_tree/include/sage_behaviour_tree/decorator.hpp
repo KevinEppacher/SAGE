@@ -41,7 +41,8 @@ class ApproachPoseAdjustor : public BT::DecoratorNode
 public:
     ApproachPoseAdjustor(const std::string &name,
                          const BT::NodeConfiguration &config,
-                         rclcpp::Node::SharedPtr node);
+                         rclcpp::Node::SharedPtr node,
+                         std::shared_ptr<Robot> robotPtr);
 
     static BT::PortsList providedPorts();
     BT::NodeStatus tick() override;

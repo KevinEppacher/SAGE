@@ -78,10 +78,11 @@ BT::NodeStatus KeepRunningUntilObjectFound::tick()
 
 ApproachPoseAdjustor::ApproachPoseAdjustor(const std::string &name,
                                            const BT::NodeConfiguration &config,
-                                           rclcpp::Node::SharedPtr nodePtr)
+                                           rclcpp::Node::SharedPtr nodePtr,
+                                           std::shared_ptr<Robot> robotPtr)
     : BT::DecoratorNode(name, config),
       node(std::move(nodePtr)),
-      robot(std::make_shared<Robot>(node))
+      robot(std::move(robotPtr))
 {
     std::string markerTopic = "approach_pose_adjustor/markers";
     // Optional parameters (declare/get if you like)
