@@ -21,3 +21,5 @@ https://huggingface.co/xdecoder/SEEM/resolve/main/seem_focall_v1.pt
 
 2. SAGE/detection_ws/src/seem_ros/seem_ros/seem_ros/seem_focall_v0.pt:
 https://huggingface.co/xdecoder/SEEM/resolve/main/seem_focall_v0.pt
+
+file:///home/kevin/Documents/4_Semester/.temp/test_repos/vlfm/data/objectnav_hm3d_v1/val_mini/content/TEEsavR23oF.json

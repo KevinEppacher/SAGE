@@ -71,11 +71,12 @@ private:
 // ============================ GoToGraphNode ============================ //
 
 class GoToGraphNode : public BT::StatefulActionNode
-{
-public:
+    {
+    public:
     GoToGraphNode(const std::string &name,
-                  const BT::NodeConfiguration &config,
-                  rclcpp::Node::SharedPtr nodePtr);
+                                const BT::NodeConfiguration &config,
+                                rclcpp::Node::SharedPtr nodePtr,
+                                std::shared_ptr<Robot> robotPtr);
 
     static BT::PortsList providedPorts();
 

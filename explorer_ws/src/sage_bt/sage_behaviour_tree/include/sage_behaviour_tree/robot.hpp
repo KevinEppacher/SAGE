@@ -41,6 +41,10 @@ public:
     geometry_msgs::msg::Pose getStartPose() const { return startPose; }
     geometry_msgs::msg::Pose getEndPose() const { return endPose; }
     void resetPath();
+    bool navigateToPose(const geometry_msgs::msg::Pose& goal, const std::string& frame);
+    bool isNavigationRunning() const;
+    bool navigationSucceeded();
+    void cancelNavigation();
 
     std::shared_ptr<nav_msgs::msg::OccupancyGrid> getGlobalCostmap();
 
@@ -49,26 +53,40 @@ private:
     void mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
 
     rclcpp::Node::SharedPtr node;
+
+    // Tf Buffer and Listener
     std::shared_ptr<tf2_ros::Buffer> tfBuffer;
     tf2_ros::TransformListener tfListener;
 
+    // Spin action client
     using NavSpin = nav2_msgs::action::Spin;
     using GoalHandleSpin = rclcpp_action::ClientGoalHandle<NavSpin>;
 
     rclcpp_action::Client<NavSpin>::SharedPtr spinClient;
     std::shared_future<typename GoalHandleSpin::SharedPtr> goalHandleFuture;
     rclcpp_action::ResultCode spinResult{rclcpp_action::ResultCode::UNKNOWN};
-
-    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr costmapSub;
-    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr mapSub;
-
-    std::shared_ptr<nav_msgs::msg::OccupancyGrid> latestCostmap;
-    std::shared_ptr<nav_msgs::msg::OccupancyGrid> latestMap;
-
     bool spinDone{false};
     bool halted{false};
     rclcpp::Time haltedTime{};
+    
+    // Costmap subscribers
+    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr costmapSub;
+    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr mapSub;
+    std::shared_ptr<nav_msgs::msg::OccupancyGrid> latestCostmap;
+    std::shared_ptr<nav_msgs::msg::OccupancyGrid> latestMap;
 
+    // Navigation action client
+    using NavigateToPose = nav2_msgs::action::NavigateToPose;
+    using GoalHandleNav = rclcpp_action::ClientGoalHandle<NavigateToPose>;
+
+    rclcpp_action::Client<NavigateToPose>::SharedPtr navClient;
+    GoalHandleNav::SharedPtr currentGoalHandle;
+    std::shared_future<typename GoalHandleNav::WrappedResult> navResultFuture;
+    bool navigating = false;
+    bool navSucceeded = false;
+    rclcpp::Time navStart;
+
+    // Path tracking
     std::vector<geometry_msgs::msg::PoseStamped> pathHistory;
     geometry_msgs::msg::Pose startPose;
     geometry_msgs::msg::Pose endPose;
