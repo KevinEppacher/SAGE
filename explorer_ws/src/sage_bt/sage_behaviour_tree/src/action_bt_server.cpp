@@ -129,8 +129,13 @@ void SageBtActionNode::create_behavior_tree(const std::shared_ptr<GoalHandle> go
     auto result   = std::make_shared<ExecutePrompt::Result>();
 
     // --- Node registration ---
+    auto robot = std::make_shared<Robot>(shared_from_this());
     factory.registerNodeType<IsDetected>("IsDetected", shared_from_this());
-    factory.registerNodeType<GoToGraphNode>("GoToGraphNode", shared_from_this());
+    factory.registerBuilder<GoToGraphNode>(
+        "GoToGraphNode",
+        [this, robot](const std::string& name, const BT::NodeConfiguration& config) {
+            return std::make_unique<GoToGraphNode>(name, config, shared_from_this(), robot);
+        });
     factory.registerNodeType<Spin>("Spin", shared_from_this());
     factory.registerNodeType<SetParameterNode>("SetParameterNode", shared_from_this());
     factory.registerNodeType<SeekoutGraphNodes>("SeekoutGraphNodes", shared_from_this());

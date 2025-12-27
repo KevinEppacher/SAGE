@@ -25,16 +25,15 @@ Robot::Robot(rclcpp::Node::SharedPtr nodePtr)
 {
     spinClient = rclcpp_action::create_client<NavSpin>(node, "/spin");
 
-    // Subscribe to global costmap (OccupancyGrid)
+    // Subscribe to Nav2 costmaps
     costmapSub = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
         "/global_costmap/costmap",
-        rclcpp::QoS(1).transient_local().reliable(),
+        rclcpp::QoS(rclcpp::KeepLast(1)).best_effort(),
         std::bind(&Robot::costmapCallback, this, std::placeholders::_1));
 
-    // Subscribe to /map instead of /global_costmap/costmap
     mapSub = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
         "/map",
-        rclcpp::QoS(1).transient_local().reliable(),
+        rclcpp::QoS(rclcpp::KeepLast(1)).best_effort(),
         std::bind(&Robot::mapCallback, this, std::placeholders::_1));
 }
 
@@ -259,6 +258,73 @@ bool Robot::spinRelativeTo(const std::string& frame, double targetYawAbs, double
     }
 
     return spin(delta, durationSec);
+}
+
+bool Robot::navigateToPose(const geometry_msgs::msg::Pose& goal, const std::string& frame)
+{
+    if (!navClient)
+        navClient = rclcpp_action::create_client<NavigateToPose>(node, "/navigate_to_pose");
+
+    if (!navClient->wait_for_action_server(2s))
+    {
+        RCLCPP_ERROR(node->get_logger(), "Nav2 NavigateToPose server not available");
+        return false;
+    }
+
+    NavigateToPose::Goal navGoal;
+    navGoal.pose.header.frame_id = frame;
+    navGoal.pose.header.stamp = node->now();
+    navGoal.pose.pose = goal;
+
+    auto goalFuture = navClient->async_send_goal(navGoal);
+    if (goalFuture.wait_for(1s) != std::future_status::ready)
+        return false;
+
+    currentGoalHandle = goalFuture.get();
+    if (!currentGoalHandle)
+        return false;
+
+    navResultFuture = navClient->async_get_result(currentGoalHandle);
+    navigating = true;
+    navSucceeded = false;
+    navStart = node->now();
+    return true;
+}
+
+bool Robot::isNavigationRunning() const
+{
+    return navigating && !navResultFuture.valid() ? false :
+           navigating && navResultFuture.wait_for(0s) != std::future_status::ready;
+}
+
+bool Robot::navigationSucceeded()
+{
+    if (!navigating) return false;
+    if (navResultFuture.wait_for(0s) != std::future_status::ready)
+        return false;
+
+    auto result = navResultFuture.get();
+    navSucceeded = (result.code == rclcpp_action::ResultCode::SUCCEEDED);
+    navigating = false;
+    return navSucceeded;
+}
+
+void Robot::cancelNavigation()
+{
+    if (currentGoalHandle)
+    {
+        RCLCPP_INFO(node->get_logger(), "Cancelling Nav2 navigation goal...");
+        navClient->async_cancel_goal(currentGoalHandle);
+    }
+    else
+    {
+        RCLCPP_INFO(node->get_logger(), "Cancelling all Nav2 goals (no active handle)...");
+        navClient->async_cancel_all_goals();
+    }
+
+    navigating = false;
+    halted = true;
+    haltedTime = node->now();
 }
 
 void Robot::recordCurrentPose()
