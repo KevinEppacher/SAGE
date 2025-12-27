@@ -31,7 +31,6 @@ public:
     bool spinRelativeTo(const std::string& frame, double targetYawAbs, double durationSec);
     rclcpp_action::ResultCode getSpinResult() const;
 
-    void cancelNavigationGoals();
     void publishGoalToTarget(const graph_node_msgs::msg::GraphNode& node,
                              const std::string& goalTopic = "/goal_pose",
                              const std::string& frame = "map");
