@@ -156,10 +156,11 @@ bool Spin::isNearLastSpin(const geometry_msgs::msg::Point &pos) const
 
 GoToGraphNode::GoToGraphNode(const std::string &name,
                              const BT::NodeConfiguration &config,
-                             rclcpp::Node::SharedPtr nodePtr)
+                             rclcpp::Node::SharedPtr nodePtr,
+                             std::shared_ptr<Robot> robotPtr)
     : BT::StatefulActionNode(name, config),
       node(std::move(nodePtr)),
-      robot(std::make_shared<Robot>(node))
+      robot(std::move(robotPtr))
 {
     navClient = rclcpp_action::create_client<NavigateToPose>(node, "/navigate_to_pose");
 
@@ -184,226 +185,48 @@ BT::NodeStatus GoToGraphNode::onStart()
 {
     auto input = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node");
     if (!input)
-    {
-        RCLCPP_ERROR(node->get_logger(), "[%s] No graph_node input.", name().c_str());
         return BT::NodeStatus::FAILURE;
-    }
-
     target = input.value();
-    approachRadius = getInput<double>("approach_radius").value_or(approachRadius);
 
-    // Wait for Nav2 action server
-    if (!navClient->wait_for_action_server(3s))
+    geometry_msgs::msg::Pose goalPose;
+    goalPose.position = target->position;
+    goalPose.orientation.w = 1.0;
+
+    if (!robot->navigateToPose(goalPose, mapFrame))
     {
-        RCLCPP_ERROR(node->get_logger(),
-                     "[%s] Nav2 action server 'navigate_to_pose' not available.",
-                     name().c_str());
+        RCLCPP_ERROR(node->get_logger(), "[%s] Could not start navigation", name().c_str());
         return BT::NodeStatus::FAILURE;
     }
 
-    // --- Prepare goal ---
-    NavigateToPose::Goal goal;
-    goal.pose.header.frame_id = mapFrame;
-
-    // Humble: use to_msg() free function
-    goal.pose.header.stamp = node->now();
-
-    goal.pose.pose.position = target->position;
-    goal.pose.pose.orientation.w = 1.0;
-
-    // --- Send goal asynchronously ---
-    goalFuture = navClient->async_send_goal(goal);
-    goalSent = true;
-    goalDone = false;
-    goalSucceeded = false;
     startTime = node->now();
-
-    RCLCPP_INFO(node->get_logger(),
-                "[%s] Sent Nav2 goal → (%.2f, %.2f)",
-                name().c_str(),
-                target->position.x, target->position.y);
-
     return BT::NodeStatus::RUNNING;
 }
 
+
 BT::NodeStatus GoToGraphNode::onRunning()
 {
-    // ============================================================
-    // Check distance to target first (Approach Radius)
-    // ============================================================
     geometry_msgs::msg::Pose robotPose;
     if (robot->getPose(robotPose, mapFrame, robotFrame))
     {
         double dx = target->position.x - robotPose.position.x;
         double dy = target->position.y - robotPose.position.y;
         double dist = std::hypot(dx, dy);
-
         if (dist <= approachRadius)
         {
-            RCLCPP_INFO(node->get_logger(),
-                        "[%s] Within approach radius (%.2f ≤ %.2f). Stopping and succeeding.",
-                        name().c_str(), dist, approachRadius);
-
-            // Cancel current Nav2 goal if any
-            if (goalHandle)
-            {
-                try {
-                    navClient->async_cancel_goal(goalHandle);
-                    RCLCPP_INFO(node->get_logger(),
-                                "[%s] Active Nav2 goal canceled due to proximity.", name().c_str());
-                } catch (const std::exception &e) {
-                    RCLCPP_WARN(node->get_logger(),
-                                "[%s] Exception during cancel: %s", name().c_str(), e.what());
-                }
-                goalHandle.reset();
-            }
-
-            // Optionally stop robot directly (safety)
-            robot->cancelNavigationGoals();
-
-            goalSent = false;
-            goalDone = false;
-            goalSucceeded = true;
+            robot->cancelNavigation();
             return BT::NodeStatus::SUCCESS;
         }
     }
 
-    auto input = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node");
-    if (input && target)
+    if (robot->navigationSucceeded())
+        return BT::NodeStatus::SUCCESS;
+
+    double elapsed = (node->now() - startTime).seconds();
+    if (elapsed > timeoutSec)
     {
-        auto newTarget = input.value();
-        if (newTarget)
-        {
-            // Compute positional drift
-            double dx = newTarget->position.x - target->position.x;
-            double dy = newTarget->position.y - target->position.y;
-            double dist = std::hypot(dx, dy);
-
-            bool idChanged = (newTarget->id != target->id);
-            bool positionShifted = (dist > 0.5);  // configurable threshold
-
-            if (idChanged || positionShifted)
-            {
-                RCLCPP_WARN(node->get_logger(),
-                            "[%s] Graph node target changed → "
-                            "(old ID %d @ %.2f, %.2f → new ID %d @ %.2f, %.2f). Re-sending goal.",
-                            name().c_str(),
-                            target->id, target->position.x, target->position.y,
-                            newTarget->id, newTarget->position.x, newTarget->position.y);
-
-                // Cancel any current Nav2 goal before re-sending
-                if (goalHandle)
-                {
-                    try {
-                        navClient->async_cancel_goal(goalHandle);
-                        RCLCPP_INFO(node->get_logger(),
-                                    "[%s] Previous Nav2 goal canceled.", name().c_str());
-                    }
-                    catch (const std::exception &e) {
-                        RCLCPP_WARN(node->get_logger(),
-                                    "[%s] Failed to cancel previous goal cleanly: %s",
-                                    name().c_str(), e.what());
-                    }
-                }
-
-                // Update target and reset internal state
-                target = newTarget;
-                goalHandle.reset();
-                goalSent = false;
-                goalDone = false;
-                goalSucceeded = false;
-                startTime = node->now();
-
-                // Send new Nav2 goal
-                NavigateToPose::Goal goal;
-                goal.pose.header.frame_id = mapFrame;
-                goal.pose.header.stamp = node->now();
-                goal.pose.pose.position = target->position;
-                goal.pose.pose.orientation.w = 1.0;
-
-                goalFuture = navClient->async_send_goal(goal);
-                goalSent = true;
-
-                RCLCPP_INFO(node->get_logger(),
-                            "[%s] Sent updated Nav2 goal → (%.2f, %.2f).",
-                            name().c_str(),
-                            target->position.x, target->position.y);
-                return BT::NodeStatus::RUNNING;
-            }
-        }
-    }
-
-    // Wait for goal acceptance
-    if (goalSent && !goalHandle)
-    {
-        if (goalFuture.wait_for(0s) == std::future_status::ready)
-        {
-            goalHandle = goalFuture.get();
-            if (!goalHandle)
-            {
-                RCLCPP_ERROR(node->get_logger(),
-                             "[%s] Goal rejected or invalid handle returned by Nav2.",
-                             name().c_str());
-                goalSent = false;
-                return BT::NodeStatus::FAILURE;
-            }
-
-            resultFuture = navClient->async_get_result(goalHandle);
-            RCLCPP_INFO(node->get_logger(), "[%s] Goal accepted by Nav2.", name().c_str());
-        }
-        else
-        {
-            return BT::NodeStatus::RUNNING;
-        }
-    }
-
-    // Wait for Nav2 result
-    if (goalHandle && !goalDone)
-    {
-        if (resultFuture.wait_for(0s) == std::future_status::ready)
-        {
-            auto wrappedResult = resultFuture.get();
-            goalDone = true;
-
-            RCLCPP_INFO(node->get_logger(),
-                        "[%s] Nav2 returned result code: %d",
-                        name().c_str(), static_cast<int>(wrappedResult.code));
-
-            goalSucceeded = (wrappedResult.code == rclcpp_action::ResultCode::SUCCEEDED);
-        }
-        else
-        {
-            double elapsed = (node->now() - startTime).seconds();
-            if (elapsed > timeoutSec)
-            {
-                RCLCPP_WARN(node->get_logger(),
-                            "[%s] Timeout after %.1f s (limit %.1f). Canceling goal.",
-                            name().c_str(), elapsed, timeoutSec);
-                if (goalHandle)
-                    navClient->async_cancel_goal(goalHandle);
-                return BT::NodeStatus::FAILURE;
-            }
-            return BT::NodeStatus::RUNNING;
-        }
-    }
-
-    if (goalDone)
-    {
-        if (goalSucceeded)
-        {
-            RCLCPP_INFO(node->get_logger(),
-                        "[%s] Navigation succeeded to (%.2f, %.2f).",
-                        name().c_str(),
-                        target->position.x, target->position.y);
-            return BT::NodeStatus::SUCCESS;
-        }
-        else
-        {
-            RCLCPP_ERROR(node->get_logger(),
-                         "[%s] Navigation failed or aborted by Nav2.",
-                         name().c_str());
-            return BT::NodeStatus::FAILURE;
-        }
+        RCLCPP_WARN(node->get_logger(), "[%s] Timeout after %.1fs", name().c_str(), elapsed);
+        robot->cancelNavigation();
+        return BT::NodeStatus::FAILURE;
     }
 
     return BT::NodeStatus::RUNNING;
@@ -411,24 +234,7 @@ BT::NodeStatus GoToGraphNode::onRunning()
 
 void GoToGraphNode::onHalted()
 {
-    if (goalHandle)
-    {
-        try
-        {
-            navClient->async_cancel_goal(goalHandle);
-            RCLCPP_INFO(node->get_logger(),
-                        "[%s] Navigation goal canceled.", name().c_str());
-        }
-        catch (const std::exception &e)
-        {
-            RCLCPP_WARN(node->get_logger(),
-                        "[%s] Exception during cancel: %s",
-                        name().c_str(), e.what());
-        }
-    }
-    goalHandle.reset();
-    goalSent = false;
-    goalDone = false;
+    robot->cancelNavigation();
 }
 
 // -------------------- RealignToObject -------------------- //
