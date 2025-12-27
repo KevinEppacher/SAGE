@@ -26,8 +26,9 @@ class Spin : public BT::StatefulActionNode
 {
 public:
     Spin(const std::string &name,
-         const BT::NodeConfiguration &config,
-         rclcpp::Node::SharedPtr node);
+            const BT::NodeConfiguration &config,
+            rclcpp::Node::SharedPtr nodePtr,
+            std::shared_ptr<Robot> robotPtr);
 
     static BT::PortsList providedPorts();
 
@@ -120,7 +121,8 @@ class RealignToObject : public BT::StatefulActionNode
 public:
     RealignToObject(const std::string &name,
                     const BT::NodeConfiguration &config,
-                    rclcpp::Node::SharedPtr node);
+                    rclcpp::Node::SharedPtr nodePtr,
+                    std::shared_ptr<Robot> robotPtr);
 
     static BT::PortsList providedPorts();
 

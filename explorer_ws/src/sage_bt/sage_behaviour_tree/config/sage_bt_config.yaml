@@ -48,7 +48,6 @@ sage_behaviour_tree:
         spin_timeout: 60.0        # double: timeout for spin action in seconds
         spin_distance_threshold: 0.5  # double: min distance before allowing another spin
       go_to_graph_node:
-        approach_radius: 1.0      # double: radius to consider "at goal"
         goal_topic: /goal_pose
         map_frame: map
         robot_frame: base_link

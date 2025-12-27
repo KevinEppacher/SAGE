@@ -379,7 +379,8 @@ BT::PortsList ObserveGraphNodes::providedPorts() {
 }
 
 BT::NodeStatus ObserveGraphNodes::onStart() {
-    RCLCPP_INFO(node->get_logger(),
+    RCLCPP_INFO_THROTTLE(node->get_logger(),
+                *node->get_clock(), 2000,
                 ORANGE "[ObserveGraphNodes] Starting observation sequence..." RESET);
 
     startTime = steadyClock.now();
@@ -416,13 +417,15 @@ BT::NodeStatus ObserveGraphNodes::onStart() {
     }
 
     if (visibleNodes.empty()) {
-        RCLCPP_INFO(node->get_logger(),
+        RCLCPP_INFO_THROTTLE(node->get_logger(),
+                            *node->get_clock(), 2000,
                     ORANGE "[ObserveGraphNodes] No visible unobserved nodes → SUCCESS." RESET);
         return BT::NodeStatus::SUCCESS;
     }
 
     if (!spinCtrl->shouldTriggerSpin(robotPose, spinDistanceThreshold)) {
-        RCLCPP_INFO(node->get_logger(),
+        RCLCPP_INFO_THROTTLE(node->get_logger(),
+                            *node->get_clock(), 2000,
                     ORANGE "[ObserveGraphNodes] Robot did not move enough for new spin → SUCCESS." RESET);
         return BT::NodeStatus::SUCCESS;
     }

@@ -160,34 +160,6 @@ void Robot::cancelSpin()
     this->haltedTime = node->now();
 }
 
-void Robot::cancelNavigationGoals()
-{
-    auto abortGoal = [&](const std::string& actionName)
-    {
-        try
-        {
-            auto client = rclcpp_action::create_client<nav2_msgs::action::NavigateToPose>(node, actionName);
-            if (client->wait_for_action_server(100ms))
-            {
-                RCLCPP_INFO(node->get_logger(),
-                            "Aborting existing goal on %s", actionName.c_str());
-                client->async_cancel_all_goals();
-            }
-        }
-        catch (const std::exception& e)
-        {
-            RCLCPP_WARN(node->get_logger(),
-                        "Exception while aborting %s: %s", actionName.c_str(), e.what());
-        }
-    };
-
-    abortGoal("/navigate_to_pose");
-    abortGoal("/follow_path");
-    abortGoal("/compute_path_to_pose");
-    this->halted = true;
-    this->haltedTime = node->now();
-}
-
 void Robot::publishGoalToTarget(const graph_node_msgs::msg::GraphNode& nodeMsg,
                                 const std::string& goalTopic,
                                 const std::string& frame)
@@ -311,15 +283,58 @@ bool Robot::navigationSucceeded()
 
 void Robot::cancelNavigation()
 {
-    if (currentGoalHandle)
+    if (!navClient)
     {
-        RCLCPP_INFO(node->get_logger(), "Cancelling Nav2 navigation goal...");
-        navClient->async_cancel_goal(currentGoalHandle);
+        RCLCPP_WARN(node->get_logger(),
+                    "cancelNavigation(): navClient not initialized.");
+        return;
     }
-    else
+
+    // Prevent redundant cancels
+    if (!navigating)
     {
-        RCLCPP_INFO(node->get_logger(), "Cancelling all Nav2 goals (no active handle)...");
-        navClient->async_cancel_all_goals();
+        RCLCPP_DEBUG(node->get_logger(),
+                     "cancelNavigation(): no active navigation in progress.");
+        return;
+    }
+
+    try
+    {
+        if (currentGoalHandle)
+        {
+            auto status = currentGoalHandle->get_status();
+
+            if (status == rclcpp_action::GoalStatus::STATUS_ACCEPTED ||
+                status == rclcpp_action::GoalStatus::STATUS_EXECUTING)
+            {
+                RCLCPP_INFO(node->get_logger(),
+                            "Cancelling Nav2 navigation goal (status %d)...", status);
+                navClient->async_cancel_goal(currentGoalHandle);
+            }
+            else
+            {
+                RCLCPP_DEBUG(node->get_logger(),
+                             "Goal handle exists but status=%d (not active) — skipping cancel.",
+                             status);
+            }
+        }
+        else
+        {
+            RCLCPP_INFO(node->get_logger(),
+                        "No goal handle found — cancelling all Nav2 goals instead...");
+            navClient->async_cancel_all_goals();
+        }
+    }
+    catch (const rclcpp_action::exceptions::UnknownGoalHandleError& e)
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    "cancelNavigation(): UnknownGoalHandleError ignored — %s",
+                    e.what());
+    }
+    catch (const std::exception& e)
+    {
+        RCLCPP_WARN(node->get_logger(),
+                    "cancelNavigation(): exception while cancelling: %s", e.what());
     }
 
     navigating = false;

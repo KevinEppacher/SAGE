@@ -9,10 +9,11 @@ using std::placeholders::_1;
 
 Spin::Spin(const std::string &name,
            const BT::NodeConfiguration &config,
-           rclcpp::Node::SharedPtr nodePtr)
-    : BT::StatefulActionNode(name, config),
-      node(std::move(nodePtr)),
-      robot(std::make_shared<Robot>(node))
+           rclcpp::Node::SharedPtr nodePtr,
+           std::shared_ptr<Robot> robotPtr): 
+            BT::StatefulActionNode(name, config),
+            node(std::move(nodePtr)),
+            robot(std::move(robotPtr))
 {
     if (!node->has_parameter("spin_node.spin_timeout"))
         node->declare_parameter<double>("spin_node.spin_timeout", spinTimeout);
@@ -40,7 +41,7 @@ BT::NodeStatus Spin::onStart()
     getInput("spin_duration", spinDuration);
 
     startTimeSteady = steadyClock.now();
-    robot->cancelNavigationGoals();
+    robot->cancelNavigation();
 
     geometry_msgs::msg::Pose pose;
     if (!robot->getPose(pose, "map", "base_link"))
@@ -241,10 +242,11 @@ void GoToGraphNode::onHalted()
 
 RealignToObject::RealignToObject(const std::string &name,
                                  const BT::NodeConfiguration &config,
-                                 rclcpp::Node::SharedPtr nodePtr)
+                                 rclcpp::Node::SharedPtr nodePtr,
+                                 std::shared_ptr<Robot> robotPtr)
     : BT::StatefulActionNode(name, config),
       node(std::move(nodePtr)),
-      robot(std::make_shared<Robot>(node)) {}
+      robot(std::move(robotPtr)) {}
 
 BT::PortsList RealignToObject::providedPorts()
 {
@@ -282,7 +284,7 @@ BT::NodeStatus RealignToObject::onStart()
                 "%s[%s] Realigning by %.3f rad to node %d (score %.2f)%s",
                 ORANGE, name().c_str(), targetYaw, targetNode.id, targetNode.score, RESET);
 
-    robot->cancelNavigationGoals();
+    robot->cancelNavigation();
     sleep(0.5);
     robot->spin(targetYaw, spinDuration);
     started = true;
