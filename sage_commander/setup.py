@@ -13,6 +13,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/**/*.py', recursive=True)),
         (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz', recursive=True)),
+        (os.path.join('share', package_name, 'rviz'), glob('rviz/*.qss', recursive=True)),
         (os.path.join('share', package_name, 'config'), glob('config/**/*.yaml', recursive=True)),
     ],
     install_requires=['setuptools'],
