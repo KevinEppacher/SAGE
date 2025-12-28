@@ -162,8 +162,20 @@ def generate_launch_description():
 
     #---------------------- Execute Processes ------------------------------#
 
-    rviz_node = ExecuteProcess(
-        cmd=['rviz2', '-d', rviz_config],
+    rviz_stylesheet = os.path.join(
+        get_package_share_directory('sage_commander'),
+        'rviz',
+        'dark.qss'
+    )
+
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=[
+            '--stylesheet', rviz_stylesheet,
+            '-d', rviz_config
+        ],
         output='screen'
     )
 
