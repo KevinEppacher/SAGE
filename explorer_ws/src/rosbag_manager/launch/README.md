@@ -69,6 +69,7 @@ ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=src/rosbag_manager/
 ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=/app/src/rosbag_manager/bag/bag_2025-06-08_18-22-29_HaxA7YrQdEC  rate:=0.5   loop:=true
 ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=/app/src/rosbag_manager/bag/bag_2025-06-19_21-55-37_HaxA7YrQdEC  rate:=1  loop:=true
 ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=/app/src/rosbag_manager/bag/bag_2025-06-19_23-18-23_oven  rate:=5 loop:=true
+ros2 launch rosbag_manager play_rosbag.launch.py   bag_path:=/app/src/rosbag_manager/bag/bag_2025-12-28_18-07-47_HaxA7YrQdEC  rate:=5 loop:=true
 ```
 
 ## Visualize data
