@@ -81,7 +81,7 @@ class SpinController {
 public:
     enum class State { IDLE, SPINNING_MIN, SPINNING_HOME, SPINNING_MAX, DONE };
 
-    SpinController(std::unique_ptr<Robot>& robot, rclcpp::Node::SharedPtr node);
+    SpinController(std::shared_ptr<Robot> robot, rclcpp::Node::SharedPtr node);
 
     bool shouldTriggerSpin(const geometry_msgs::msg::Pose& pose, double threshold);
     void configure(double minYaw, double maxYaw);
@@ -92,8 +92,8 @@ public:
     State getState() const { return state; }
 
 private:
-    std::unique_ptr<Robot>& robot;
-    rclcpp::Node::SharedPtr node;  // <-- new
+    std::shared_ptr<Robot> robot;
+    rclcpp::Node::SharedPtr node;
     geometry_msgs::msg::Pose lastSpinPose;
     bool lastSpinPoseValid = false;
     double minYaw = 0.0, homeYaw = 0.0, maxYaw = 0.0;
@@ -132,7 +132,8 @@ class ObserveGraphNodes : public BT::StatefulActionNode {
 public:
     ObserveGraphNodes(const std::string& name,
                       const BT::NodeConfiguration& config,
-                      rclcpp::Node::SharedPtr nodePtr);
+                      rclcpp::Node::SharedPtr nodePtr,
+                      std::shared_ptr<Robot> robotPtr);
 
     static BT::PortsList providedPorts();
 
@@ -142,17 +143,13 @@ public:
 
 private:
     rclcpp::Node::SharedPtr node;
-    std::unique_ptr<Robot> robot;
+    std::shared_ptr<Robot> robot;
     std::unique_ptr<GraphNodeManager> graphManager;
     std::unique_ptr<MapRayTracer> rayTracer;
     std::unique_ptr<SpinController> spinCtrl;
     std::unique_ptr<VisibilityAnalyzer> visibility;
 
     bool checkTimeout(BT::NodeStatus& outStatus);
-    bool setRemoteParameter(const std::string& targetNode,
-                        const std::string& paramName,
-                        double value,
-                        double timeoutSec = 2.0);
 
     // Parameters
     bool performRayTracing = false;
@@ -162,9 +159,7 @@ private:
     std::string graphNodeTopic = "/fused/exploration_graph_nodes/graph_nodes";
     std::string mapFrame = "map";
     std::string robotFrame = "base_link";
-    // std::string valueMapNode = "/value_map/value_map", decayFactorParam = "semantic_map.decay_factor";
-    // float valueMapDecayFactorDefault = 0.9995f;
-
+    
     // Timer
     rclcpp::Clock steadyClock{RCL_STEADY_TIME};
     rclcpp::Time startTime;

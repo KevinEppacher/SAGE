@@ -138,13 +138,13 @@ void SageBtActionNode::create_behavior_tree(const std::shared_ptr<GoalHandle> go
     factory.registerNodeType<KeepRunningUntilObjectFound>("KeepRunningUntilObjectFound");
     factory.registerNodeType<CallEmptyService>("CallEmptyService", shared_from_this());
     factory.registerNodeType<PublishSemanticPrompt>("PublishSemanticPrompt", shared_from_this());
-    factory.registerNodeType<ObserveGraphNodes>("ObserveGraphNodes", shared_from_this());
 
     // Register additional nodes
     registerNodeWithArgs<GoToGraphNode>(factory, "GoToGraphNode", shared_from_this(), robot);
     registerNodeWithArgs<Spin>(factory, "Spin", shared_from_this(), robot);
     registerNodeWithArgs<ApproachPoseAdjustor>(factory, "ApproachPoseAdjustor", shared_from_this(), robot);
     registerNodeWithArgs<RealignToObject>(factory, "RealignToObject", shared_from_this(), robot);
+    registerNodeWithArgs<ObserveGraphNodes>(factory, "ObserveGraphNodes", shared_from_this(), robot);
 
     // --- Export XML model for Groot2 ---
     try 

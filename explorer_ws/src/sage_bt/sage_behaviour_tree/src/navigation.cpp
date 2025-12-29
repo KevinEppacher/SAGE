@@ -40,6 +40,8 @@ BT::NodeStatus Spin::onStart()
     getInput("turn_right_angle", turnRightAngle);
     getInput("spin_duration", spinDuration);
 
+    robot->setCurrentContext(name().c_str());
+
     startTimeSteady = steadyClock.now();
     robot->cancelNavigation();
 
@@ -163,8 +165,6 @@ GoToGraphNode::GoToGraphNode(const std::string &name,
       node(std::move(nodePtr)),
       robot(std::move(robotPtr))
 {
-    navClient = rclcpp_action::create_client<NavigateToPose>(node, "/navigate_to_pose");
-
     if (!node->has_parameter("go_to_graph_node.timeout"))
         node->declare_parameter<double>("go_to_graph_node.timeout", timeoutSec);
     if (!node->has_parameter("go_to_graph_node.approach_radius"))
@@ -185,8 +185,10 @@ BT::PortsList GoToGraphNode::providedPorts()
 BT::NodeStatus GoToGraphNode::onStart()
 {
     auto input = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node");
-    if (!input)
-        return BT::NodeStatus::FAILURE;
+
+    robot->setCurrentContext(name().c_str());
+
+    if (!input) return BT::NodeStatus::FAILURE;
     target = input.value();
 
     geometry_msgs::msg::Pose goalPose;
@@ -206,36 +208,64 @@ BT::NodeStatus GoToGraphNode::onStart()
 
 BT::NodeStatus GoToGraphNode::onRunning()
 {
-    geometry_msgs::msg::Pose robotPose;
-    if (robot->getPose(robotPose, mapFrame, robotFrame))
-    {
+    approachRadius = getInput<double>("approach_radius").value_or(approachRadius);
+    auto input = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node");
+
+    if (!input) return BT::NodeStatus::FAILURE;
+
+    if (targetChanged(*target, *(input.value()), 0.1))
+        return BT::NodeStatus::FAILURE;
+
+    auto isGoalReached = [this](const geometry_msgs::msg::Pose& robotPose) -> bool {
+        if (!target) return false;
         double dx = target->position.x - robotPose.position.x;
         double dy = target->position.y - robotPose.position.y;
         double dist = std::hypot(dx, dy);
-        if (dist <= approachRadius)
-        {
-            robot->cancelNavigation();
-            return BT::NodeStatus::SUCCESS;
-        }
+        return dist <= approachRadius;
+    };
+
+    geometry_msgs::msg::Pose robotPose;
+    if (robot->getPose(robotPose, mapFrame, robotFrame) && isGoalReached(robotPose))
+    {
+        robot->cancelNavigation();
+        RCLCPP_INFO(node->get_logger(), 
+                "%s[%s] Reached goal within %.2f m → SUCCESS%s", GREEN, name().c_str(), approachRadius, RESET);
+        return BT::NodeStatus::SUCCESS;
     }
 
     if (robot->navigationSucceeded())
+    {
+        RCLCPP_INFO(node->get_logger(), "%s[%s] Navigation succeeded → %sSUCCESS%s", GREEN, name().c_str(), GREEN, RESET);
         return BT::NodeStatus::SUCCESS;
+    }
 
     double elapsed = (node->now() - startTime).seconds();
     if (elapsed > timeoutSec)
     {
-        RCLCPP_WARN(node->get_logger(), "[%s] Timeout after %.1fs", name().c_str(), elapsed);
+        RCLCPP_WARN(node->get_logger(), "%s[%s] Timeout after %.1fs%s", RED, name().c_str(), elapsed, RESET);
         robot->cancelNavigation();
         return BT::NodeStatus::FAILURE;
     }
 
+    RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 5000,
+                         "%s[%s] Navigating to node %d... %.1f / %.1f s → RUNNING%s",
+                         GREEN, name().c_str(), target->id, elapsed, timeoutSec, RESET);
     return BT::NodeStatus::RUNNING;
 }
 
 void GoToGraphNode::onHalted()
 {
     robot->cancelNavigation();
+}
+
+bool GoToGraphNode::targetChanged(const graph_node_msgs::msg::GraphNode &p1,
+                                   const graph_node_msgs::msg::GraphNode &p2,
+                                   double threshold) const
+{
+    double dx = p1.position.x - p2.position.x;
+    double dy = p1.position.y - p2.position.y;
+    double dist = std::sqrt(dx * dx + dy * dy);
+    return dist > threshold;
 }
 
 // -------------------- RealignToObject -------------------- //
@@ -259,6 +289,8 @@ BT::NodeStatus RealignToObject::onStart()
 {
     auto res = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("detected_graph_node");
     getInput("spinDuration", spinDuration);
+
+        robot->setCurrentContext(name().c_str());
 
     if (!res || !res.value())
     {
