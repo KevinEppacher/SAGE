@@ -86,18 +86,13 @@ class GoToGraphNode : public BT::StatefulActionNode
     void onHalted() override;
 
 private:
-    // Nav2 action interface
-    using NavigateToPose = nav2_msgs::action::NavigateToPose;
-    using GoalHandleNav = rclcpp_action::ClientGoalHandle<NavigateToPose>;
-
+    bool targetChanged(const graph_node_msgs::msg::GraphNode &p1,
+                        const graph_node_msgs::msg::GraphNode &p2,
+                        double threshold) const;
     rclcpp::Node::SharedPtr node;
-    rclcpp_action::Client<NavigateToPose>::SharedPtr navClient;
     std::shared_ptr<Robot> robot;
 
     std::shared_ptr<graph_node_msgs::msg::GraphNode> target;
-    std::shared_future<typename GoalHandleNav::SharedPtr> goalFuture;
-    typename GoalHandleNav::SharedPtr goalHandle;
-    std::shared_future<typename GoalHandleNav::WrappedResult> resultFuture;
     
     // Parameters
     std::string mapFrame{"map"};
@@ -110,7 +105,6 @@ private:
     bool goalDone = false;
     bool goalSucceeded = false;
 
-    bool isGoalReached();
 };
 
 

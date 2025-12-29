@@ -17,7 +17,7 @@
                         detection_threshold="0.60"/>
             <PublishSemanticPrompt text_query="{text_query}"
                                    topic="/user_prompt"/>
-            <ApproachPoseAdjustor search_radius="2.5"
+            <ApproachPoseAdjustor search_radius="3.5"
                                   reachable_graph_node="{reachable_detection_graph_node}"
                                   graph_node="{detected_graph_node}">
               <GoToGraphNode name="Go to detected GraphNode"
