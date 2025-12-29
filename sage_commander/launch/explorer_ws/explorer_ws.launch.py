@@ -115,19 +115,6 @@ def generate_launch_description():
         ]
     )
 
-    # graph_node_fusion_node = Node(
-    #     package='graph_node_fusion',
-    #     executable='graph_node_fusion',
-    #     name='graph_node_fusion',
-    #     namespace='fused',
-    #     output='screen',
-    #     emulate_tty=True,
-    #     parameters=[
-    #         {'use_sim_time': use_sim_time},
-    #         explorer_config
-    #     ],
-    # )
-
     #---------------------- Launches ------------------------------#
 
     nav2_stack_launch = IncludeLaunchDescription(

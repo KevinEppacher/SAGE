@@ -77,6 +77,8 @@ void SageBtActionNode::setup_action_server()
         std::bind(&SageBtActionNode::handle_cancel, this, std::placeholders::_1),
         std::bind(&SageBtActionNode::handle_accepted, this, std::placeholders::_1));
 
+    overlay_recorder_ = std::make_unique<OverlayVideoRecorder>(shared_from_this());
+
     RCLCPP_INFO(get_logger(), "Action server 'execute_prompt' ready");
 }
 
@@ -222,6 +224,13 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
     const double timeout_sec = goal->timeout * 60.0;
     const rclcpp::Time start_time = steady_clock.now();
 
+    const std::string video_path =
+    std::filesystem::path(goal->save_directory)
+        .replace_extension("mp4")
+        .string();
+
+    overlay_recorder_->start(video_path);
+
     // ----------------------------------------------------
     // Main execution loop
     // ----------------------------------------------------
@@ -246,6 +255,9 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
             result->confidence_score = 0.0f;
             if (rclcpp::ok() && goal_handle->is_active())
                 goal_handle->canceled(result);
+            robot_->cancelNavigation();
+            robot_->cancelSpin();
+            overlay_recorder_->stop();
             tree_.haltTree();
             return;
         }
@@ -310,11 +322,13 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
         if (status == BT::NodeStatus::SUCCESS)
         {
             goal_handle->succeed(result);
+            overlay_recorder_->stop();
             RCLCPP_INFO(get_logger(), "BT execution SUCCESS");
         }
         else
         {
             goal_handle->abort(result);
+            overlay_recorder_->stop();
             RCLCPP_WARN(get_logger(), "BT execution FAILURE or TIMEOUT");
         }
     }
