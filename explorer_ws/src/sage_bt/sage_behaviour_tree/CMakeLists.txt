@@ -62,6 +62,7 @@ add_executable(sage_bt_action_node
     src/decorator.cpp
     src/semantic_prompt.cpp
     src/observe_graph_nodes.cpp
+    src/overlay_video_recorder.cpp
 )
 
 # Link ROS 2 dependencies
