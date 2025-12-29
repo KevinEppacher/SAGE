@@ -24,6 +24,7 @@ Robot::Robot(rclcpp::Node::SharedPtr nodePtr)
   tfListener(*tfBuffer)
 {
     spinClient = rclcpp_action::create_client<NavSpin>(node, "/spin");
+    navClient = rclcpp_action::create_client<NavigateToPose>(node, "/navigate_to_pose");
 
     // Subscribe to Nav2 costmaps
     costmapSub = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
@@ -68,15 +69,15 @@ bool Robot::getPose(geometry_msgs::msg::Pose& outPose,
             if (elapsed > maxWait)
             {
                 RCLCPP_WARN(node->get_logger(),
-                            "Robot::getPose() - Failed after %.2f s: %s",
-                            elapsed, ex.what());
+                            "[%s][Robot] Robot::getPose() - Failed after %.2f s: %s",
+                            currentContext.c_str(), elapsed, ex.what());
                 return false;
             }
 
             double delay = baseDelay * std::pow(1.5, attempt);
             RCLCPP_WARN(node->get_logger(),
-                        "Robot::getPose() - TF lookup failed (try %d/%d): %s. Retrying in %.2f s...",
-                        attempt + 1, maxRetries, ex.what(), delay);
+                        "[%s][Robot] Robot::getPose() - TF lookup failed (try %d/%d): %s. Retrying in %.2f s...",
+                        currentContext.c_str(), attempt + 1, maxRetries, ex.what(), delay);
 
             rclcpp::sleep_for(std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::duration<double>(delay)));
@@ -84,7 +85,7 @@ bool Robot::getPose(geometry_msgs::msg::Pose& outPose,
     }
 
     RCLCPP_ERROR(node->get_logger(),
-                 "Robot::getPose() - Failed to get transform after %d retries.", maxRetries);
+                 "[%s][Robot] Robot::getPose() - Failed to get transform after %d retries.", currentContext.c_str(), maxRetries);
     return false;
 }
 
@@ -95,7 +96,7 @@ bool Robot::spin(double yaw, double durationSec)
 
     if (!spinClient->wait_for_action_server(1s))
     {
-        RCLCPP_ERROR(node->get_logger(), "Spin action server not available");
+        RCLCPP_ERROR(node->get_logger(), "[%s][Robot] Spin action server not available", currentContext.c_str());
         return false;
     }
 
@@ -142,22 +143,24 @@ void Robot::cancelSpin()
             auto handle = goalHandleFuture.get();
             if (handle)
             {
-                RCLCPP_INFO(node->get_logger(), "Cancelling active spin goal...");
+                RCLCPP_INFO(node->get_logger(), "[%s][Robot] Cancelling active spin goal...", currentContext.c_str());
                 spinClient->async_cancel_goal(handle);
                 return;
             }
         }
 
-        RCLCPP_INFO(node->get_logger(), "Cancelling all spin goals (no handle yet)...");
+        RCLCPP_INFO(node->get_logger(), "[%s][Robot] Cancelling all spin goals (no handle yet)...", currentContext.c_str());
         spinClient->async_cancel_all_goals();
     }
     catch (const std::exception& e)
     {
         RCLCPP_WARN(node->get_logger(),
-                    "Exception during cancelSpin(): %s", e.what());
+                    "[%s][Robot] Exception during cancelSpin(): %s", currentContext.c_str(), e.what());
     }
-    this->halted = true;
-    this->haltedTime = node->now();
+    spinDone = true;
+    spinResult = rclcpp_action::ResultCode::CANCELED;
+    halted = true;
+    haltedTime = node->now();
 }
 
 void Robot::publishGoalToTarget(const graph_node_msgs::msg::GraphNode& nodeMsg,
@@ -190,7 +193,7 @@ std::shared_ptr<nav_msgs::msg::OccupancyGrid> Robot::getGlobalCostmap()
     if (!latestCostmap)
     {
         RCLCPP_WARN_THROTTLE(node->get_logger(), *node->get_clock(), 2000,
-                             "Robot::getGlobalCostmap() → No costmap received yet.");
+                             "[%s][Robot] Robot::getGlobalCostmap() → No costmap received yet.", currentContext.c_str());
         return nullptr;
     }
     return latestCostmap;
@@ -213,7 +216,7 @@ bool Robot::spinRelativeTo(const std::string& frame, double targetYawAbs, double
     if (!getPose(pose, frame, "base_link"))
     {
         RCLCPP_WARN(node->get_logger(),
-                    "spinRelativeTo(): can't get pose in frame '%s'", frame.c_str());
+                    "[%s][Robot] spinRelativeTo(): can't get pose in frame '%s'", currentContext.c_str(), frame.c_str());
         return false;
     }
     const double currentYaw = tf2::getYaw(pose.orientation);
@@ -223,8 +226,8 @@ bool Robot::spinRelativeTo(const std::string& frame, double targetYawAbs, double
 
     if (std::fabs(delta) < 0.01) {   // ~0.6 deg
         RCLCPP_INFO(node->get_logger(),
-                    "spinRelativeTo('%s'): already aligned (|Δ|=%.3f) → no-op",
-                    frame.c_str(), delta);
+                    "[%s][Robot] spinRelativeTo('%s'): already aligned (|Δ|=%.3f) → no-op",
+                    currentContext.c_str(), frame.c_str(), delta);
         // Mimic immediate success: do NOT set any internal flags here; just return true.
         return true;
     }
@@ -239,7 +242,7 @@ bool Robot::navigateToPose(const geometry_msgs::msg::Pose& goal, const std::stri
 
     if (!navClient->wait_for_action_server(2s))
     {
-        RCLCPP_ERROR(node->get_logger(), "Nav2 NavigateToPose server not available");
+        RCLCPP_ERROR(node->get_logger(), "[%s][Robot] Nav2 NavigateToPose server not available", currentContext.c_str());
         return false;
     }
 
@@ -286,7 +289,7 @@ void Robot::cancelNavigation()
     if (!navClient)
     {
         RCLCPP_WARN(node->get_logger(),
-                    "cancelNavigation(): navClient not initialized.");
+                    "[%s][Robot] cancelNavigation(): navClient not initialized.", currentContext.c_str());
         return;
     }
 
@@ -294,7 +297,7 @@ void Robot::cancelNavigation()
     if (!navigating)
     {
         RCLCPP_DEBUG(node->get_logger(),
-                     "cancelNavigation(): no active navigation in progress.");
+                     "[%s][Robot] cancelNavigation(): no active navigation in progress.", currentContext.c_str());
         return;
     }
 
@@ -308,36 +311,39 @@ void Robot::cancelNavigation()
                 status == rclcpp_action::GoalStatus::STATUS_EXECUTING)
             {
                 RCLCPP_INFO(node->get_logger(),
-                            "Cancelling Nav2 navigation goal (status %d)...", status);
+                            "[%s][Robot] Cancelling Nav2 navigation goal (status %d)...", currentContext.c_str(), status);
                 navClient->async_cancel_goal(currentGoalHandle);
             }
             else
             {
                 RCLCPP_DEBUG(node->get_logger(),
-                             "Goal handle exists but status=%d (not active) — skipping cancel.",
-                             status);
+                             "[%s][Robot] Goal handle exists but status=%d (not active) — skipping cancel.",
+                             currentContext.c_str(), status);
             }
         }
         else
         {
             RCLCPP_INFO(node->get_logger(),
-                        "No goal handle found — cancelling all Nav2 goals instead...");
+                        "[%s][Robot] No goal handle found — cancelling all Nav2 goals instead...", currentContext.c_str());
             navClient->async_cancel_all_goals();
         }
     }
     catch (const rclcpp_action::exceptions::UnknownGoalHandleError& e)
     {
         RCLCPP_WARN(node->get_logger(),
-                    "cancelNavigation(): UnknownGoalHandleError ignored — %s",
-                    e.what());
+                    "[%s][Robot] cancelNavigation(): UnknownGoalHandleError ignored — %s",
+                    currentContext.c_str(), e.what());
     }
     catch (const std::exception& e)
     {
         RCLCPP_WARN(node->get_logger(),
-                    "cancelNavigation(): exception while cancelling: %s", e.what());
+                    "[%s][Robot] cancelNavigation(): exception while cancelling: %s", currentContext.c_str(), e.what());
     }
 
     navigating = false;
+    navSucceeded = false;
+    currentGoalHandle.reset();
+    navResultFuture = std::shared_future<typename GoalHandleNav::WrappedResult>();
     halted = true;
     haltedTime = node->now();
 }

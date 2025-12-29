@@ -44,6 +44,7 @@ public:
     bool isNavigationRunning() const;
     bool navigationSucceeded();
     void cancelNavigation();
+    void setCurrentContext(const std::string& context) { currentContext = context; }
 
     std::shared_ptr<nav_msgs::msg::OccupancyGrid> getGlobalCostmap();
 
@@ -90,4 +91,7 @@ private:
     geometry_msgs::msg::Pose startPose;
     geometry_msgs::msg::Pose endPose;
     bool startPoseSet{false};
+
+    // Current context
+    std::string currentContext{"default"};
 };

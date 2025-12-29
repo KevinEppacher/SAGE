@@ -131,6 +131,8 @@ BT::NodeStatus ApproachPoseAdjustor::tick()
 {
     getInput("search_radius", searchRadius);
 
+    robot->setCurrentContext(name().c_str());
+
     auto inputNodeRes = getInput<std::shared_ptr<graph_node_msgs::msg::GraphNode>>("graph_node");
     if (!inputNodeRes || !inputNodeRes.value())
     {
