@@ -95,7 +95,7 @@ void OverlayVideoRecorder::writeFrame()
         videoWriter_.open(
             outputPath_,
             cv::VideoWriter::fourcc('m', 'p', '4', 'v'),
-            1.0,
+            15.0,   // <-- playback FPS (time-lapse speed)
             cv::Size(width, height),
             true);
 
