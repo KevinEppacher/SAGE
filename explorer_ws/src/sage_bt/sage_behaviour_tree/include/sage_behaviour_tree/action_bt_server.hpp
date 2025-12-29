@@ -5,6 +5,7 @@
 #include <sage_bt_msgs/srv/startup_check.hpp>
 #include <sage_bt_msgs/action/execute_prompt.hpp>
 #include "sage_behaviour_tree/robot.hpp"
+#include "sage_behaviour_tree/overlay_video_recorder.hpp"
 
 // ============================================================================
 // SageBtActionNode
@@ -64,5 +65,6 @@ private:
     bool call_empty_service(const std::string &service_name, double timeout_sec = 3.0);
 
     std::unique_ptr<Robot> robot_;
+    std::unique_ptr<OverlayVideoRecorder> overlay_recorder_;
 
 };

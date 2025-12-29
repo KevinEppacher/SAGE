@@ -15,6 +15,10 @@ from nav_msgs.msg import Path
 from sage_datasets.utils import DatasetManager
 from multimodal_query_msgs.msg import SemanticPrompt
 
+import cv2
+import threading
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
 
 # ============================================================
 #   METRICS CLASS
@@ -85,13 +89,11 @@ class EvaluatorDashboard(Node):
         self.declare_parameter("scene", "")
         self.declare_parameter("version", "")
         self.declare_parameter("episode_id", "")
-        self.declare_parameter("prompt_set", "train")
         self.declare_parameter("debug_info", True)
 
         self.scene      = self.get_parameter("scene").value
         self.version    = self.get_parameter("version").value
         self.episode_id = self.get_parameter("episode_id").value
-        self.prompt_set = self.get_parameter("prompt_set").value
         self.debug      = self.get_parameter("debug_info").value
 
         # ---------------- Dataset loading ----------------
@@ -122,20 +124,6 @@ class EvaluatorDashboard(Node):
         # Publisher for the actual executed path
         self.executed_path_pub = self.create_publisher(Path, "/evaluator/executed_path", 10)
 
-        # Zero-shot prompt publisher with TRANSIENT_LOCAL
-        qos_semantic_prompt = QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=1
-        )
-
-        self.zero_shot_pub = self.create_publisher(
-            SemanticPrompt,
-            "/zero_shot_prompt",
-            qos_semantic_prompt
-        )
-
         # Wait for servers
         self._wait_for_servers()
 
@@ -151,8 +139,11 @@ class EvaluatorDashboard(Node):
         self.get_logger().info("Waiting for service/action servers...")
 
         self.shortest_client.wait_for_service()
+        self.get_logger().info("Connected to /evaluator/get_shortest_path service.")
         self.startup_check_client.wait_for_service()
+        self.get_logger().info("Connected to /sage_behaviour_tree/startup_check service.")
         self.bt_action_client.wait_for_server()
+        self.get_logger().info("Connected to /sage_behaviour_tree/execute_prompt action server.")
 
         self.get_logger().info("All service/action servers are ready.")
 
@@ -174,7 +165,7 @@ class EvaluatorDashboard(Node):
             # Publish zero-shot
             zero_shot_msg = SemanticPrompt()
             zero_shot_msg.text_query = zero_shot
-            self.zero_shot_pub.publish(zero_shot_msg)
+            # self.zero_shot_pub.publish(zero_shot_msg)
             self.get_logger().info(f"Published zero-shot prompt: \"{zero_shot}\"")
 
             # 1. Shortest path
@@ -186,7 +177,7 @@ class EvaluatorDashboard(Node):
                 if not self._call_startup_check():
                     self.get_logger().error("Startup check failed, aborting evaluation.")
                     return
-
+                            
             # 3. Execute BT
             success, confidence, actual_path, start_pose, end_pose, total_time = \
                 self._call_execute_prompt(train_prompt, zero_shot)
