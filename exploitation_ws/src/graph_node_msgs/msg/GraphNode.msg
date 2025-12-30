@@ -2,5 +2,8 @@ std_msgs/Header header
 int32 id
 geometry_msgs/Point position
 float64 score
+float64 detection_confidence
+float64 vlm_confidence
+float64 memory_confidence
 bool is_observed
 float64 relevance
