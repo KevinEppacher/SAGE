@@ -11,7 +11,7 @@ import os
 SCENE = "00800-TEEsavR23oF"
 VERSION = "v1.10"
 PROMPT_SET = "train"
-EPISODE_ID = "007"
+EPISODE_ID = "E008"
 
 def launch_setup(context, *args, **kwargs):
     """Function to evaluate LaunchConfiguration and create nodes"""
@@ -53,36 +53,6 @@ def launch_setup(context, *args, **kwargs):
         ]
     )
 
-    # trajectory_recorder_node = Node(
-    #     package="sage_evaluator",
-    #     executable='trajectory_recorder',
-    #     name="trajectory_recorder",
-    #     namespace=namespace,
-    #     output='screen',
-    #     emulate_tty=True,
-    #     parameters=[
-    #         {
-    #             'use_sim_time': use_sim_time == 'true',
-    #         },
-    #         evaluator_config_path
-    #     ]
-    # )
-
-    # dataset_writer_node = Node(
-    #     package="sage_evaluator",
-    #     executable='dataset_writer',
-    #     name="dataset_writer",
-    #     namespace=namespace,
-    #     output='screen',
-    #     emulate_tty=True,
-    #     parameters=[
-    #         {
-    #             'use_sim_time': use_sim_time == 'true',
-    #         },
-    #         evaluator_config_path
-    #     ]
-    # )
-
     #---------------------- Launch Files ------------------------------#
 
     start_evaluation_map_launch = IncludeLaunchDescription(
@@ -109,8 +79,6 @@ def launch_setup(context, *args, **kwargs):
     return [
         delayed_evaluate_node,
         start_evaluation_map_launch,
-        # trajectory_recorder_node,
-        # dataset_writer_node
     ]
 
 def generate_launch_description():
