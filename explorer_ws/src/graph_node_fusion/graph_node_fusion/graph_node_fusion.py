@@ -423,7 +423,11 @@ class NodeWeighter:
     # ----------------------------------------------------------------------
     # Weighted Noisy-OR fusion (detector + value map + memory)
     # ----------------------------------------------------------------------
-    def weight_nodes(self, exploration_nodes, exploitation_nodes, detection_nodes, robot_pose):
+    def weight_nodes(self, 
+                     exploration_nodes : GraphNodeArray, 
+                     exploitation_nodes : GraphNodeArray, 
+                     detection_nodes : GraphNodeArray, 
+                     robot_pose):
         fused_exploration, fused_detection = [], []
 
         for n in exploration_nodes:
@@ -438,6 +442,7 @@ class NodeWeighter:
             costmap_penalty = self._get_costmap_penalty(n.position.x, n.position.y)
 
             n.score *= self.source_balance * proximity_factor * costmap_penalty
+            
 
         for n in exploitation_nodes:
             n.score *= (1.0 - self.source_balance)
@@ -453,6 +458,10 @@ class NodeWeighter:
             s_fused = 1.0 - (1.0 - self.det_weight * s_det) \
                             * (1.0 - self.map_weight * s_map) \
                             * (1.0 - self.mem_weight * s_mem)
+            
+            n.detection_confidence = s_det
+            n.vlm_confidence = s_map
+            n.memory_confidence = s_mem
             n.score = min(max(s_fused, 0.0), 1.0)
 
         fused_detection = sorted(detection_nodes, key=lambda n: n.score, reverse=True)
@@ -580,6 +589,9 @@ class GraphNodeFusion(Node):
             node = GraphNode()  # ensure fresh instance
             node.position.x = detection_node.position.x
             node.position.y = detection_node.position.y
+            node.detection_confidence = detection_node.detection_confidence
+            node.vlm_confidence = detection_node.vlm_confidence
+            node.memory_confidence = detection_node.memory_confidence
             node.position.z = 0.0
             node.score = detection_node.score
             node.id = detection_node.id
