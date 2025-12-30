@@ -1,84 +1,22 @@
 #!/usr/bin/env python3
 import os
 import json
-import math
-import time
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
-
 from evaluator_msgs.srv import GetShortestPath
 from sage_bt_msgs.srv import StartupCheck
 from sage_bt_msgs.action import ExecutePrompt
 from nav_msgs.msg import Path
 from sage_datasets.utils import DatasetManager
 from multimodal_query_msgs.msg import SemanticPrompt
+from nav_msgs.msg import OccupancyGrid, Path
+from sage_evaluator.utils.path_map_visualizer import PathMapVisualizer
+from sage_evaluator.utils.metrics import Metrics
+from sage_evaluator.utils.util import transform_path
+import tf2_ros
 
-import cv2
-import threading
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-
-# ============================================================
-#   METRICS CLASS
-# ============================================================
-class Metrics:
-    """Compute SR and SPL metrics and log them via a ROS2 node."""
-
-    def __init__(self, node: Node, success: bool, actual_path: Path, shortest_path: Path):
-        self.node = node
-        self.success = success
-        self.actual_path = actual_path
-        self.shortest_path = shortest_path
-
-        self.l_shortest = self._compute_length(shortest_path)
-        self.l_actual   = self._compute_length(actual_path)
-
-        self.sr = float(success)
-        self.spl = self._compute_spl()
-
-        self._print_path_info()
-
-    def _compute_length(self, path: Path) -> float:
-        if path is None or not path.poses:
-            return 0.0
-
-        length = 0.0
-        for i in range(1, len(path.poses)):
-            p1 = path.poses[i - 1].pose.position
-            p2 = path.poses[i].pose.position
-            length += math.sqrt((p1.x - p2.x)**2 +
-                                (p1.y - p2.y)**2 +
-                                (p1.z - p2.z)**2)
-        return length
-
-    def _compute_spl(self) -> float:
-        if not self.success:
-            return 0.0
-        if self.l_shortest <= 0.0 or self.l_actual <= 0.0:
-            return 0.0
-        return self.l_shortest / max(self.l_shortest, self.l_actual)
-
-    def _print_path_info(self):
-        self.node.get_logger().info("---- PATH METRICS ----")
-        self.node.get_logger().info(f"Shortest path length: {self.l_shortest:.2f} m")
-        self.node.get_logger().info(f"Actual executed path: {self.l_actual:.2f} m")
-        self.node.get_logger().info(f"SR = {self.sr:.2f}, SPL = {self.spl:.3f}")
-        self.node.get_logger().info("-----------------------")
-
-    def to_dict(self):
-        return {
-            "SR": self.sr,
-            "SPL": self.spl,
-            "shortest_path_length": self.l_shortest,
-            "actual_path_length": self.l_actual
-        }
-
-
-# ============================================================
-#   EVALUATOR DASHBOARD
-# ============================================================
 class EvaluatorDashboard(Node):
     """Central orchestrator node for evaluation experiments."""
 
@@ -124,6 +62,24 @@ class EvaluatorDashboard(Node):
         # Publisher for the actual executed path
         self.executed_path_pub = self.create_publisher(Path, "/evaluator/executed_path", 10)
 
+        self.map = None
+        self.visualizer = PathMapVisualizer(self)
+
+        self.map_sub = self.create_subscription(
+            OccupancyGrid,
+            "/evaluator/map",
+            self._map_callback,
+            QoSProfile(
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                reliability=ReliabilityPolicy.RELIABLE,
+                history=HistoryPolicy.KEEP_LAST,
+                depth=1
+            )
+        )
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
         # Wait for servers
         self._wait_for_servers()
 
@@ -133,8 +89,6 @@ class EvaluatorDashboard(Node):
         # Start evaluation
         self.run_evaluation()
 
-
-    # ============================================================
     def _wait_for_servers(self):
         self.get_logger().info("Waiting for service/action servers...")
 
@@ -147,8 +101,6 @@ class EvaluatorDashboard(Node):
 
         self.get_logger().info("All service/action servers are ready.")
 
-
-    # ============================================================
     def run_evaluation(self):
         total = len(self.prompts_train)
 
@@ -186,6 +138,28 @@ class EvaluatorDashboard(Node):
             metrics = Metrics(self, success, actual_path, shortest_path)
             self.metrics_all[train_prompt] = metrics.to_dict()
 
+            plot_path = os.path.join(
+                self.episode_dir,
+                "detections",
+                train_prompt,
+                "paths.png"
+            )
+
+            actual_path_transformed = transform_path(
+                self.tf_buffer, 
+                "robot_original_pose_at_scan", 
+                actual_path
+            )
+
+            self.visualizer.save_plot(
+                plot_path,
+                actual_path_transformed,
+                shortest_path,
+                actual_path_transformed.poses[0].pose,
+                actual_path_transformed.poses[-1].pose,
+                shortest_path.poses[-1].pose
+            )
+
             # 5. Save per-prompt logs
             self._save_prompt_metrics(train_prompt, metrics, confidence)
 
@@ -193,8 +167,6 @@ class EvaluatorDashboard(Node):
         self._save_summary_metrics()
         self.get_logger().info("All prompts completed. Evaluation finished.")
 
-
-    # ============================================================
     def _call_shortest_path(self, query):
         req = GetShortestPath.Request()
         req.query = query
@@ -211,8 +183,6 @@ class EvaluatorDashboard(Node):
                                f"{resp.path_length:.2f} m)")
         return resp.path
 
-
-    # ============================================================
     def _call_startup_check(self):
         req = StartupCheck.Request()
 
@@ -227,8 +197,6 @@ class EvaluatorDashboard(Node):
         self.get_logger().info(f"Startup check {'PASSED' if resp.ready else 'FAILED'}: {resp.report}")
         return resp.ready
 
-
-    # ============================================================
     def _call_execute_prompt(self, query: str, zero_shot: str):
         goal = ExecutePrompt.Goal()
         goal.prompt = query
@@ -285,8 +253,6 @@ class EvaluatorDashboard(Node):
 
         return success, confidence, actual_path, start_pose, end_pose, total_time
 
-
-    # ============================================================
     def _save_detection_meta(self, prompt, success, image_name):
         det_dir = os.path.join(self.episode_dir, "detections", prompt)
         os.makedirs(det_dir, exist_ok=True)
@@ -302,15 +268,11 @@ class EvaluatorDashboard(Node):
 
         self.get_logger().info(f"Saved detection meta → {det_dir}/detection_meta.json")
 
-
-    # ============================================================
     def _feedback_cb(self, feedback_msg):
         if self.debug:
             fb = feedback_msg.feedback
             # self.get_logger().info(f"[BT] active_node={fb.active_node}, status={fb.status}")
 
-
-    # ============================================================
     def _save_prompt_metrics(self, prompt, metrics: Metrics, confidence: float):
         det_dir = os.path.join(self.episode_dir, "detections", prompt)
         os.makedirs(det_dir, exist_ok=True)
@@ -332,16 +294,18 @@ class EvaluatorDashboard(Node):
 
         self.get_logger().info(f"Saved metrics for '{prompt}' → {det_dir}")
 
-
-    # ============================================================
     def _save_summary_metrics(self):
         summary_path = os.path.join(self.episode_dir, "metrics.json")
         with open(summary_path, "w") as f:
             json.dump(self.metrics_all, f, indent=2)
         self.get_logger().info(f"Saved episode summary → {summary_path}")
 
+    def _map_callback(self, msg: OccupancyGrid):
+        if self.map is None:
+            self.map = msg
+            self.visualizer.set_map(msg)
 
-# ============================================================
+
 def main(args=None):
     rclpy.init(args=args)
     node = EvaluatorDashboard()
