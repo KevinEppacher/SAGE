@@ -82,6 +82,16 @@ BT::NodeStatus IsDetected::tick()
 
     setOutput("graph_nodes", bestNode);
 
+    // RCLCPP_INFO(nodePtr->get_logger(),
+    //     "[%s] Best node → id=%d, score=%.2f, det=%.2f, vlm=%.2f, mem=%.2f",
+    //     name().c_str(),
+    //     bestNode->id,
+    //     bestNode->score,
+    //     bestNode->detection_confidence,
+    //     bestNode->vlm_confidence,
+    //     bestNode->memory_confidence);
+
+
     // --- Detection stability logic using steady clock ---
     rclcpp::Time now = steadyClock.now();
 
