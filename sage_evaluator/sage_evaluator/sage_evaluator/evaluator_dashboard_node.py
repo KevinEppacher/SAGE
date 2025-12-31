@@ -18,8 +18,6 @@ from sage_evaluator.utils.util import transform_path
 import tf2_ros
 
 class EvaluatorDashboard(Node):
-    """Central orchestrator node for evaluation experiments."""
-
     def __init__(self):
         super().__init__("evaluator_dashboard")
 
@@ -131,24 +129,17 @@ class EvaluatorDashboard(Node):
                     return
                             
             # 3. Execute BT
-            success, confidence, actual_path, start_pose, end_pose, total_time = \
-                self._call_execute_prompt(train_prompt, zero_shot)
+            result_data = self._call_execute_prompt(train_prompt, zero_shot)
+            if result_data is None:
+                continue
 
-            # 4. Compute metrics
-            metrics = Metrics(self, success, actual_path, shortest_path)
+            metrics = Metrics(self, result_data["success"], result_data["path"], shortest_path)
             self.metrics_all[train_prompt] = metrics.to_dict()
 
-            plot_path = os.path.join(
-                self.episode_dir,
-                "detections",
-                train_prompt,
-                "paths.png"
-            )
+            plot_path = os.path.join(self.episode_dir, "detections", train_prompt, "paths.png")
 
             actual_path_transformed = transform_path(
-                self.tf_buffer, 
-                "robot_original_pose_at_scan", 
-                actual_path
+                self.tf_buffer, "robot_original_pose_at_scan", result_data["path"]
             )
 
             self.visualizer.save_plot(
@@ -160,8 +151,7 @@ class EvaluatorDashboard(Node):
                 shortest_path.poses[-1].pose
             )
 
-            # 5. Save per-prompt logs
-            self._save_prompt_metrics(train_prompt, metrics, confidence)
+            self._save_prompt_metrics(train_prompt, metrics, result_data)
 
         # 6. Save episode summary
         self._save_summary_metrics()
@@ -204,54 +194,64 @@ class EvaluatorDashboard(Node):
         goal.timeout = 30.0
         goal.zero_shot_prompt = zero_shot
 
-        # Directory for detections
         det_dir = os.path.join(self.episode_dir, "detections", query)
         os.makedirs(det_dir, exist_ok=True)
-
         goal.save_directory = os.path.join(det_dir, "detection.png")
 
-        self.get_logger().info(f"Executing BT for prompt '{query}', zero-shot='{zero_shot}' → save {goal.save_directory}")
+        self.get_logger().info(
+            f"Executing BT for prompt '{query}' (zero-shot='{zero_shot}') → saving {goal.save_directory}"
+        )
 
-        # Send goal
-        send_future = self.bt_action_client.send_goal_async(goal,
-                                                            feedback_callback=self._feedback_cb)
+        send_future = self.bt_action_client.send_goal_async(goal, feedback_callback=self._feedback_cb)
         rclpy.spin_until_future_complete(self, send_future)
-
         goal_handle = send_future.result()
+
         if not goal_handle or not goal_handle.accepted:
             self.get_logger().error("BT goal rejected.")
-            return False, 0.0, Path(), None, None, 0.0
+            return None
 
         # Wait for result
         result_future = goal_handle.get_result_async()
         rclpy.spin_until_future_complete(self, result_future)
-
         result = result_future.result().result
 
-        success      = result.result
-        confidence   = result.confidence_score
-        actual_path  = result.accumulated_path
-        start_pose   = result.start_pose
-        end_pose     = result.end_pose
-        total_time   = result.total_time
+        success = result.result
+        confidence = result.confidence_score
+        detection_confidence = result.detection_confidence
+        vlm_confidence = result.vlm_confidence
+        memory_confidence = result.memory_confidence
+        actual_path = result.accumulated_path
+        start_pose = result.start_pose
+        end_pose = result.end_pose
+        total_time = result.total_time
 
-        # Publish path
-        if actual_path is not None:
+        # Publish path if available
+        if actual_path and len(actual_path.poses) > 0:
             actual_path.header.stamp = self.get_clock().now().to_msg()
             if not actual_path.header.frame_id:
                 actual_path.header.frame_id = "map"
             self.executed_path_pub.publish(actual_path)
             self.get_logger().info(f"Published executed path ({len(actual_path.poses)} poses)")
 
-        # Save detection metadata
         self._save_detection_meta(query, success, "detection.png")
 
         self.get_logger().info(
-            f"BT completed: success={success}, conf={confidence:.3f}, "
-            f"poses={len(actual_path.poses)}, time={total_time:.2f}s"
+            f"BT completed: success={success}, total_conf={confidence:.3f}, "
+            f"det={detection_confidence:.3f}, vlm={vlm_confidence:.3f}, mem={memory_confidence:.3f}, "
+            f"time={total_time:.2f}s"
         )
 
-        return success, confidence, actual_path, start_pose, end_pose, total_time
+        return {
+            "success": success,
+            "confidence": confidence,
+            "detection_confidence": detection_confidence,
+            "vlm_confidence": vlm_confidence,
+            "memory_confidence": memory_confidence,
+            "path": actual_path,
+            "start": start_pose,
+            "end": end_pose,
+            "total_time": total_time
+        }
 
     def _save_detection_meta(self, prompt, success, image_name):
         det_dir = os.path.join(self.episode_dir, "detections", prompt)
@@ -273,24 +273,31 @@ class EvaluatorDashboard(Node):
             fb = feedback_msg.feedback
             # self.get_logger().info(f"[BT] active_node={fb.active_node}, status={fb.status}")
 
-    def _save_prompt_metrics(self, prompt, metrics: Metrics, confidence: float):
+    def _save_prompt_metrics(self, prompt: str, metrics: Metrics, result_data: dict):
         det_dir = os.path.join(self.episode_dir, "detections", prompt)
         os.makedirs(det_dir, exist_ok=True)
 
-        # SR JSON
-        with open(os.path.join(det_dir, "sr.json"), "w") as f:
-            json.dump(
-                {"SR": metrics.sr, "confidence": confidence},
-                f, indent=2
-            )
+        # SR JSON including all confidence terms
+        sr_path = os.path.join(det_dir, "sr.json")
+        sr_data = {
+            "SR": metrics.sr,
+            "confidence_total": result_data["confidence"],
+            "confidence_detection": result_data["detection_confidence"],
+            "confidence_vlm": result_data["vlm_confidence"],
+            "confidence_memory": result_data["memory_confidence"]
+        }
+        with open(sr_path, "w") as f:
+            json.dump(sr_data, f, indent=2)
 
-        # SPL JSON — now CORRECT
-        with open(os.path.join(det_dir, "spl.json"), "w") as f:
-            json.dump({
-                "SPL": metrics.spl,
-                "shortest_path_length": metrics.l_shortest,
-                "actual_path_length": metrics.l_actual
-            }, f, indent=2)
+        # SPL JSON
+        spl_path = os.path.join(det_dir, "spl.json")
+        spl_data = {
+            "SPL": metrics.spl,
+            "shortest_path_length": metrics.l_shortest,
+            "actual_path_length": metrics.l_actual
+        }
+        with open(spl_path, "w") as f:
+            json.dump(spl_data, f, indent=2)
 
         self.get_logger().info(f"Saved metrics for '{prompt}' → {det_dir}")
 
@@ -304,7 +311,6 @@ class EvaluatorDashboard(Node):
         if self.map is None:
             self.map = msg
             self.visualizer.set_map(msg)
-
 
 def main(args=None):
     rclpy.init(args=args)

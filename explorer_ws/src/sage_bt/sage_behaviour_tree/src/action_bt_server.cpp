@@ -281,15 +281,21 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
     if (blackboard_->get("detected_graph_node", detected_node) && detected_node)
     {
         RCLCPP_INFO(get_logger(),
-            "Retrieved detected_graph_node → id=%d, score=%.2f, pos(%.2f, %.2f, %.2f), relevance=%.2f",
+            "Retrieved detected_graph_node → id=%d, score=%.2f (%.2f, %.2f, %.2f), pos(%.2f, %.2f, %.2f), relevance=%.2f",
             detected_node->id,
             detected_node->score,
+            detected_node->detection_confidence,
+            detected_node->vlm_confidence,
+            detected_node->memory_confidence,
             detected_node->position.x,
             detected_node->position.y,
             detected_node->position.z,
             detected_node->relevance);
 
         result->confidence_score = static_cast<float>(detected_node->score);
+        result->detection_confidence =  static_cast<float>(detected_node->detection_confidence);
+        result->vlm_confidence = static_cast<float>(detected_node->vlm_confidence);
+        result->memory_confidence = static_cast<float>(detected_node->memory_confidence);
         result->end_pose.position = detected_node->position;
     }
     else

@@ -392,7 +392,7 @@ class NodeWeighter:
     # ----------------------------------------------------------------------
     # Mean intensity around (x, y)
     # ----------------------------------------------------------------------
-    def _get_score_from_value_map(self, x, y, radius=0.3):
+    def _get_score_from_value_map(self, x, y, radius=1.0):
         if self.value_map_points is None or len(self.value_map_points) == 0:
             return 0.0
         pts = self.value_map_points
