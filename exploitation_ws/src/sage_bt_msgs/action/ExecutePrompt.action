@@ -8,6 +8,9 @@ float64 timeout   # timeout in minutes
 # Result
 bool result
 float32 confidence_score
+float64 detection_confidence
+float64 vlm_confidence
+float64 memory_confidence
 float32 total_time
 nav_msgs/Path accumulated_path
 sensor_msgs/Image image
