@@ -1,12 +1,16 @@
 from launch import LaunchDescription
-from launch_ros.actions import LifecycleNode, Node
+from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, ExecuteProcess
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import SetEnvironmentVariable, ExecuteProcess
 from sage_datasets.utils import DatasetManager
 import os
+
+'''
+Example usage:
+ros2 launch sage_datasets remap_semantic_pointcloud.launch.py scene:=00800-TEEsavR23oF version:=v1.1
+'''
 
 def launch_setup(context, *args, **kwargs):
     """Function to evaluate LaunchConfiguration and create nodes"""
