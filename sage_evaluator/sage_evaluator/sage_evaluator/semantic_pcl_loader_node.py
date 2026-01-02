@@ -23,7 +23,7 @@ class SemanticPCLLoaderNode(Node):
         self.declare_parameter("ply_path", "/app/src/sage_evaluator/datasets/matterport_isaac/00809-Qpor2mEya8F/annotations/v1.0/semantic_20251106_182804.ply")
         self.declare_parameter("json_path", "/app/src/sage_evaluator/datasets/matterport_isaac/00809-Qpor2mEya8F/annotations/v1.0/semantic_20251106_182804.json")
         self.declare_parameter("dbscan_eps", 0.4)
-        self.declare_parameter("dbscan_min_samples", 30)
+        self.declare_parameter("dbscan_min_samples", 50)
         self.declare_parameter("frame_id", "robot_original_pose_at_scan")
         self.declare_parameter("user_prompt_topic", "/evaluator/prompt")
         self.declare_parameter("publish_rate", 0.5)
@@ -273,6 +273,7 @@ class SemanticPCLLoaderNode(Node):
         labels = DBSCAN(eps=self.eps, min_samples=self.min_samples).fit(pts).labels_
         centroids = [pts[labels == lbl].mean(axis=0) for lbl in np.unique(labels) if lbl != -1]
         return np.array(centroids)
+    
     # ---------------- ROS Publishing ----------------
     def _publish_pc(self, pts, cols):
         if len(pts) == 0:

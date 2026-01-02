@@ -280,6 +280,14 @@ ros2 topic pub --once /user_prompt multimodal_query_msgs/msg/SemanticPrompt \
 | `cvZr5TUy5C5.json.gz`   | `00891-cvZr5TUy5C5`        |
 
 ### 00800-TEEsavR23oF:
+**Prompts:**
+```bash
+"bed",
+"chair, armchair, couch",
+"oven and stove",
+"sofa",
+"refrigerator"
+```
 ### 00802-wcojb4TFT35:
 ### 00813-svBbv1Pavdk:
 ### 00814-p53SfW6mjZe:
@@ -303,19 +311,22 @@ Metrics: The weighting factor between exploration and memory is varied during gr
 node fusion to assess impacts on SR and SPL, identifying optimal trade-offs between
 reactivity and exploitation.
 
-### 00800-TEEsavR23oF:
-**Prompts:**
-```bash
-"chair, armchair, couch",
-"bed",
-"oven and stove",
-"sofa",
-"refrigerator"
-```
+1 --> 100% exploration, 0 --> 100% memory
+
+**Steps:**
+- EXP_MEM_100_0: 100% exploration, 0% memory
+- EXP_MEM_80_20: 80% exploration, 20% memory
+- EXP_MEM_60_40: 60% exploration, 40% memory
+- EXP_MEM_40_60: 40% exploration, 60% memory
+- EXP_MEM_20_80: 20% exploration, 80% memory
+- EXP_MEM_0_100: 0% exploration, 100% memory
 
 ## RQ3 - SR/SPL by increasing Semantic Map Quality Granularity:
 Metrics: The semantic granularity in the 3D semantic mapper is varied while adjusting
 exploration weight to evaluate effects on SR and SPL.
+
+**Steps:**
+- top-k: 10, 20, 30, 40, 50
 
 ## RQ4 - detection robustness for COCO classes, open-vocabulary classes, and zero-shot classes:
 Metrics: Precision, Recall, F1-Score, Confusion Matrix, and SR under different fusion

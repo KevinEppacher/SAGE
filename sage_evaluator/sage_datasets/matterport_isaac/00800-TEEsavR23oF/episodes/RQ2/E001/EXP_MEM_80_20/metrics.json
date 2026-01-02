@@ -1,0 +1,32 @@
+{
+  "bed": {
+    "SR": 1.0,
+    "SPL": 0.1119093395028475,
+    "shortest_path_length": 3.844484693188742,
+    "actual_path_length": 34.35356432508406
+  },
+  "chair": {
+    "SR": 1.0,
+    "SPL": 0.3662320572674854,
+    "shortest_path_length": 12.905986778252988,
+    "actual_path_length": 35.23991557305652
+  },
+  "oven": {
+    "SR": 1.0,
+    "SPL": 0.4666145168384288,
+    "shortest_path_length": 11.125093468830524,
+    "actual_path_length": 23.842150356163756
+  },
+  "sofa": {
+    "SR": 1.0,
+    "SPL": 0.7440189558353318,
+    "shortest_path_length": 9.278348089599488,
+    "actual_path_length": 12.47058024104025
+  },
+  "refrigerator": {
+    "SR": 1.0,
+    "SPL": 1.0,
+    "shortest_path_length": 10.361829927253462,
+    "actual_path_length": 6.795728709641184
+  }
+}

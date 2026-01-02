@@ -221,6 +221,9 @@ BT::NodeStatus GoToGraphNode::onRunning()
         double dx = target->position.x - robotPose.position.x;
         double dy = target->position.y - robotPose.position.y;
         double dist = std::hypot(dx, dy);
+        RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 2000,
+                             "%s[%s] Distance to goal: %.2f m%s",
+                             GREEN, name().c_str(), dist, RESET);
         return dist <= approachRadius;
     };
 
@@ -244,6 +247,15 @@ BT::NodeStatus GoToGraphNode::onRunning()
     {
         RCLCPP_WARN(node->get_logger(), "%s[%s] Timeout after %.1fs%s", RED, name().c_str(), elapsed, RESET);
         robot->cancelNavigation();
+        return BT::NodeStatus::FAILURE;
+    }
+
+    geometry_msgs::msg::Pose goalPose;
+    goalPose.position = target->position;
+    goalPose.orientation.w = 1.0;
+    if (!robot->navigateToPose(goalPose, mapFrame))
+    {
+        RCLCPP_ERROR(node->get_logger(), "[%s] Could not start navigation", name().c_str());
         return BT::NodeStatus::FAILURE;
     }
 

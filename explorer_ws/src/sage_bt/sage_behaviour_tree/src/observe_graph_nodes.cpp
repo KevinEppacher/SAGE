@@ -400,9 +400,9 @@ BT::PortsList ObserveGraphNodes::providedPorts() {
 }
 
 BT::NodeStatus ObserveGraphNodes::onStart() {
-    RCLCPP_INFO_THROTTLE(node->get_logger(),
-                *node->get_clock(), 2000,
-                ORANGE "[ObserveGraphNodes] Starting observation sequence..." RESET);
+    // RCLCPP_INFO_THROTTLE(node->get_logger(),
+    //             *node->get_clock(), 2000,
+    //             ORANGE "[ObserveGraphNodes] Starting observation sequence..." RESET);
 
     startTime = steadyClock.now();
     timerActive = true;
@@ -441,14 +441,14 @@ BT::NodeStatus ObserveGraphNodes::onStart() {
     if (visibleNodes.empty()) {
         RCLCPP_INFO_THROTTLE(node->get_logger(),
                             *node->get_clock(), 2000,
-                            ORANGE "[ObserveGraphNodes] No visible unobserved nodes → SUCCESS." RESET);
+                            GREEN "[ObserveGraphNodes] No visible unobserved nodes → SUCCESS." RESET);
         return BT::NodeStatus::SUCCESS;
     }
 
     if (!spinCtrl->shouldTriggerSpin(robotPose, spinDistanceThreshold)) {
         RCLCPP_INFO_THROTTLE(node->get_logger(),
                             *node->get_clock(), 2000,
-                            ORANGE "[ObserveGraphNodes] Robot did not move enough for new spin → SUCCESS." RESET);
+                            GREEN "[ObserveGraphNodes] Robot did not move enough for new spin → SUCCESS." RESET);
         return BT::NodeStatus::SUCCESS;
     }
 
@@ -484,7 +484,8 @@ BT::NodeStatus ObserveGraphNodes::onRunning() {
     {
         if (graphManager->allNodesObserved()) 
         {
-            RCLCPP_INFO(node->get_logger(), GREEN "[ObserveGraphNodes] SUCCESS — all nodes now observed." RESET);
+            RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 2000, 
+                GREEN "[ObserveGraphNodes] SUCCESS — all nodes now observed." RESET);
             return BT::NodeStatus::SUCCESS;
         } 
         else
