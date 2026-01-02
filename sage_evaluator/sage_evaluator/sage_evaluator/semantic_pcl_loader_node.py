@@ -201,7 +201,11 @@ class SemanticPCLLoaderNode(Node):
         raw_query = msg.text_query.strip().lower()
         self.prompt_received = True
 
-        requested_classes = [c.strip() for c in raw_query.replace(",", " ").split() if c.strip()]
+        requested_classes = [
+            c.strip()
+            for c in raw_query.split(",")
+            if c.strip()
+        ]
         self.get_logger().info(f"Received prompt for classes: {requested_classes}")
 
         if any(c in ("all", "reset", "everything") for c in requested_classes):

@@ -303,6 +303,15 @@ Metrics: The weighting factor between exploration and memory is varied during gr
 node fusion to assess impacts on SR and SPL, identifying optimal trade-offs between
 reactivity and exploitation.
 
+### 00800-TEEsavR23oF:
+**Prompts:**
+```bash
+"chair, armchair, couch",
+"bed",
+"oven and stove",
+"sofa",
+"refrigerator"
+```
 
 ## RQ3 - SR/SPL by increasing Semantic Map Quality Granularity:
 Metrics: The semantic granularity in the 3D semantic mapper is varied while adjusting
