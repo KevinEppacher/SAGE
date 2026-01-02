@@ -52,13 +52,32 @@
 
     <!-- Text Prompt -->
     <section>
-        <h2>Text Prompt</h2>
+        <h2>User Prompt</h2>
         <form method="POST">
-            <label for="text_input">Enter text for semantic query:</label>
-            <input type="text" name="text_input" id="text_input" placeholder="e.g. a red chair in the kitchen" required>
-            <button type="submit">Send</button>
+            <input type="text" name="user_prompt"
+                placeholder="e.g. find a chair" required>
+            <button type="submit">Send User Prompt</button>
         </form>
     </section>
+
+    <section>
+        <h2>Evaluator Prompt</h2>
+        <form method="POST">
+            <input type="text" name="evaluator_prompt"
+                placeholder="e.g. evaluate navigation to sofa" required>
+            <button type="submit">Send Evaluator Prompt</button>
+        </form>
+    </section>
+
+    <section>
+        <h2>Zero-Shot Prompt</h2>
+        <form method="POST">
+            <input type="text" name="zero_shot_prompt"
+                placeholder="e.g. a wooden object near the window" required>
+            <button type="submit">Send Zero-Shot Prompt</button>
+        </form>
+    </section>
+
 
     <!-- Image Upload -->
     <section>
