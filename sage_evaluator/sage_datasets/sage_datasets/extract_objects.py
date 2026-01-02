@@ -1,8 +1,8 @@
 import json
 
 # Read from your data file
-input_file = "/app/src/sage_evaluator/datasets/matterport_isaac/00800-TEEsavR23oF/assets/TEEsavR23oF.semantic.txt"
-output_file = "/app/src/sage_evaluator/datasets/matterport_isaac/00800-TEEsavR23oF/assets/classes.json"
+input_file = "/app/src/sage_evaluator/sage_datasets/matterport_isaac/0891-cvZr5TUy5C5/assets/cvZr5TUy5C5.semantic.txt"
+output_file = "/app/src/sage_evaluator/sage_datasets/matterport_isaac/0891-cvZr5TUy5C5/assets/classes.json"
 
 unique_objects = set()
 
