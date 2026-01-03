@@ -70,13 +70,13 @@ exploration_graph_nodes:
     ros__parameters:
       # --- Input / Output topics ---
       map_topic: "/inflated_map"                  # Subscribed parent occupancy grid
-      exploration_topic: "/exploration_map"  # Published persistent global map
+      exploration_topic: "/exploration_map"       # Published persistent global map
 
       # --- TF and Frames ---
       base_link_frame: "base_link"                # Robot base frame for ray origins
 
       # --- Clear service configuration ---
-      clear_service_name: "/exploration_map/clear"  # Service name to clear the map
+      clear_service_name: "/exploration_map/clear" # Service name to clear the map
       debug_mode: true                             # Publish PoseArray for visualization (true = enable)
 
       # --- Raycasting parameters ---
@@ -85,7 +85,7 @@ exploration_graph_nodes:
 
       # --- Pose buffer behavior ---
       pose_dist_thresh: 0.5                        # Minimum translation (m) before storing new pose
-      max_poses: 100                                # Maximum stored poses in buffer
+      max_poses: 100                               # Maximum stored poses in buffer
 
 fused:
   graph_node_fusion:
@@ -94,7 +94,6 @@ fused:
       detection_topic: /filtered/detection_graph_nodes/graph_nodes
       exploitation_topic: /filtered/exploitation_graph_nodes/graph_nodes
       exploration_topic: /filtered/exploration_graph_nodes/graph_nodes
-      exploration_weight: 0.5
       fused_topics:
         detection_graph_nodes: detection_graph_nodes/graph_nodes
         exploration_graph_nodes: exploration_graph_nodes/graph_nodes
@@ -105,7 +104,7 @@ fused:
       weights.mem_weight: 1.0
       weights.proximity_radius: 5.0
       weights.proximity_weight: 0.2
-      weights.source_balance: 1.0   # 1 --> 100% exploration, 0 --> 100% memory
+      weights.source_balance: 0.4   # 1 --> 100% exploration, 0 --> 100% memory
       weights.costmap_weight: 1.0
       weights.costmap_radius: 0.5
       weights.debug_costmap: false
