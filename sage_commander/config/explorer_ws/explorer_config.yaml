@@ -104,10 +104,10 @@ fused:
       weights.mem_weight: 1.0
       weights.proximity_radius: 5.0
       weights.proximity_weight: 0.2
-      weights.source_balance: 0.4   # 1 --> 100% exploration, 0 --> 100% memory
       weights.costmap_weight: 1.0
       weights.costmap_radius: 0.5
       weights.debug_costmap: false
+      weights.source_balance: 0.0   # 1 --> 100% exploration, 0 --> 100% memory
 
 explorer_relevance_map:
   relevance_map:

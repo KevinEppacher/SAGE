@@ -1,7 +1,7 @@
 {
   "SR": 1.0,
-  "confidence_total": 0.8339146375656128,
-  "confidence_detection": 0.6976483464241028,
-  "confidence_vlm": 0.2152685970067978,
-  "confidence_memory": 0.30000001192092896
+  "confidence_total": 0.8925971388816833,
+  "confidence_detection": 0.8755834698677063,
+  "confidence_vlm": 0.0,
+  "confidence_memory": 0.13674743473529816
 }

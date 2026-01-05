@@ -65,12 +65,12 @@ evaluator:
   navigable_target_projector:
     ros__parameters:
       robot_radius: 0.01
-      cost_threshold: 50
+      cost_threshold: 10
       allow_unknown: false
       angular_step_deg: 10.0
       radial_samples: 6
       line_step: 0.05
-      search_radius: 2.5
+      search_radius: 3.5
 
 evaluator:
   shortest_path_service:

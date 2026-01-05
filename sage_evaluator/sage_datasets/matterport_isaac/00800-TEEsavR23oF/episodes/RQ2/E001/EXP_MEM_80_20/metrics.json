@@ -1,32 +1,32 @@
 {
   "bed": {
     "SR": 1.0,
-    "SPL": 0.1119093395028475,
-    "shortest_path_length": 3.844484693188742,
-    "actual_path_length": 34.35356432508406
-  },
-  "chair": {
-    "SR": 1.0,
-    "SPL": 0.3662320572674854,
-    "shortest_path_length": 12.905986778252988,
-    "actual_path_length": 35.23991557305652
+    "SPL": 1.0,
+    "shortest_path_length": 33.70032709697106,
+    "actual_path_length": 26.53595437017863
   },
   "oven": {
     "SR": 1.0,
-    "SPL": 0.4666145168384288,
-    "shortest_path_length": 11.125093468830524,
-    "actual_path_length": 23.842150356163756
+    "SPL": 0.4393863957984756,
+    "shortest_path_length": 16.226071442338206,
+    "actual_path_length": 36.928934526639935
+  },
+  "chair": {
+    "SR": 1.0,
+    "SPL": 1.0,
+    "shortest_path_length": 3.4625973004259496,
+    "actual_path_length": 2.4445457619161943
   },
   "sofa": {
     "SR": 1.0,
-    "SPL": 0.7440189558353318,
-    "shortest_path_length": 9.278348089599488,
-    "actual_path_length": 12.47058024104025
+    "SPL": 1.0,
+    "shortest_path_length": 5.703791781136111,
+    "actual_path_length": 2.980120322120995
   },
   "refrigerator": {
     "SR": 1.0,
     "SPL": 1.0,
-    "shortest_path_length": 10.361829927253462,
-    "actual_path_length": 6.795728709641184
+    "shortest_path_length": 6.605737055813737,
+    "actual_path_length": 2.2106864471781074
   }
 }
