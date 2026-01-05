@@ -8,10 +8,9 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from sage_datasets.utils import DatasetManager
 import os
 
-SCENE = "00800-TEEsavR23oF"
-VERSION = "v1.10"
-PROMPT_SET = "train"
-EPISODE_ID = "RQ2/E001/EXP_MEM_40_60"
+SCENE = "00813-svBbv1Pavdk"
+VERSION = "v1.1"
+EPISODE_ID = "RQ2/E001/EXP_MEM_0_100"
 
 def launch_setup(context, *args, **kwargs):
     """Function to evaluate LaunchConfiguration and create nodes"""
@@ -22,7 +21,6 @@ def launch_setup(context, *args, **kwargs):
     scene = LaunchConfiguration('scene').perform(context)
     version = LaunchConfiguration('version').perform(context)
     episode_id = LaunchConfiguration('episode_id').perform(context)
-    prompt_set = LaunchConfiguration('prompt_set').perform(context)
 
     #---------------------- Paths ------------------------------#
 
@@ -46,8 +44,8 @@ def launch_setup(context, *args, **kwargs):
                 'use_sim_time': use_sim_time == 'true',
                 'scene': scene,
                 'version': version,
-                'prompt_set': prompt_set,
-                'episode_id': episode_id
+                'episode_id': episode_id,
+                'prompt_shuffle_seed': 42,
             },
             evaluator_config_path
         ]
@@ -112,12 +110,6 @@ def generate_launch_description():
         description='Version for the evaluation'
     )
 
-    prompt_set_arg = DeclareLaunchArgument(
-        'prompt_set',
-        default_value=PROMPT_SET,
-        description='Prompt set for the evaluation'
-    )
-
     episode_id_arg = DeclareLaunchArgument(
         'episode_id',
         default_value=EPISODE_ID,
@@ -134,7 +126,6 @@ def generate_launch_description():
     ld.add_action(namespace_arg)
     ld.add_action(scene_arg)
     ld.add_action(version_arg)
-    ld.add_action(prompt_set_arg)
     ld.add_action(episode_id_arg)
     # Use OpaqueFunction to defer evaluation
     ld.add_action(OpaqueFunction(function=launch_setup))

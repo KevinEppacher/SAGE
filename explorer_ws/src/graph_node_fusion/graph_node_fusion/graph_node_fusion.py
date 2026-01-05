@@ -207,12 +207,19 @@ class NodeWeighter:
         node.declare_parameter("weights.proximity_radius", 2.0, ParameterDescriptor(floating_point_range=range_0_5))
         node.declare_parameter("weights.source_balance", 0.7, ParameterDescriptor(floating_point_range=[FloatingPointRange(from_value=0.0, to_value=1.0, step=0.001)]))
         node.declare_parameter("weights.debug_costmap", True)
-
-        self.debug_costmap = node.get_parameter("weights.debug_costmap").value
-
-        # new parameters for costmap penalty
         node.declare_parameter("weights.costmap_weight", 1.0, ParameterDescriptor(floating_point_range=range_0_3))
         node.declare_parameter("weights.costmap_radius", 0.5, ParameterDescriptor(floating_point_range=range_0_5))
+
+        self.det_weight = node.get_parameter("weights.det_weight").value
+        self.map_weight = node.get_parameter("weights.map_weight").value
+        self.mem_weight = node.get_parameter("weights.mem_weight").value
+        self.mem_sigma = node.get_parameter("weights.mem_sigma").value
+        self.proximity_weight = node.get_parameter("weights.proximity_weight").value
+        self.proximity_radius = node.get_parameter("weights.proximity_radius").value
+        self.source_balance = node.get_parameter("weights.source_balance").value
+        self.costmap_weight = node.get_parameter("weights.costmap_weight").value
+        self.costmap_radius = node.get_parameter("weights.costmap_radius").value
+        self.debug_costmap = node.get_parameter("weights.debug_costmap").value
 
         node.add_on_set_parameters_callback(self._param_callback)
 
@@ -430,6 +437,8 @@ class NodeWeighter:
                      robot_pose):
         fused_exploration, fused_detection = [], []
 
+        exploitation_nodes_raw = [n for n in exploitation_nodes]  # unmodified copy
+
         for n in exploration_nodes:
             if n.score < 0.1:
                 n.score = 0.1
@@ -443,7 +452,6 @@ class NodeWeighter:
 
             n.score *= self.source_balance * proximity_factor * costmap_penalty
             
-
         for n in exploitation_nodes:
             n.score *= (1.0 - self.source_balance)
 
@@ -454,7 +462,7 @@ class NodeWeighter:
         for n in detection_nodes:
             s_det = max(0.0, min(1.0, n.score))
             s_map = self._get_score_from_value_map(n.position.x, n.position.y)
-            s_mem = self._get_score_from_memory(n.position.x, n.position.y, exploitation_nodes)
+            s_mem = self._get_score_from_memory(n.position.x, n.position.y, exploitation_nodes_raw)
             s_fused = 1.0 - (1.0 - self.det_weight * s_det) \
                             * (1.0 - self.map_weight * s_map) \
                             * (1.0 - self.mem_weight * s_mem)

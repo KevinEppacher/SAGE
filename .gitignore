@@ -109,3 +109,5 @@ sage_evaluator/sage_evaluator/data/
 exploitation_ws/data/
 
 *.ply
+
+sage_evaluator/sage_datasets/matterport_isaac/

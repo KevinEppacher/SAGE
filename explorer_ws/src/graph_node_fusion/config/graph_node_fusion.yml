@@ -12,11 +12,11 @@ fused:
       timer_period: 0.1
       weights.det_weight: 1.0
       weights.map_weight: 1.0
-      weights.mem_sigma: 0.5
       weights.mem_weight: 1.0
+      weights.mem_sigma: 0.5
       weights.proximity_radius: 5.0
       weights.proximity_weight: 0.2
-      weights.source_balance: 0.1
+      weights.source_balance: 0.7
       weights.costmap_weight: 1.0
       weights.costmap_radius: 0.5
       weights.debug_costmap: true

@@ -86,7 +86,7 @@ class NavigableTargetProjector(Node):
         if self.map_data is None:
             return None
 
-        tx, ty = target
+        tx, ty = self.clamp_to_map(*target)
         base_angle = 0.0  # Could derive from robot pose if available
         step_rad = math.radians(self.angular_step_deg)
 
@@ -99,6 +99,7 @@ class NavigableTargetProjector(Node):
             for ang in angles:
                 cx = tx + r * math.cos(ang)
                 cy = ty + r * math.sin(ang)
+                cx, cy = self.clamp_to_map(cx, cy)
                 if not self.is_footprint_free(cx, cy):
                     continue
                 # Optional ray check can be added if robot pose is known
@@ -160,6 +161,23 @@ class NavigableTargetProjector(Node):
             if cost >= self.cost_threshold:
                 return False
         return True
+
+    def clamp_to_map(self, x, y):
+        res = self.map_resolution
+
+        # subtract ONE FULL CELL + footprint margin
+        margin = self.robot_radius + res
+
+        min_x = self.map_origin[0] + margin
+        min_y = self.map_origin[1] + margin
+
+        max_x = self.map_origin[0] + (self.map_width  - 1) * res - margin
+        max_y = self.map_origin[1] + (self.map_height - 1) * res - margin
+
+        cx = min(max(x, min_x), max_x)
+        cy = min(max(y, min_y), max_y)
+
+        return cx, cy
 
 
 def main(args=None):

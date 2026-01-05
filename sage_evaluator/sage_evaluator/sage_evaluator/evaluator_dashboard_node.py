@@ -15,6 +15,7 @@ from nav_msgs.msg import OccupancyGrid, Path
 from sage_evaluator.utils.path_map_visualizer import PathMapVisualizer
 from sage_evaluator.utils.metrics import Metrics
 from sage_evaluator.utils.util import transform_path
+import random
 import tf2_ros
 
 class EvaluatorDashboard(Node):
@@ -100,47 +101,95 @@ class EvaluatorDashboard(Node):
         self.get_logger().info("All service/action servers are ready.")
 
     def run_evaluation(self):
-        total = len(self.prompts_train)
+        # -------------------------------------------------
+        # Prepare randomized (or ordered) prompt triplets
+        # -------------------------------------------------
+        prompt_triplets = self._prepare_prompt_triplets()
+        total = len(prompt_triplets)
 
-        for i, (train_prompt, eval_prompt) in enumerate(zip(self.prompts_train,
-                                                            self.prompts_eval),
-                                                        start=1):
-
-            zero_shot = self.prompts_zero[i - 1]
+        for i, (train_prompt, eval_prompt, zero_shot) in enumerate(
+                prompt_triplets,
+                start=1):
 
             self.get_logger().info("=" * 60)
             self.get_logger().info(f"[{i}/{total}] EVALUATING: {train_prompt}")
             self.get_logger().info("=" * 60)
 
-            # Publish zero-shot
-            zero_shot_msg = SemanticPrompt()
-            zero_shot_msg.text_query = zero_shot
-            # self.zero_shot_pub.publish(zero_shot_msg)
-            self.get_logger().info(f"Published zero-shot prompt: \"{zero_shot}\"")
+            # -------------------------------------------------
+            # Zero-shot prompt (passed into BT, not published)
+            # -------------------------------------------------
+            self.get_logger().info(
+                f"Using zero-shot prompt: \"{zero_shot}\""
+            )
 
-            # 1. Shortest path
-            self.get_logger().info(f"Requesting shortest path for '{eval_prompt}'")
+            # -------------------------------------------------
+            # 1. Shortest path computation
+            # -------------------------------------------------
+            self.get_logger().info(
+                f"Requesting shortest path for '{eval_prompt}'"
+            )
             shortest_path = self._call_shortest_path(eval_prompt)
 
-            # 2. Startup check once
+            if shortest_path is None:
+                self.get_logger().warn(
+                    f"Skipping prompt '{train_prompt}' because no valid shortest path is available."
+                )
+                continue
+
+            # -------------------------------------------------
+            # 2. Startup check (only once)
+            # -------------------------------------------------
             if i == 1:
                 if not self._call_startup_check():
-                    self.get_logger().error("Startup check failed, aborting evaluation.")
+                    self.get_logger().error(
+                        "Startup check failed, aborting evaluation."
+                    )
                     return
-                            
-            # 3. Execute BT
-            result_data = self._call_execute_prompt(train_prompt, zero_shot)
+
+            # -------------------------------------------------
+            # 3. Execute Behavior Tree
+            # -------------------------------------------------
+            result_data = self._call_execute_prompt(
+                train_prompt,
+                zero_shot
+            )
             if result_data is None:
                 continue
 
-            metrics = Metrics(self, result_data["success"], result_data["path"], shortest_path)
+            # -------------------------------------------------
+            # 4. Metrics computation
+            # -------------------------------------------------
+            metrics = Metrics(
+                self,
+                result_data["success"],
+                result_data["path"],
+                shortest_path
+            )
             self.metrics_all[train_prompt] = metrics.to_dict()
 
-            plot_path = os.path.join(self.episode_dir, "detections", train_prompt, "paths.png")
+            # -------------------------------------------------
+            # 5. Path visualization
+            # -------------------------------------------------
+            plot_path = os.path.join(
+                self.episode_dir,
+                "detections",
+                train_prompt,
+                "paths.png"
+            )
 
             actual_path_transformed = transform_path(
-                self.tf_buffer, "robot_original_pose_at_scan", result_data["path"]
+                self.tf_buffer,
+                "robot_original_pose_at_scan",
+                result_data["path"]
             )
+
+            goal_pose = None
+            if shortest_path and len(shortest_path.poses) > 0:
+                goal_pose = shortest_path.poses[-1].pose
+            else:
+                self.get_logger().warn(
+                    "Shortest path is empty – skipping goal marker in visualization."
+                )
 
             self.visualizer.save_plot(
                 plot_path,
@@ -148,14 +197,25 @@ class EvaluatorDashboard(Node):
                 shortest_path,
                 actual_path_transformed.poses[0].pose,
                 actual_path_transformed.poses[-1].pose,
-                shortest_path.poses[-1].pose
+                goal_pose
             )
 
-            self._save_prompt_metrics(train_prompt, metrics, result_data)
+            # -------------------------------------------------
+            # 6. Save per-prompt metrics
+            # -------------------------------------------------
+            self._save_prompt_metrics(
+                train_prompt,
+                metrics,
+                result_data
+            )
 
-        # 6. Save episode summary
+        # -------------------------------------------------
+        # 7. Save episode summary
+        # -------------------------------------------------
         self._save_summary_metrics()
-        self.get_logger().info("All prompts completed. Evaluation finished.")
+        self.get_logger().info(
+            "All prompts completed. Evaluation finished."
+        )
 
     def _call_shortest_path(self, query):
         req = GetShortestPath.Request()
@@ -166,11 +226,21 @@ class EvaluatorDashboard(Node):
 
         resp = future.result()
         if not resp or not resp.success:
-            self.get_logger().warn(f"Shortest path for '{query}' failed.")
-            return Path()
+            self.get_logger().warn(
+                f"Shortest path for '{query}' failed (service error)."
+            )
+            return None
 
-        self.get_logger().info(f"Shortest path received ({len(resp.path.poses)} poses, "
-                               f"{resp.path_length:.2f} m)")
+        if len(resp.path.poses) == 0:
+            self.get_logger().warn(
+                f"Shortest path for '{query}' is empty."
+            )
+            return None
+
+        self.get_logger().info(
+            f"Shortest path received ({len(resp.path.poses)} poses, "
+            f"{resp.path_length:.2f} m)"
+        )
         return resp.path
 
     def _call_startup_check(self):
@@ -191,7 +261,7 @@ class EvaluatorDashboard(Node):
         goal = ExecutePrompt.Goal()
         goal.prompt = query
         goal.experiment_id = f"{self.scene}_{self.episode_id}"
-        goal.timeout = 30.0
+        goal.timeout = 20.0         # minutes
         goal.zero_shot_prompt = zero_shot
 
         det_dir = os.path.join(self.episode_dir, "detections", query)
@@ -311,6 +381,47 @@ class EvaluatorDashboard(Node):
         if self.map is None:
             self.map = msg
             self.visualizer.set_map(msg)
+
+    def _prepare_prompt_triplets(self):
+        """
+        Prepare and (optionally) shuffle prompt triplets:
+        (train_prompt, eval_prompt, zero_shot_prompt)
+
+        Shuffling happens ONCE per episode and can be seeded
+        for reproducibility.
+        """
+        import random
+
+        # Declare optional seed parameter
+        self.declare_parameter("prompt_shuffle_seed", 0)
+        seed = self.get_parameter("prompt_shuffle_seed").value
+
+        # Zip prompts into aligned triplets
+        prompt_triplets = list(zip(
+            self.prompts_train,
+            self.prompts_eval,
+            self.prompts_zero
+        ))
+
+        if seed != 0:
+            random.seed(seed)
+            random.shuffle(prompt_triplets)
+            self.get_logger().info(
+                f"Prompt order randomized with seed={seed}"
+            )
+        else:
+            self.get_logger().info(
+                "Prompt order not randomized (seed=0)"
+            )
+
+        # Log final order (important for reproducibility)
+        self.get_logger().info("Final evaluation prompt order:")
+        for i, (train_p, _, zero_p) in enumerate(prompt_triplets, start=1):
+            self.get_logger().info(
+                f"  {i}: train='{train_p}' | zero-shot='{zero_p}'"
+            )
+
+        return prompt_triplets
 
 def main(args=None):
     rclpy.init(args=args)
