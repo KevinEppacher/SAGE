@@ -84,7 +84,7 @@ yoloe:
       # Processing parameters
       score_threshold: 0.01     # ignore low scores
       depth_min: 0.05           # meters
-      depth_max: 10.0           # meters
+      depth_max: 15.0           # meters
       stride: 1                 # subsample pixels (1=no skip, 2=every 2nd, etc.)
       frame_id: "carter_camera_stereo_right"        # frame for PointCloud2 header
 

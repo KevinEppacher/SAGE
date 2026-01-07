@@ -4,6 +4,8 @@ string zero_shot_prompt
 string experiment_id
 string save_directory
 float64 timeout   # timeout in minutes
+float64 detection_threshold_initial
+float64 detection_threshold_final
 ---
 # Result
 bool result

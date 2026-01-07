@@ -11,7 +11,15 @@ import os
 ros2 service call /sage_behaviour_tree/startup_check sage_bt_msgs/srv/StartupCheck
 
 ros2 action send_goal /sage_behaviour_tree/execute_prompt sage_bt_msgs/action/ExecutePrompt \
-"{prompt: 'fridge',zero_shot_prompt: 'A door leading to a fridge', experiment_id: 'EVAL01', save_directory: '/app/test.png', timeout: 60.0}" \
+"{ \
+  prompt: 'flowerpot', \
+  zero_shot_prompt: 'A door leading to a flowerpot', \
+  experiment_id: 'EVAL01', \
+  save_directory: '/app/test.png', \
+  timeout: 60.0, \
+  detection_threshold_initial: 0.05, \
+  detection_threshold_final: 0.1 \
+}" \
 --feedback
 
 ros2 service call /sage_behaviour_tree/force_exit std_srvs/srv/Empty

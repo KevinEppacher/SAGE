@@ -454,6 +454,7 @@ class NodeWeighter:
             
         for n in exploitation_nodes:
             n.score *= (1.0 - self.source_balance)
+            n.position.z = 0.0  # ensure z=0 for 2D plane
 
         all_exp = exploration_nodes + exploitation_nodes
         all_exp.sort(key=lambda n: n.score, reverse=True)

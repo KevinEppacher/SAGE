@@ -46,6 +46,20 @@ class EvaluatorDashboard(Node):
         self.prompts_eval  = self.prompts_data["eval"]
         self.prompts_zero  = self.prompts_data["zero_shot"]
 
+        # ---------------- Detection thresholds ----------------
+        self.detection_threshold_initial = self.prompts_data.get(
+            "detection_threshold_initial", 0.6
+        )
+        self.detection_threshold_final = self.prompts_data.get(
+            "detection_threshold_final", 0.8
+        )
+
+        self.get_logger().info(
+            f"Using detection thresholds: "
+            f"initial={self.detection_threshold_initial:.2f}, "
+            f"final={self.detection_threshold_final:.2f}"
+        )
+
         if not (len(self.prompts_train) == len(self.prompts_eval) == len(self.prompts_zero)):
             raise RuntimeError("train/eval/zero_shot prompt lists must have equal length.")
 
@@ -261,8 +275,18 @@ class EvaluatorDashboard(Node):
         goal = ExecutePrompt.Goal()
         goal.prompt = query
         goal.experiment_id = f"{self.scene}_{self.episode_id}"
-        goal.timeout = 20.0         # minutes
+        goal.timeout = 30.0         # minutes
         goal.zero_shot_prompt = zero_shot
+
+        goal.detection_threshold_initial = self.detection_threshold_initial
+        goal.detection_threshold_final = self.detection_threshold_final
+
+        self.get_logger().info(
+            f"Detection thresholds → "
+            f"initial={goal.detection_threshold_initial:.2f}, "
+            f"final={goal.detection_threshold_final:.2f}"
+        )
+
 
         det_dir = os.path.join(self.episode_dir, "detections", query)
         os.makedirs(det_dir, exist_ok=True)
