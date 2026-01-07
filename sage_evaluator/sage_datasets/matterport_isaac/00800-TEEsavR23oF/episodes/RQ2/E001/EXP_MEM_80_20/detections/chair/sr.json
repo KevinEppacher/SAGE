@@ -3,5 +3,6 @@
   "confidence_total": 0.9084423184394836,
   "confidence_detection": 0.8461729884147644,
   "confidence_vlm": 0.2560012638568878,
-  "confidence_memory": 0.20000000298023224
+  "confidence_memory": 0.20000000298023224,
+  "detection_threshold": 0.8
 }

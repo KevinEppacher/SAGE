@@ -236,7 +236,6 @@ BT::NodeStatus ApproachPoseAdjustor::tick()
     return lastChildStatus;
 }
 
-
 bool ApproachPoseAdjustor::findReachablePoint(const graph_node_msgs::msg::GraphNode &target,
                                               graph_node_msgs::msg::GraphNode &reachable)
 {

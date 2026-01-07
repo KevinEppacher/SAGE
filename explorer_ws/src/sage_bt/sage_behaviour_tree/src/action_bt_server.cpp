@@ -131,6 +131,13 @@ void SageBtActionNode::create_behavior_tree(const std::shared_ptr<GoalHandle> go
     auto feedback = std::make_shared<ExecutePrompt::Feedback>();
     auto result   = std::make_shared<ExecutePrompt::Result>();
 
+
+    blackboard_->set("detection_threshold_initial",
+                    goal->detection_threshold_initial);
+
+    blackboard_->set("detection_threshold_final",
+                    goal->detection_threshold_final);
+
     // --- Node registration ---
     auto robot = std::make_shared<Robot>(shared_from_this());
     factory.registerNodeType<IsDetected>("IsDetected", shared_from_this());
@@ -205,13 +212,16 @@ void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
     robot_->resetPath();          // start a fresh path recording
     robot_->recordCurrentPose();  // record initial pose
 
+    
     blackboard_ = BT::Blackboard::create();
     blackboard_->set("text_query", goal->prompt);
     blackboard_->set("zero_shot_query", goal->zero_shot_prompt);
     blackboard_->set("image_path", goal->save_directory);
     blackboard_->set<std::shared_ptr<graph_node_msgs::msg::GraphNode>>(
         "detected_graph_node", std::make_shared<graph_node_msgs::msg::GraphNode>());
-
+        
+    blackboard_->set("detection_threshold_initial", 0.6);
+    blackboard_->set("detection_threshold_final", 0.8);
     create_behavior_tree(goal_handle);
 
     BT::NodeStatus status = BT::NodeStatus::RUNNING;

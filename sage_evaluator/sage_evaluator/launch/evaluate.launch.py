@@ -8,9 +8,10 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from sage_datasets.utils import DatasetManager
 import os
 
-SCENE = "00813-svBbv1Pavdk"
-VERSION = "v1.1"
-EPISODE_ID = "RQ2/E001/EXP_MEM_0_100"
+SCENE = "00824-Dd4bFSTQ8gi"
+VERSION = "v1.2"
+EPISODE_ID = "RQ2/E001/EXP_MEM_100_0"
+SEED = 42
 
 def launch_setup(context, *args, **kwargs):
     """Function to evaluate LaunchConfiguration and create nodes"""
@@ -21,6 +22,7 @@ def launch_setup(context, *args, **kwargs):
     scene = LaunchConfiguration('scene').perform(context)
     version = LaunchConfiguration('version').perform(context)
     episode_id = LaunchConfiguration('episode_id').perform(context)
+    seed = LaunchConfiguration('seed').perform(context)
 
     #---------------------- Paths ------------------------------#
 
@@ -45,7 +47,7 @@ def launch_setup(context, *args, **kwargs):
                 'scene': scene,
                 'version': version,
                 'episode_id': episode_id,
-                'prompt_shuffle_seed': 42,
+                'prompt_shuffle_seed': int(seed),
             },
             evaluator_config_path
         ]
@@ -116,6 +118,12 @@ def generate_launch_description():
         description='Episode ID for the evaluation'
     )
 
+    seed_arg = DeclareLaunchArgument(
+        'seed',
+        default_value=str(SEED),
+        description='Seed for prompt shuffling'
+    )
+
     #---------------------- Launch Description ------------------------------#
 
     ld = LaunchDescription()
@@ -127,6 +135,7 @@ def generate_launch_description():
     ld.add_action(scene_arg)
     ld.add_action(version_arg)
     ld.add_action(episode_id_arg)
+    ld.add_action(seed_arg)
     # Use OpaqueFunction to defer evaluation
     ld.add_action(OpaqueFunction(function=launch_setup))
     
