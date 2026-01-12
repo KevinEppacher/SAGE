@@ -5,6 +5,7 @@ rgb_throttle:
     timer_frequency: 10.0  # Hz
 
     resize_enabled: true
+    # resize_enabled: false
     resize_width: 640
     resize_height: 480
 
@@ -27,6 +28,7 @@ depth_throttle:
     timer_frequency: 10.0  # Hz
 
     resize_enabled: true
+    # resize_enabled: false
     resize_width: 640
     resize_height: 480
 

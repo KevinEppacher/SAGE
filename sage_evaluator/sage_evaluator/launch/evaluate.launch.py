@@ -8,9 +8,9 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from sage_datasets.utils import DatasetManager
 import os
 
-SCENE = "00824-Dd4bFSTQ8gi"
-VERSION = "v1.2"
-EPISODE_ID = "RQ2/E001/EXP_MEM_100_0"
+SCENE = "00848-ziup5kvtCCR"
+VERSION = "v1.3"
+EPISODE_ID = "RQ2/E002/EXP_MEM_0_100"
 SEED = 42
 
 def launch_setup(context, *args, **kwargs):

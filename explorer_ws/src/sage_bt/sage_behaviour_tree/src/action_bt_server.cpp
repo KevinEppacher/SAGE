@@ -186,12 +186,8 @@ void SageBtActionNode::create_behavior_tree(const std::shared_ptr<GoalHandle> go
     BT::printTreeRecursively(tree_.rootNode());
 
     // before creating new Groot publisher
-    if (publisher_ptr_) 
-    {
-        publisher_ptr_.reset();
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-    publisher_ptr_ = std::make_unique<BT::Groot2Publisher>(tree_, 1668);
+    if (!publisher_ptr_)
+        publisher_ptr_ = std::make_unique<BT::Groot2Publisher>(tree_, 1668);
 }
 
 void SageBtActionNode::execute_bt(const std::shared_ptr<GoalHandle> goal_handle)
