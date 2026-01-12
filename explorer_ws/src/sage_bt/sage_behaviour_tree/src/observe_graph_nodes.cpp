@@ -459,6 +459,12 @@ BT::NodeStatus ObserveGraphNodes::onStart() {
         return BT::NodeStatus::RUNNING;
     }
 
+    if(!robot->isHalted()) {
+        RCLCPP_WARN(node->get_logger(),
+                    YELLOW "[ObserveGraphNodes] Robot is not halted; stopping navigation." RESET);
+        robot->cancelNavigation();
+    }
+
     spinCtrl->configure(minYaw, maxYaw);
     spinCtrl->startSpinToMin(mapFrame);
 

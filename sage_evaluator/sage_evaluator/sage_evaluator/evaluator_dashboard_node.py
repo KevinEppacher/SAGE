@@ -414,8 +414,6 @@ class EvaluatorDashboard(Node):
         Shuffling happens ONCE per episode and can be seeded
         for reproducibility.
         """
-        import random
-
         # Declare optional seed parameter
         self.declare_parameter("prompt_shuffle_seed", 0)
         seed = self.get_parameter("prompt_shuffle_seed").value
