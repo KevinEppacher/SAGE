@@ -1,0 +1,66 @@
+## Failure Reason Annotation Guide
+
+This project uses **manual failure annotations** to enable qualitative analysis of navigation behavior beyond numeric metrics (SR, SPL).
+Each failed episode is assigned exactly one `failure_reason` in `metrics.json`.
+
+These annotations are later aggregated and visualized using Sankey diagrams.
+
+---
+
+### How to annotate failures
+
+In `metrics.json`, each object entry may contain:
+
+```json
+"failure_reason": "label"
+```
+
+If an episode is successful, the field may be omitted or set to `null`.
+
+---
+
+## Available `failure_reason` values
+
+### Called STOP failures
+
+(termination was triggered explicitly by the system)
+
+| failure_reason | Description                                                                 |
+| -------------- | --------------------------------------------------------------------------- |
+| `wrong_object` | Robot stopped at a visually or semantically similar but incorrect object    |
+| `seen_but_far` | Target object was detected, but navigation terminated too far away          |
+---
+
+### Timeout failures
+
+(episode terminated due to timeout)
+
+| failure_reason | Description                                                               |
+| -------------- | ------------------------------------------------------------------------- |
+| `not_seen`     | Target object was never observed during the episode                       |
+| `ignored`      | Target object was observed but never selected or acted upon               |
+| `no_motion`    | Robot did not initiate any movement and remained stationary until timeout |
+
+> **Note:**
+> Legacy annotations using `nav_failure` are automatically mapped to `no_motion` during analysis, as they typically correspond to non-execution rather than classical navigation failures.
+
+---
+
+## Design rationale
+
+* Failure reasons are **categorical and mutually exclusive**
+* Labels are part of a **fixed taxonomy** to ensure consistent aggregation
+* No failure reasons are inferred automatically from SR or SPL
+* All annotations are **human-verified** based on trajectory and perception logs
+
+This design enables transparent qualitative evaluation and supports causal analysis of exploration–exploitation trade-offs.
+
+---
+
+## Usage in analysis
+
+The `failure_reason` field is used to:
+
+* group failures into **Called STOP vs Timeout**
+* aggregate failure modes across scenes and episodes
+* generate Sankey diagrams for RQ2 analysis
