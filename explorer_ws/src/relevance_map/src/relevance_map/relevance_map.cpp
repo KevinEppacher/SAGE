@@ -67,6 +67,8 @@ RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
         FloatingRange().set__from_value(0.0).set__to_value(1.0).set__step(0.01)};
     this->declare_parameter("ignore_high_score_threshold", 0.8, ignoreHighScoreDesc);
 
+    this->declare_parameter("ignore_high_score_nodes", false);
+
 
     // Load parameters
     this->get_parameter("input_map_topic", inputMapTopic);
@@ -87,6 +89,7 @@ RelevanceMapNode::RelevanceMapNode(const rclcpp::NodeOptions &options)
     this->get_parameter("angular_confidence_sharpness", angularSharpness);
     this->get_parameter("radial_confidence_sharpness", radialSharpness);
     this->get_parameter("ignore_high_score_threshold", ignoreHighScoreThreshold);
+    this->get_parameter("ignore_high_score_nodes", ignoreHighScoreNodes);
 
     // TF
     tfBuffer = std::make_shared<tf2_ros::Buffer>(this->get_clock());
@@ -373,7 +376,7 @@ void RelevanceMapNode::graphNodeCallback(
     for (auto &node : msg->nodes)
     {
         // --- Skip and republish directly if above ignore threshold ---
-        if (node.score >= ignoreHighScoreThreshold)
+        if (ignoreHighScoreNodes && node.score >= ignoreHighScoreThreshold)
         {
             if (debugMode)
                 RCLCPP_INFO_THROTTLE(
@@ -465,6 +468,10 @@ rcl_interfaces::msg::SetParametersResult RelevanceMapNode::onParameterChange(
             ignoreHighScoreThreshold = p.as_double();
             RCLCPP_INFO(this->get_logger(),
                         "Updated ignore_high_score_threshold: %.3f", ignoreHighScoreThreshold);
+        } else if (name == "ignore_high_score_nodes") {
+            ignoreHighScoreNodes = p.as_bool();
+            RCLCPP_INFO(this->get_logger(),
+                        "Updated ignore_high_score_nodes: %s", ignoreHighScoreNodes ? "true" : "false");
         }
     }
 

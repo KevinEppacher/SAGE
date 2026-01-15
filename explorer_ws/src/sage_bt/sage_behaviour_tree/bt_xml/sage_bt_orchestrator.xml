@@ -21,7 +21,7 @@
                                   reachable_graph_node="{reachable_detection_graph_node}"
                                   graph_node="{detected_graph_node}">
               <GoToGraphNode name="Go to detected GraphNode"
-                             approach_radius="2.0"
+                             approach_radius="2.5"
                              graph_node="{reachable_detection_graph_node}"/>
             </ApproachPoseAdjustor>
             <RealignToObject detected_graph_node="{detected_graph_node}"
@@ -43,7 +43,7 @@
                                   reachable_graph_node="{reachable_detection_graph_node}"
                                   graph_node="{likiest_explorer_node}">
               <GoToGraphNode name="Go to likiest GraphNode"
-                             approach_radius="1.0"
+                             approach_radius="2.0"
                              graph_node="{reachable_detection_graph_node}"/>
             </ApproachPoseAdjustor>
           </ReactiveSequence>
