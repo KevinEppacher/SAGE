@@ -1,16 +1,15 @@
 from launch import LaunchDescription
-from launch_ros.actions import LifecycleNode, Node
+from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
 from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, DeclareLaunchArgument, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from sage_datasets.utils import DatasetManager
 import os
 
-SCENE = "00848-ziup5kvtCCR"
-VERSION = "v1.3"
-EPISODE_ID = "RQ2/E002/EXP_MEM_0_100"
+SCENE = "00800-TEEsavR23oF"
+VERSION = "v1.13"
+EPISODE_ID = "RQ3/E001/TOPK_15_EXP_40"
 SEED = 42
 
 def launch_setup(context, *args, **kwargs):

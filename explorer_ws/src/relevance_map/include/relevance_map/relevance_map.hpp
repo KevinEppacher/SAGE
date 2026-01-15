@@ -73,6 +73,7 @@ private:
     std::string frameRobot;
 
     std::shared_ptr<Robot> robot;
+    bool ignoreHighScoreNodes = false;
 
     // Core functions
     void mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);

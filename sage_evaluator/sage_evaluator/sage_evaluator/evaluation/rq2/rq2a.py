@@ -99,24 +99,33 @@ median_spl = np.array(median_spl)
 q1_spl = np.array(q1_spl)
 q3_spl = np.array(q3_spl)
 
+fontsize = 14
+axis_fontsize = 18
+
 # ====================== PLOT: SR ======================
 plt.figure()
 plt.plot(x, median_sr, marker="o", label="Median SR")
 plt.fill_between(x, q1_sr, q3_sr, alpha=0.25, label="IQR (25–75%)")
-plt.xlabel("Exploitation weight")
-plt.ylabel("Success Rate (SR)")
-plt.title("SR vs Exploration–Exploitation Trade-off")
-plt.legend()
+plt.xlabel("Exploitation weight", fontsize=fontsize)
+plt.ylabel("Success Rate (SR)", fontsize=fontsize)
+plt.title("SR vs Exploration–Exploitation Trade-off", fontsize=fontsize)
+plt.legend(fontsize=fontsize)
 plt.grid(True)
+plt.xticks(fontsize=axis_fontsize)
+plt.yticks(fontsize=axis_fontsize)
+plt.tight_layout()
 
 # ====================== PLOT: SPL ======================
 plt.figure()
 plt.plot(x, median_spl, marker="o", label="Median SPL")
 plt.fill_between(x, q1_spl, q3_spl, alpha=0.25, label="IQR (25–75%)")
-plt.xlabel("Exploitation weight")
-plt.ylabel("Success weighted Path Length (SPL)")
-plt.title("SPL vs Exploration–Exploitation Trade-off")
-plt.legend()
+plt.xlabel("Exploitation weight", fontsize=fontsize)
+plt.ylabel("Success weighted Path Length (SPL)", fontsize=fontsize)
+plt.title("SPL vs Exploration–Exploitation Trade-off", fontsize=fontsize)
+plt.legend(fontsize=fontsize)
 plt.grid(True)
+plt.xticks(fontsize=axis_fontsize)
+plt.yticks(fontsize=axis_fontsize)
+plt.tight_layout()
 
 plt.show()

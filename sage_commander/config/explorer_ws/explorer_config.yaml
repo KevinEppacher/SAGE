@@ -107,7 +107,7 @@ fused:
       weights.costmap_weight: 1.0
       weights.costmap_radius: 0.5
       weights.debug_costmap: false
-      weights.source_balance: 0.0   # 1 --> 100% exploration, 0 --> 100% memory
+      weights.source_balance: 0.4   # 1 --> 100% exploration, 0 --> 100% memory
 
 explorer_relevance_map:
   relevance_map:
@@ -138,7 +138,7 @@ explorer_relevance_map:
       relevance_threshold: 1.0
       robot.frame_map: map
       robot.frame_robot: base_link
-      ignore_high_score_threshold: 1.0
+      ignore_high_score_nodes: false
 
 exploitation_relevance_map:
   relevance_map:
@@ -168,7 +168,7 @@ exploitation_relevance_map:
       robot.frame_robot: base_link
       angular_confidence_sharpness: 0.2
       radial_confidence_sharpness: 0.5
-      ignore_high_score_threshold: 1.0
+      ignore_high_score_nodes: false
 
 detection_relevance_map:
   relevance_map:
@@ -182,6 +182,7 @@ detection_relevance_map:
       frame_map: map
       frame_robot: base_link
       ignore_high_score_threshold: 0.8
+      ignore_high_score_nodes: true
       input_graph_topic: /detection_graph_nodes/graph_nodes
       input_map_topic: /map
       max_range: 3.5

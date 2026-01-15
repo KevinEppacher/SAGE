@@ -158,7 +158,7 @@ link_colors = [
 
     "rgba(255,127,14,0.35)",
     "rgba(255,127,14,0.35)",
-    "rgba(76,86,106,0.45)",
+    "rgba(255,127,14,0.35)",
 ]
 
 # ====================== PLOT ======================
@@ -181,7 +181,7 @@ fig = go.Figure(go.Sankey(
 
 fig.update_layout(
     title=dict(
-        text="Val Unseen – Failure Mode Breakdown (RQ2)",
+        text="Failure Mode Breakdown (RQ2)",
         x=0.5,
         xanchor="center",
         font=dict(size=22)
