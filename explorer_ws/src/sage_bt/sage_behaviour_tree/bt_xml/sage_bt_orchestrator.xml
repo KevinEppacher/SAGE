@@ -39,7 +39,7 @@
           <ReactiveSequence>
             <ObserveGraphNodes any_exploration_nodes="{any_exploration_nodes}"
                                likiest_explorer_node="{likiest_explorer_node}"/>
-            <ApproachPoseAdjustor search_radius="0.5"
+            <ApproachPoseAdjustor search_radius="1.5"
                                   reachable_graph_node="{reachable_detection_graph_node}"
                                   graph_node="{likiest_explorer_node}">
               <GoToGraphNode name="Go to likiest GraphNode"

@@ -534,21 +534,21 @@ cv::Mat SemanticValueMap::computeConfidenceMap(
 
     float sigma = (halfFov) / confidenceSharpness;  // smaller sharpness → wider bell
     for (int row = 0; row < height; ++row) {
-    for (int col = 0; col < width; ++col) {
-        if (fovMask.at<uint8_t>(row, col) == 0)
-        continue;
+        for (int col = 0; col < width; ++col) {
+            if (fovMask.at<uint8_t>(row, col) == 0)
+                continue;
 
-        float dx = static_cast<float>(col) - robotX;
-        float dy = static_cast<float>(row) - robotY;
-        float angle = std::atan2(dy, dx);
-        float angleDiff = normalizeAngle(angle - yaw);
+            float dx = static_cast<float>(col) - robotX;
+            float dy = static_cast<float>(row) - robotY;
+            float angle = std::atan2(dy, dx);
+            float angleDiff = normalizeAngle(angle - yaw);
 
-        if (std::abs(angleDiff) <= halfFov) {
-        // Gaussian bell-curve weighting
-        float weight = std::exp(-0.5f * std::pow(angleDiff / sigma, 2.0f));
-        confidenceMap.at<float>(row, col) = weight;
+            if (std::abs(angleDiff) <= halfFov) {
+            // Gaussian bell-curve weighting
+            float weight = std::exp(-0.5f * std::pow(angleDiff / sigma, 2.0f));
+            confidenceMap.at<float>(row, col) = weight;
+            }
         }
-    }
     }
 
   if (visualizeConfidenceMap) {
