@@ -441,7 +441,7 @@ class NodeWeighter:
 
         for n in exploration_nodes:
             if n.score < 0.1:
-                n.score = 0.1
+                n.score = 0.02
 
             proximity_factor = self._get_proximity_persistence(
                 n.position.x, n.position.y, robot_pose,
