@@ -48,10 +48,10 @@ class EvaluatorDashboard(Node):
 
         # ---------------- Detection thresholds ----------------
         self.detection_threshold_initial = self.prompts_data.get(
-            "detection_threshold_initial", 0.6
+            "detection_threshold_initial", 0.5
         )
         self.detection_threshold_final = self.prompts_data.get(
-            "detection_threshold_final", 0.8
+            "detection_threshold_final", 0.6
         )
 
         self.get_logger().info(
