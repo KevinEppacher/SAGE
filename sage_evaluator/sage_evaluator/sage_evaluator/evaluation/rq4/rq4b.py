@@ -181,36 +181,50 @@ def collect_sweep_confusions(variants):
 # =====================================================
 # VISUALIZATION
 # =====================================================
-def plot_confusion_matrix(conf, title):
+def plot_confusion_matrix(conf, title, fontsize=16, axis_fontsize=14):
     TP = conf.get("TP", 0)
     FP = conf.get("FP", 0)
     FN = conf.get("FN", 0)
     TN = conf.get("TN", 0)
 
-    cm = np.array([[TP, FP],
-                   [FN, TN]])
+    # Rows = prediction, Columns = ground truth
+    cm = np.array([
+        [TP, FP],   # Predicted Positive
+        [FN, TN],   # Predicted Negative
+    ])
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(5, 4))
     im = ax.imshow(cm, cmap="inferno")
 
     ax.set_xticks([0, 1])
     ax.set_yticks([0, 1])
-    ax.set_xticklabels(["Predicted Positive", "Predicted Negative"])
-    ax.set_yticklabels(["Actual Positive", "Actual Negative"])
+
+    ax.set_xticklabels(
+        ["Actual Positive", "Actual Negative"],
+        fontsize=axis_fontsize
+    )
+    ax.set_yticklabels(
+        ["Predicted\n Positive", "Predicted\n Negative"],
+        fontsize=axis_fontsize
+    )
 
     max_val = cm.max()
     for i in range(2):
         for j in range(2):
             val = cm[i, j]
             color = "black" if val > 0.6 * max_val else "white"
-            ax.text(j, i, val, ha="center", va="center",
-                    fontsize=16, fontweight="bold", color=color)
+            ax.text(
+                j, i, val,
+                ha="center", va="center",
+                fontsize=fontsize,
+                fontweight="bold",
+                color=color
+            )
 
-    ax.set_title(title)
+    ax.set_title(title, fontsize=fontsize)
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     plt.tight_layout()
     plt.show()
-
 
 def plot_precision_recall_sweep(sweep_confusions):
     fig, ax = plt.subplots()
@@ -220,6 +234,14 @@ def plot_precision_recall_sweep(sweep_confusions):
         "det_only": cmap(0.35),
         "full": cmap(0.75),
     }
+
+    VARIANT_LABELS = {
+        "det_only": "Detection only",
+        "full": "Multi-source fusion",
+    }
+
+    fontsize = 18
+    axis_fontsize = 20
 
     for variant, threshold_data in sweep_confusions.items():
         points = []
@@ -236,19 +258,27 @@ def plot_precision_recall_sweep(sweep_confusions):
         points.sort()
         recalls, precisions = zip(*points)
 
-        ax.plot(recalls, precisions,
-                linewidth=3.0,
-                color=colors[variant],
-                label=variant)
+        ax.plot(
+            recalls,
+            precisions,
+            linewidth=3.0,
+            color=colors[variant],
+            label=VARIANT_LABELS.get(variant, variant)
+        )
 
-    ax.set_xlabel("Recall")
-    ax.set_ylabel("Precision")
-    ax.set_title("Precision–Recall Curve (Full Threshold Sweep)")
+    ax.tick_params(axis='both', which='major', labelsize=axis_fontsize)
+    ax.set_xlabel("Recall", fontsize=axis_fontsize)
+    ax.set_ylabel("Precision", fontsize=axis_fontsize)
+    ax.set_title(
+        "Precision–Recall Curve (Full Threshold Sweep)",
+        fontsize=fontsize
+    )
     ax.grid(True)
-    ax.legend(title="Fusion Strategy")
+    ax.legend(title="Fusion Strategy", fontsize=14)
 
     plt.tight_layout()
     plt.show()
+
 
 # =====================================================
 # MAIN
@@ -274,12 +304,12 @@ if __name__ == "__main__":
     # --- Confusion matrices at τ=0.8 ---
     plot_confusion_matrix(
         discrete["det_only"][0.8],
-        "Confusion Matrix – Detection Only (τ = 0.8)"
+        "Confusion Matrix:\n Detection Only (τ = 0.8)"
     )
 
     plot_confusion_matrix(
         discrete["full"][0.8],
-        "Confusion Matrix – Full Multi-Source Fusion (τ = 0.8)"
+        "Confusion Matrix:\n Full Multi-Source Fusion (τ = 0.8)"
     )
 
     # --- Full PR sweep ---

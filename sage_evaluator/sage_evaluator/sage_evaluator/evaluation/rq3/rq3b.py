@@ -1,32 +1,25 @@
 import json
 from pathlib import Path
-from collections import Counter
+from collections import Counter, defaultdict
 import plotly.graph_objects as go
+import re
 
 # ====================== CONFIG ======================
 ROOT = Path("/app/src/sage_evaluator/sage_datasets/matterport_isaac")
-RQ = "RQ2"
+RQ = "RQ3"
 EXCLUDE_SCENES = {"example_scene"}
+TOPK_PATTERN = re.compile(r"TOPK_(\d+)_EXP_(\d+)")
 # ====================================================
 
-# -------- Failure taxonomy (SOURCE OF TRUTH) --------
-CALLED_STOP_REASONS = {
-    "wrong_object",
-    "seen_but_far",
-    "moved_away",
-}
+# -------- Failure taxonomy --------
+CALLED_STOP_REASONS = {"wrong_object", "seen_but_far", "moved_away"}
+TIMEOUT_REASONS = {"not_seen", "ignored", "no_motion", "nav_failure"}
+# ---------------------------------
 
-TIMEOUT_REASONS = {
-    "not_seen",
-    "ignored",
-    "no_motion",      # navigation failure (robot never moved)
-    "nav_failure",   # legacy label
-}
-# ---------------------------------------------------
-
-called_stop_counter = Counter()
-timeout_counter = Counter()
-total_trials = 0  # <-- IMPORTANT FIX
+# mode -> counters
+called_stop = defaultdict(Counter)
+timeout = defaultdict(Counter)
+total_trials = Counter()
 
 # ====================== DATA COLLECTION ======================
 for scene in ROOT.iterdir():
@@ -38,12 +31,16 @@ for scene in ROOT.iterdir():
         continue
 
     for episode_dir in rq_root.iterdir():
-        if not episode_dir.is_dir() or not episode_dir.name.startswith("E"):
+        if not episode_dir.is_dir():
             continue
 
         for exp in episode_dir.iterdir():
-            if not exp.name.startswith("EXP_MEM_"):
+            m = TOPK_PATTERN.match(exp.name)
+            if not m:
                 continue
+
+            exp_weight = int(m.group(2))
+            mode = f"EXP_{exp_weight}"
 
             metrics_file = exp / "metrics.json"
             if not metrics_file.exists():
@@ -53,141 +50,139 @@ for scene in ROOT.iterdir():
                 metrics = json.load(f)
 
             for entry in metrics.values():
-                # count *every* evaluated trial
-                total_trials += 1
-
+                total_trials[mode] += 1
                 reason = entry.get("failure_reason")
-                if reason is None:
+                if not reason:
                     continue
 
-                # normalize legacy label
                 if reason == "nav_failure":
                     reason = "no_motion"
 
                 if reason in CALLED_STOP_REASONS:
-                    called_stop_counter[reason] += 1
+                    called_stop[mode][reason] += 1
                 elif reason in TIMEOUT_REASONS:
-                    timeout_counter[reason] += 1
-                else:
-                    print(f"[WARN] Unknown failure_reason: {reason}")
+                    timeout[mode][reason] += 1
 
-# ====================== AGGREGATION ======================
-called_stop_total = sum(called_stop_counter.values())
-timeout_total = sum(timeout_counter.values())
-failure_total = called_stop_total + timeout_total
+# ====================== SANKEY FUNCTION ======================
+def plot_sankey(mode):
+    total = total_trials[mode]
+    if total == 0:
+        return
 
-if total_trials == 0:
-    raise RuntimeError("No trials found. Check directory structure.")
+    cs_total = sum(called_stop[mode].values())
+    to_total = sum(timeout[mode].values())
+    fail_total = cs_total + to_total
 
-assert failure_total <= total_trials
+    def pct(x):
+        return 100.0 * x / total
 
-def pct(x):
-    return 100.0 * x / total_trials
+    labels = [
+        f"Failures\n{pct(fail_total):.1f}%",
+        f"Called STOP\n{pct(cs_total):.1f}%",
+        f"Timeout\n{pct(to_total):.1f}%",
+        f"Stopped at\nwrong object\n{pct(called_stop[mode]['wrong_object']):.1f}%",
+        f"Saw goal\n{pct(called_stop[mode]['seen_but_far'] + called_stop[mode]['moved_away']):.1f}%",
+        f"Stopped too far\nfrom goal\n{pct(called_stop[mode]['seen_but_far']):.1f}%",
+        f"Moved away\nfrom goal\n{pct(called_stop[mode]['moved_away']):.1f}%",
+        f"Didn't see\ngoal\n{pct(timeout[mode]['not_seen']):.1f}%",
+        f"Ignored\ngoal\n{pct(timeout[mode]['ignored']):.1f}%",
+        f"Navigation failure\n{pct(timeout[mode]['no_motion']):.1f}%",
+    ]
 
-# ====================== SANKEY LABELS ======================
-labels = [
-    f"Failures\n{pct(failure_total):.1f}%",
-    f"Called STOP\n{pct(called_stop_total):.1f}%",
-    f"Timeout\n{pct(timeout_total):.1f}%",
+    sources = [
+        0, 0,
+        1, 1,
+        4, 4,
+        2, 2, 2
+    ]
 
-    f"Stopped at\nwrong object\n{pct(called_stop_counter.get('wrong_object', 0)):.1f}%",
-    f"Saw goal\n{pct(called_stop_counter.get('seen_but_far', 0) + called_stop_counter.get('moved_away', 0)):.1f}%",
+    targets = [
+        1, 2,
+        3, 4,
+        5, 6,
+        7, 8, 9
+    ]
 
-    f"Stopped too far\nfrom goal object\n{pct(called_stop_counter.get('seen_but_far', 0)):.1f}%",
-    f"Moved away\nfrom goal object\n{pct(called_stop_counter.get('moved_away', 0)):.1f}%",
+    values = [
+        cs_total,
+        to_total,
+        called_stop[mode]['wrong_object'],
+        called_stop[mode]['seen_but_far'] + called_stop[mode]['moved_away'],
+        called_stop[mode]['seen_but_far'],
+        called_stop[mode]['moved_away'],
+        timeout[mode]['not_seen'],
+        timeout[mode]['ignored'],
+        timeout[mode]['no_motion'],
+    ]
 
-    f"Didn't see\ngoal object\n{pct(timeout_counter.get('not_seen', 0)):.1f}%",
-    f"Ignored\ngoal object\n{pct(timeout_counter.get('ignored', 0)):.1f}%",
+    # ---------- NODE COLORS (same as before) ----------
+    node_colors = [
+        "#2EC4C9",  # Failures (turquoise)
+        "#1F77B4",  # Called STOP (blue)
+        "#FF7F0E",  # Timeout (orange)
+        "#FFD700",  # Wrong object (yellow)
+        "#D62728",  # Saw goal (red)
+        "#2CA02C",  # Too far (green)
+        "#9467BD",  # Moved away (purple)
+        "#8C564B",  # Not seen (brown)
+        "#E377C2",  # Ignored (pink)
+        "#4C566A",  # Navigation failure (gray)
+    ]
 
-    f"Navigation failure\n(no motion)\n{pct(timeout_counter.get('no_motion', 0)):.1f}%",
-]
+    # ---------- LINK COLORS (same logic as before) ----------
+    link_colors = [
+        "rgba(46,196,201,0.35)",  # Failures -> Called STOP
+        "rgba(46,196,201,0.35)",  # Failures -> Timeout
 
-# ====================== SANKEY LINKS ======================
-sources = [
-    0, 0,              # Failures -> Called STOP / Timeout
-    1, 1,              # Called STOP -> Wrong object / Saw goal
-    4, 4,              # Saw goal -> Too far / Moved away
-    2, 2, 2            # Timeout -> Not seen / Ignored / No motion
-]
+        "rgba(23,78,135,0.7)",   # Called STOP -> Wrong object
+        "rgba(23,78,135,0.7)",   # Called STOP -> Saw goal
 
-targets = [
-    1, 2,
-    3, 4,
-    5, 6,
-    7, 8, 9
-]
+        "rgba(44,160,44,0.35)",  # Saw goal -> Too far
+        "rgba(148,103,189,0.35)",# Saw goal -> Moved away
 
-values = [
-    called_stop_total,
-    timeout_total,
+        "rgba(255,127,14,0.35)", # Timeout -> Not seen
+        "rgba(255,127,14,0.35)", # Timeout -> Ignored
+        "rgba(255,127,14,0.35)", # Timeout -> No motion
+    ]
 
-    called_stop_counter.get("wrong_object", 0),
-    called_stop_counter.get("seen_but_far", 0) + called_stop_counter.get("moved_away", 0),
+    fig = go.Figure(go.Sankey(
+        arrangement="freeform",
+        node=dict(
+            label=labels,
+            color=node_colors,
+            pad=20,
+            thickness=18,
+            line=dict(color="black", width=0.3)
+        ),
+        link=dict(
+            source=sources,
+            target=targets,
+            value=values,
+            color=link_colors
+        )
+    ))
 
-    called_stop_counter.get("seen_but_far", 0),
-    called_stop_counter.get("moved_away", 0),
+    if mode == "EXP_60":
+        mode = "60% Exploration"
+    elif mode == "EXP_0":
+        mode = "100% Exploitation"
+    else:
+        mode = mode
 
-    timeout_counter.get("not_seen", 0),
-    timeout_counter.get("ignored", 0),
-    timeout_counter.get("no_motion", 0),
-]
-
-# ====================== COLORS ======================
-node_colors = [
-    "#2EC4C9",  # Failures
-    "#1F77B4",  # Called STOP
-    "#FF7F0E",  # Timeout
-    "#FFD700",  # Wrong object
-    "#D62728",  # Saw goal
-    "#2CA02C",  # Too far
-    "#9467BD",  # Moved away
-    "#8C564B",  # Not seen
-    "#E377C2",  # Ignored
-    "#4C566A",  # Navigation failure
-]
-
-link_colors = [
-    "rgba(46,196,201,0.35)",
-    "rgba(46,196,201,0.35)",
-
-    "rgba(23,78,135,0.7)",
-    "rgba(23,78,135,0.7)",
-
-    "rgba(44,160,44,0.35)",
-    "rgba(148,103,189,0.35)",
-
-    "rgba(255,127,14,0.35)",
-    "rgba(255,127,14,0.35)",
-    "rgba(255,127,14,0.35)",
-]
-
-# ====================== PLOT ======================
-fig = go.Figure(go.Sankey(
-    arrangement="freeform",
-    node=dict(
-        label=labels,
-        color=node_colors,
-        pad=20,
-        thickness=18,
-        line=dict(color="black", width=0.3)
-    ),
-    link=dict(
-        source=sources,
-        target=targets,
-        value=values,
-        color=link_colors
+    fig.update_layout(
+        title=dict(
+            text=f"Failure Mode Breakdown – {mode}",
+            x=0.5,
+            xanchor="center",
+            font=dict(size=22)
+        ),
+        font=dict(size=22),
+        margin=dict(l=20, r=20, t=80, b=20)
     )
-))
 
-fig.update_layout(
-    title=dict(
-        text="Failure Mode Breakdown (RQ2)",
-        x=0.5,
-        xanchor="center",
-        font=dict(size=22)
-    ),
-    font=dict(size=22),
-    margin=dict(l=20, r=20, t=80, b=20)
-)
+    fig.show()
 
-fig.show()
+
+# ====================== RUN ======================
+plot_sankey("EXP_60")
+plot_sankey("EXP_0")

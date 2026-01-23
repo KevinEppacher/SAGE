@@ -31,10 +31,9 @@ def load_metrics(metrics_file: Path):
     if not sr_vals:
         return None
 
-    # per-episode aggregation over prompts
     return np.mean(sr_vals), np.mean(spl_vals)
 
-# hyperparameter -> list of values (scene × episode)
+# hyperparameter -> list of values
 sr_per_h = {}
 spl_per_h = {}
 
@@ -47,7 +46,7 @@ for scene in ROOT.iterdir():
     if not rq_root.exists():
         continue
 
-    for episode_dir in rq_root.iterdir():  # E001, E002, ...
+    for episode_dir in rq_root.iterdir():
         if not episode_dir.is_dir() or not episode_dir.name.startswith("E"):
             continue
 
@@ -68,6 +67,90 @@ for scene in ROOT.iterdir():
             sr_per_h.setdefault(h, []).append(sr)
             spl_per_h.setdefault(h, []).append(spl)
 
+# ====================== COUNTING ======================
+from collections import defaultdict
+
+scene_stats = defaultdict(lambda: {
+    "episodes": 0,
+    "multi_object_episodes": 0,
+    "start_positions": set(),
+    "total_prompts": 0,
+})
+
+global_stats = {
+    "scenes": 0,
+    "episodes": 0,
+    "multi_object_episodes": 0,
+    "total_prompts": 0,
+}
+
+for scene in ROOT.iterdir():
+    if not scene.is_dir() or scene.name in EXCLUDE_SCENES:
+        continue
+
+    rq_root = scene / "episodes" / RQ
+    if not rq_root.exists():
+        continue
+
+    global_stats["scenes"] += 1
+
+    for episode_dir in rq_root.iterdir():
+        if not episode_dir.is_dir() or not episode_dir.name.startswith("E"):
+            continue
+
+        episode_prompts = 0
+        start_positions = set()
+
+        for exp in episode_dir.iterdir():
+            if not exp.name.startswith("EXP_MEM_"):
+                continue
+
+            metrics_file = exp / "metrics.json"
+            if not metrics_file.exists():
+                continue
+
+            with open(metrics_file, "r") as f:
+                data = json.load(f)
+
+            episode_prompts += len(data)
+            global_stats["total_prompts"] += len(data)
+            scene_stats[scene.name]["total_prompts"] += len(data)
+
+            # Track start position (directory name is enough)
+            start_positions.add(episode_dir.name)
+
+        if episode_prompts == 0:
+            continue
+
+        # Episode-level stats
+        scene_stats[scene.name]["episodes"] += 1
+        global_stats["episodes"] += 1
+
+        scene_stats[scene.name]["start_positions"].update(start_positions)
+
+        if episode_prompts > 1:
+            scene_stats[scene.name]["multi_object_episodes"] += 1
+            global_stats["multi_object_episodes"] += 1
+
+# ====================== PRINT SUMMARY ======================
+print("\n=== Global Dataset Summary ===")
+for k, v in global_stats.items():
+    print(f"{k:25s}: {v}")
+
+print("\n=== Per-Scene Breakdown ===")
+for scene, stats in scene_stats.items():
+    print(f"\nScene: {scene}")
+    print(f"  Episodes               : {stats['episodes']}")
+    print(f"  Multi-object episodes  : {stats['multi_object_episodes']}")
+    print(f"  Unique start positions : {len(stats['start_positions'])}")
+    print(f"  Total prompts          : {stats['total_prompts']}")
+
+# Optional derived metric
+if global_stats["episodes"] > 0:
+    print("\nMean prompts per episode:",
+          global_stats["total_prompts"] / global_stats["episodes"])
+
+
 # ====================== SAFETY CHECK ======================
 if not sr_per_h:
     raise RuntimeError("No metrics found. Check directory structure.")
@@ -75,7 +158,7 @@ if not sr_per_h:
 # ====================== SORT ======================
 x = np.array(sorted(sr_per_h.keys()))
 
-# ====================== STATISTICS (MEDIAN + IQR) ======================
+# ====================== STATISTICS ======================
 median_sr, q1_sr, q3_sr = [], [], []
 median_spl, q1_spl, q3_spl = [], [], []
 
@@ -99,16 +182,32 @@ median_spl = np.array(median_spl)
 q1_spl = np.array(q1_spl)
 q3_spl = np.array(q3_spl)
 
-fontsize = 14
-axis_fontsize = 18
+# ====================== COLOR SETUP (INFERNO) ======================
+cmap = plt.cm.viridis
+main_color = cmap(0.6)      # consistent inferno tone
+fill_alpha = 0.25
+
+fontsize = 16
+axis_fontsize = 20
 
 # ====================== PLOT: SR ======================
 plt.figure()
-plt.plot(x, median_sr, marker="o", label="Median SR")
-plt.fill_between(x, q1_sr, q3_sr, alpha=0.25, label="IQR (25–75%)")
+plt.plot(
+    x, median_sr,
+    marker="o",
+    color=main_color,
+    label="Median SR"
+)
+plt.fill_between(
+    x, q1_sr, q3_sr,
+    color=main_color,
+    alpha=fill_alpha,
+    label="IQR (25–75%)"
+)
+
 plt.xlabel("Exploitation weight", fontsize=fontsize)
 plt.ylabel("Success Rate (SR)", fontsize=fontsize)
-plt.title("SR vs Exploration–Exploitation Trade-off", fontsize=fontsize)
+plt.title("SR vs Exploration–Exploitation Trade-off (RQ2)", fontsize=fontsize)
 plt.legend(fontsize=fontsize)
 plt.grid(True)
 plt.xticks(fontsize=axis_fontsize)
@@ -117,11 +216,22 @@ plt.tight_layout()
 
 # ====================== PLOT: SPL ======================
 plt.figure()
-plt.plot(x, median_spl, marker="o", label="Median SPL")
-plt.fill_between(x, q1_spl, q3_spl, alpha=0.25, label="IQR (25–75%)")
+plt.plot(
+    x, median_spl,
+    marker="o",
+    color=main_color,
+    label="Median SPL"
+)
+plt.fill_between(
+    x, q1_spl, q3_spl,
+    color=main_color,
+    alpha=fill_alpha,
+    label="IQR (25–75%)"
+)
+
 plt.xlabel("Exploitation weight", fontsize=fontsize)
 plt.ylabel("Success weighted Path Length (SPL)", fontsize=fontsize)
-plt.title("SPL vs Exploration–Exploitation Trade-off", fontsize=fontsize)
+plt.title("SPL vs Exploration–Exploitation Trade-off (RQ2)", fontsize=fontsize)
 plt.legend(fontsize=fontsize)
 plt.grid(True)
 plt.xticks(fontsize=axis_fontsize)

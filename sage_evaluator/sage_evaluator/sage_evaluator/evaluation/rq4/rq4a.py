@@ -4,145 +4,99 @@ import numpy as np
 import matplotlib.pyplot as plt
 from collections import Counter
 
-YELLOW = "\033[33m"
-RESET = "\033[0m"
-
+# =====================================================
+# CONFIG
+# =====================================================
 ROOT = Path("/app/src/sage_evaluator/sage_datasets/matterport_isaac")
-CONF_THRESHOLD = 0.8
 
+DISCRETE_THRESHOLDS = [0.5, 0.6, 0.8]
+SWEEP_THRESHOLDS = np.linspace(0.05, 1.0, 96)
+
+# For snapshot dataset, we fuse per-node fields and then take max over nodes.
+# - detection_confidence: YOLOE only
+# - vlm_confidence: map/VLM source
+# - memory_confidence: memory source
+# - score: your already-fused final score (full)
+FUSION_VARIANTS = {
+    "det_only": lambda n: float(n.get("detection_confidence", 0.0)),
+    "det_map":  lambda n: float(n.get("detection_confidence", 0.0)) + float(n.get("vlm_confidence", 0.0)),
+    "det_mem":  lambda n: float(n.get("detection_confidence", 0.0)) + float(n.get("memory_confidence", 0.0)),
+    "full":     lambda n: float(n.get("score", 0.0)),
+}
+
+# =====================================================
+# HELPERS
+# =====================================================
 def load_json(path: Path):
     with open(path, "r") as f:
         return json.load(f)
 
-def classify_detection(meta_entry: dict):
-    failure = meta_entry.get("failure_reason") or meta_entry.get("failure_mode")
-    sr = meta_entry.get("SR", 0.0)
 
-    if failure == "wrong_object":
-        return "FP"
-
-    if failure in {"ignored", "not_seen", "no_motion", "seen_but_far"}:
-        return "FN"
-
-    if sr == 1.0:
-        return "TP"
-
-    # Conservative fallback
-    return "FN"
-
-def collect_confusion():
-    counts = Counter()
-
+def iterate_snapshots():
+    """
+    Yields (meta, graph_nodes) for every snapshot directory.
+    Expected structure:
+    <scene>/episodes/<RQx>/<snapshot_dir>/{annotation.json,graph_nodes.json}
+    """
     for scene in ROOT.iterdir():
         if not scene.is_dir():
             continue
 
         episodes_dir = scene / "episodes"
-        if not episodes_dir.exists() or not episodes_dir.is_dir():
+        if not episodes_dir.exists():
             continue
 
         for rq in episodes_dir.iterdir():
             if not rq.is_dir():
                 continue
 
-            for pos in rq.iterdir():
-                if not pos.is_dir():
+            for snap in rq.iterdir():
+                if not snap.is_dir():
                     continue
 
-                for episode in pos.iterdir():
-                    if not episode.is_dir():
-                        continue
+                meta_file = snap / "annotation.json"
+                graph_file = snap / "graph_nodes.json"
 
-                    detections = episode / "detections"
-                    if not detections.exists() or not detections.is_dir():
-                        continue
+                if not meta_file.exists() or not graph_file.exists():
+                    continue
 
-                    metrics_file = episode / "metrics.json"
-                    episode_meta = load_json(metrics_file) if metrics_file.exists() else {}
-
-                    for obj_dir in detections.iterdir():
-                        if not obj_dir.is_dir():
-                            continue
-
-                        meta = episode_meta.get(obj_dir.name)
-                        if meta is None:
-                            continue
-
-                        # --- WARNING CHECK ---
-                        sr = meta.get("SR", None)
-                        failure = meta.get("failure_reason") or meta.get("failure_mode")
-
-                        if sr == 0.0 and failure is None:
-                            print(
-                                YELLOW
-                                + "[WARNING] SR == 0.0 but no failure_reason set:\n"
-                                f"  Scene:    {scene.name}\n"
-                                f"  RQ:       {rq.name}\n"
-                                f"  Position: {pos.name}\n"
-                                f"  Episode:  {episode.name}\n"
-                                f"  Object:   {obj_dir.name}\n"
-                                f"  Path:     {episode}\n"
-                                + RESET
-                            )
+                yield load_json(meta_file), load_json(graph_file)
 
 
-                        label = classify_detection(meta)
-                        counts[label] += 1
+def per_snapshot_score(graph_nodes: dict, per_node_score_fn) -> float:
+    nodes = graph_nodes.get("nodes", [])
+    if not nodes:
+        return 0.0
+    return max(per_node_score_fn(n) for n in nodes)
 
-    return counts
+def classify_from_annotation(meta: dict, predicted_positive: bool) -> str:
+    """
+    New snapshot dataset:
+    meta["target_present"] ∈ {True, False}
+    """
+    gt_positive = bool(meta.get("target_present", False))
 
-
-conf = collect_confusion()
-print(conf)
-
-def build_confusion_matrix(conf):
-    TP = conf.get("TP", 0)
-    FP = conf.get("FP", 0)
-    FN = conf.get("FN", 0)
-    TN = 0  # structurally undefined
-
-    return np.array([
-        [TP, FP],
-        [FN, TN]
-    ])
-
-cm = build_confusion_matrix(conf)
-
-def plot_confusion_matrix(cm):
-    fig, ax = plt.subplots()
-    im = ax.imshow(cm)
-
-    ax.set_xticks([0, 1])
-    ax.set_yticks([0, 1])
-    ax.set_xticklabels(["Predicted Positive", "Predicted Negative"])
-    ax.set_yticklabels(["Actual Positive", "Actual Negative"])
-
-    for i in range(2):
-        for j in range(2):
-            ax.text(j, i, cm[i, j],
-                    ha="center", va="center")
-
-    ax.set_title("Confusion Matrix (Goal-Conditioned Object Search)")
-    plt.tight_layout()
-    plt.show()
+    if gt_positive and predicted_positive:
+        return "TP"
+    if gt_positive and not predicted_positive:
+        return "FN"
+    if (not gt_positive) and predicted_positive:
+        return "FP"
+    return "TN"
 
 def safe_div(num, denom):
     return num / denom if denom > 0 else 0.0
 
-def compute_metrics(conf):
+
+def compute_metrics(conf: Counter):
     TP = conf.get("TP", 0)
     FP = conf.get("FP", 0)
     FN = conf.get("FN", 0)
-    TN = conf.get("TN", 0)  # will be 0
+    TN = conf.get("TN", 0)
 
     precision = safe_div(TP, TP + FP)
     recall = safe_div(TP, TP + FN)
-
-    f1 = (
-        2 * precision * recall / (precision + recall)
-        if (precision + recall) > 0 else 0.0
-    )
-
+    f1 = safe_div(2 * precision * recall, precision + recall)
     fpr = safe_div(FP, FP + TN)
 
     return {
@@ -156,8 +110,166 @@ def compute_metrics(conf):
         "fpr": fpr,
     }
 
-metrics = compute_metrics(conf)
-for k, v in metrics.items():
-    print(f"{k}: {v:.4f}" if isinstance(v, float) else f"{k}: {v}")
+# =====================================================
+# DATA COLLECTION
+# =====================================================
+def collect_discrete_confusions():
+    results = {
+        v: {t: Counter() for t in DISCRETE_THRESHOLDS}
+        for v in FUSION_VARIANTS
+    }
 
-plot_confusion_matrix(cm)
+    for meta, graph in iterate_snapshots():
+        for variant, per_node_fn in FUSION_VARIANTS.items():
+            score = per_snapshot_score(graph, per_node_fn)
+
+            for t in DISCRETE_THRESHOLDS:
+                predicted_positive = score >= t
+                lab = classify_from_annotation(meta, predicted_positive)
+                results[variant][t][lab] += 1
+
+    return results
+
+def collect_sweep_confusions(variants):
+    results = {
+        v: {t: Counter() for t in SWEEP_THRESHOLDS}
+        for v in variants
+    }
+
+    for meta, graph in iterate_snapshots():
+        for variant in variants:
+            score = per_snapshot_score(graph, FUSION_VARIANTS[variant])
+
+            for t in SWEEP_THRESHOLDS:
+                predicted_positive = score >= t
+                lab = classify_from_annotation(meta, predicted_positive)
+                results[variant][t][lab] += 1
+
+    return results
+
+# =====================================================
+# VISUALIZATION
+# =====================================================
+def plot_confusion_matrix(conf: Counter, title: str, fontsize=16, axis_fontsize=14):
+    TP = conf.get("TP", 0)
+    FP = conf.get("FP", 0)
+    FN = conf.get("FN", 0)
+    TN = conf.get("TN", 0)
+
+    cm = np.array([
+        [TP, FP],
+        [FN, TN],
+    ])
+
+    fig, ax = plt.subplots(figsize=(5, 4))
+    im = ax.imshow(cm, cmap="inferno")
+
+    ax.set_xticks([0, 1])
+    ax.set_yticks([0, 1])
+
+    ax.set_xticklabels(["Actual Positive", "Actual Negative"], fontsize=axis_fontsize)
+    ax.set_yticklabels(["Predicted\nPositive", "Predicted\nNegative"], fontsize=axis_fontsize)
+
+    max_val = cm.max() if cm.size else 0
+    for i in range(2):
+        for j in range(2):
+            val = int(cm[i, j])
+            color = "black" if (max_val > 0 and val > 0.6 * max_val) else "white"
+            ax.text(
+                j, i, f"{val}",
+                ha="center", va="center",
+                fontsize=fontsize, fontweight="bold",
+                color=color
+            )
+
+    ax.set_title(title, fontsize=fontsize)
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_precision_recall_sweep(sweep_confusions):
+    fig, ax = plt.subplots()
+    cmap = plt.get_cmap("inferno")
+
+    colors = {
+        "det_only": cmap(0.35),
+        "full": cmap(0.75),
+    }
+
+    variant_labels = {
+        "det_only": "Detection only",
+        "full": "Multi-source fusion",
+    }
+
+    fontsize = 18
+    axis_fontsize = 20
+
+    for variant, threshold_data in sweep_confusions.items():
+        points = []
+        for t in SWEEP_THRESHOLDS:
+            m = compute_metrics(threshold_data[t])
+            if m["TP"] == 0 and m["FP"] == 0:
+                continue
+            points.append((m["recall"], m["precision"]))
+
+        if not points:
+            continue
+
+        points.sort()
+        recalls, precisions = zip(*points)
+
+        ax.plot(
+            recalls,
+            precisions,
+            linewidth=3.0,
+            color=colors.get(variant, None),
+            label=variant_labels.get(variant, variant),
+        )
+
+    ax.tick_params(axis="both", which="major", labelsize=axis_fontsize)
+    ax.set_xlabel("Recall", fontsize=axis_fontsize)
+    ax.set_ylabel("Precision", fontsize=axis_fontsize)
+    ax.set_title("Precision–Recall Curve (Full Threshold Sweep)", fontsize=fontsize)
+    ax.grid(True)
+    ax.legend(title="Fusion Strategy", fontsize=14)
+
+    plt.tight_layout()
+    plt.show()
+
+# =====================================================
+# MAIN
+# =====================================================
+if __name__ == "__main__":
+
+    # --- Discrete evaluation (table output identical style) ---
+    discrete = collect_discrete_confusions()
+
+    for variant, thresholds in discrete.items():
+        print(f"\n=== Fusion Variant: {variant} ===")
+        for t in DISCRETE_THRESHOLDS:
+            conf = thresholds[t]
+            m = compute_metrics(conf)
+            print(
+                f"τ={t:.1f} | "
+                f"P={m['precision']:.3f} | "
+                f"R={m['recall']:.3f} | "
+                f"F1={m['f1']:.3f} | "
+                f"FPR={m['fpr']:.3f} | "
+                f"TP={m['TP']} FP={m['FP']} FN={m['FN']} TN={m['TN']}"
+            )
+
+    # --- Confusion matrices at τ=0.8 (both det_only and full) ---
+    plot_confusion_matrix(
+        discrete["det_only"][0.8],
+        "Confusion Matrix:\n Detection Only (τ = 0.8)"
+    )
+
+    plot_confusion_matrix(
+        discrete["full"][0.8],
+        "Confusion Matrix:\n Full Multi-Source Fusion (τ = 0.8)"
+    )
+
+    # --- Full PR sweep (det_only vs full) ---
+    sweep = collect_sweep_confusions(["det_only", "full"])
+    plot_precision_recall_sweep(sweep)

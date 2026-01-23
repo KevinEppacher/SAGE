@@ -66,16 +66,11 @@ def generate_launch_description():
         launch_arguments={
             'use_sim_time': use_sim_time,
             'autostart': 'true',
-            'params_file': nav2_config
+            'params_file': nav2_config,
+            'use_respawn': 'true'
         }.items()
     )
-
-    # Nav2 (mit Timer-Verzögerung)
-    delayed_nav2_stack = TimerAction(
-        period=5.0,
-        actions=[nav2_stack_launch]
-    )
-
+    
     # RViz
     rviz_node = ExecuteProcess(
         cmd=['rviz2', '-d', rviz_config],
@@ -86,5 +81,5 @@ def generate_launch_description():
     ld.add_action(sim_time_arg)
     ld.add_action(slam_toolbox_node)
     # ld.add_action(rviz_node)
-    ld.add_action(delayed_nav2_stack)
+    ld.add_action(nav2_stack_launch)
     return ld
