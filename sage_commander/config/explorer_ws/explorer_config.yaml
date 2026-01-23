@@ -176,6 +176,7 @@ detection_relevance_map:
     ros__parameters:
       angular_confidence_sharpness: 0.1
       base_increment_rate: 0.015
+      # base_increment_rate: 0.0
       camera_info_topic: /camera_info
       debug_mode: true
       decay_factor: 0.999
