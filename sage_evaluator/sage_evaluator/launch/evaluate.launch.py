@@ -7,9 +7,9 @@ from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, Dec
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 import os
 
-SCENE = "00824-Dd4bFSTQ8gi"
-VERSION = "v1.2"
-EPISODE_ID = "RQ1/POS3/E002"
+SCENE = "00876-mv2HUxq3B53"
+VERSION = "v1.1"
+EPISODE_ID = "RQ1/POS3/E005"
 SEED = 42
 
 def launch_setup(context, *args, **kwargs):

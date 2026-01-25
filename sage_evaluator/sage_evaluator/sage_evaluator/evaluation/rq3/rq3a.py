@@ -101,6 +101,32 @@ x0,  sr0,  sr0_q1,  sr0_q3  = aggregate(sr["EXP_0"])
 _, spl60, spl60_q1, spl60_q3 = aggregate(spl["EXP_60"])
 _, spl0,  spl0_q1,  spl0_q3  = aggregate(spl["EXP_0"])
 
+# ====================== COUNTING (CORRECT) ======================
+total_evaluations = 0
+
+for scene in ROOT.iterdir():
+    if not scene.is_dir() or scene.name in EXCLUDE_SCENES:
+        continue
+
+    rq_root = scene / "episodes" / RQ
+    if not rq_root.exists():
+        continue
+
+    for episode_dir in rq_root.iterdir():
+        if not episode_dir.is_dir():
+            continue
+
+        for exp in episode_dir.iterdir():
+            metrics_file = exp / "metrics.json"
+            if not metrics_file.exists():
+                continue
+
+            with open(metrics_file, "r") as f:
+                data = json.load(f)
+
+            total_evaluations += len(data)
+
+print(f"Total evaluation instances: {total_evaluations}")
 
 # ====================== COLOR SETUP (INFERNO) ======================
 cmap = plt.cm.inferno

@@ -68,21 +68,9 @@ for scene in ROOT.iterdir():
             spl_per_h.setdefault(h, []).append(spl)
 
 # ====================== COUNTING ======================
-from collections import defaultdict
-
-scene_stats = defaultdict(lambda: {
-    "episodes": 0,
-    "multi_object_episodes": 0,
-    "start_positions": set(),
-    "total_prompts": 0,
-})
-
-global_stats = {
-    "scenes": 0,
-    "episodes": 0,
-    "multi_object_episodes": 0,
-    "total_prompts": 0,
-}
+total_episodes = 0
+multi_object_episodes = 0
+total_prompts = 0
 
 for scene in ROOT.iterdir():
     if not scene.is_dir() or scene.name in EXCLUDE_SCENES:
@@ -92,14 +80,13 @@ for scene in ROOT.iterdir():
     if not rq_root.exists():
         continue
 
-    global_stats["scenes"] += 1
-
     for episode_dir in rq_root.iterdir():
         if not episode_dir.is_dir() or not episode_dir.name.startswith("E"):
             continue
 
-        episode_prompts = 0
-        start_positions = set()
+        # Count episode once
+        episode_has_metrics = False
+        episode_prompt_count = 0
 
         for exp in episode_dir.iterdir():
             if not exp.name.startswith("EXP_MEM_"):
@@ -109,46 +96,25 @@ for scene in ROOT.iterdir():
             if not metrics_file.exists():
                 continue
 
+            episode_has_metrics = True
+
             with open(metrics_file, "r") as f:
                 data = json.load(f)
 
-            episode_prompts += len(data)
-            global_stats["total_prompts"] += len(data)
-            scene_stats[scene.name]["total_prompts"] += len(data)
+            num_prompts = len(data)
+            episode_prompt_count += num_prompts
+            total_prompts += num_prompts
 
-            # Track start position (directory name is enough)
-            start_positions.add(episode_dir.name)
-
-        if episode_prompts == 0:
-            continue
-
-        # Episode-level stats
-        scene_stats[scene.name]["episodes"] += 1
-        global_stats["episodes"] += 1
-
-        scene_stats[scene.name]["start_positions"].update(start_positions)
-
-        if episode_prompts > 1:
-            scene_stats[scene.name]["multi_object_episodes"] += 1
-            global_stats["multi_object_episodes"] += 1
+        if episode_has_metrics:
+            total_episodes += 1
+            if episode_prompt_count > 1:
+                multi_object_episodes += 1
 
 # ====================== PRINT SUMMARY ======================
-print("\n=== Global Dataset Summary ===")
-for k, v in global_stats.items():
-    print(f"{k:25s}: {v}")
-
-print("\n=== Per-Scene Breakdown ===")
-for scene, stats in scene_stats.items():
-    print(f"\nScene: {scene}")
-    print(f"  Episodes               : {stats['episodes']}")
-    print(f"  Multi-object episodes  : {stats['multi_object_episodes']}")
-    print(f"  Unique start positions : {len(stats['start_positions'])}")
-    print(f"  Total prompts          : {stats['total_prompts']}")
-
-# Optional derived metric
-if global_stats["episodes"] > 0:
-    print("\nMean prompts per episode:",
-          global_stats["total_prompts"] / global_stats["episodes"])
+print("\n=== Dataset Summary (RQ2) ===")
+print(f"Total episodes evaluated        : {total_episodes}")
+print(f"Multi-object episodes (>1 obj)  : {multi_object_episodes}")
+print(f"Total prompts evaluated         : {total_prompts}")
 
 
 # ====================== SAFETY CHECK ======================
