@@ -10,11 +10,11 @@ EXCLUDE_SCENES = {"example_scene"}
 # ====================================================
 
 def parse_hyperparam(exp_dir: Path) -> float:
-    # EXP_MEM_40_60 -> exploitation weight = 0.6
+    # EXP_MEM_40_60 -> exploration weight = 0.4
     parts = exp_dir.name.split("_")
     explore = float(parts[2])
     exploit = float(parts[3])
-    return exploit / (explore + exploit)
+    return explore / (explore + exploit)
 
 def load_metrics(metrics_file: Path):
     with open(metrics_file, "r") as f:
@@ -171,7 +171,7 @@ plt.fill_between(
     label="IQR (25–75%)"
 )
 
-plt.xlabel("Exploitation weight", fontsize=fontsize)
+plt.xlabel("Exploration weight", fontsize=fontsize)
 plt.ylabel("Success Rate (SR)", fontsize=fontsize)
 plt.title("SR vs Exploration–Exploitation Trade-off (RQ2)", fontsize=fontsize)
 plt.legend(fontsize=fontsize)
@@ -195,7 +195,7 @@ plt.fill_between(
     label="IQR (25–75%)"
 )
 
-plt.xlabel("Exploitation weight", fontsize=fontsize)
+plt.xlabel("Exploration weight", fontsize=fontsize)
 plt.ylabel("Success weighted Path Length (SPL)", fontsize=fontsize)
 plt.title("SPL vs Exploration–Exploitation Trade-off (RQ2)", fontsize=fontsize)
 plt.legend(fontsize=fontsize)
