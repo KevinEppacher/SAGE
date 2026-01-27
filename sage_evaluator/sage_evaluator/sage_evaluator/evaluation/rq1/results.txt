@@ -1,0 +1,17 @@
+=== RQ1: Baseline Navigation Performance ===
+Scenes evaluated        : 6
+Start positions         : 18
+Episodes evaluated      : 90
+Total evaluations       : 89
+
+--- Success Rate (SR) ---
+Median SR               : 1.000
+Mean SR                 : 0.775
+IQR (25–75%)            : [1.000, 1.000]
+Variance SR             : 0.17422
+
+--- Success weighted Path Length (SPL) ---
+Median SPL              : 0.814
+Mean SPL                : 0.636
+IQR (25–75%)            : [0.281, 1.000]
+Variance SPL            : 0.16286

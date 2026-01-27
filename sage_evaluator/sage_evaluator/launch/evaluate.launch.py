@@ -9,8 +9,8 @@ import os
 
 SCENE = "00876-mv2HUxq3B53"
 VERSION = "v1.1"
-EPISODE_ID = "RQ1/POS3/E005"
-SEED = 42
+EPISODE_ID = "RQ1/DEMO/EXP_MEM_60_40/E002"
+SEED = 0
 
 def launch_setup(context, *args, **kwargs):
     """Function to evaluate LaunchConfiguration and create nodes"""

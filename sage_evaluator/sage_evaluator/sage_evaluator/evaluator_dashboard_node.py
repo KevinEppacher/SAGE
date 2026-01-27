@@ -2,21 +2,23 @@
 import os
 import json
 import rclpy
+import random
+import tf2_ros
+
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
+
 from evaluator_msgs.srv import GetShortestPath
 from sage_bt_msgs.srv import StartupCheck
 from sage_bt_msgs.action import ExecutePrompt
-from nav_msgs.msg import Path
+
+from nav_msgs.msg import Path, OccupancyGrid
 from sage_datasets.utils import DatasetManager
-from multimodal_query_msgs.msg import SemanticPrompt
-from nav_msgs.msg import OccupancyGrid, Path
 from sage_evaluator.utils.path_map_visualizer import PathMapVisualizer
 from sage_evaluator.utils.metrics import Metrics
 from sage_evaluator.utils.util import transform_path
-import random
-import tf2_ros
+
 
 class EvaluatorDashboard(Node):
     def __init__(self):
@@ -27,24 +29,28 @@ class EvaluatorDashboard(Node):
         self.declare_parameter("version", "")
         self.declare_parameter("episode_id", "")
         self.declare_parameter("debug_info", True)
+        self.declare_parameter("prompt_shuffle_seed", 0)
 
-        self.scene      = self.get_parameter("scene").value
-        self.version    = self.get_parameter("version").value
+        self.scene = self.get_parameter("scene").value
+        self.version = self.get_parameter("version").value
         self.episode_id = self.get_parameter("episode_id").value
-        self.debug      = self.get_parameter("debug_info").value
+        self.debug = self.get_parameter("debug_info").value
+        self.shuffle_seed = self.get_parameter("prompt_shuffle_seed").value
 
         # ---------------- Dataset loading ----------------
         self.dataset = DatasetManager(self.scene, self.version, self.episode_id)
         self.episode_dir = self.dataset.episode_dir()
         self.prompts_data = self.dataset.prompts()
 
-        # Validate dataset
         if not all(k in self.prompts_data for k in ["train", "eval", "zero_shot"]):
-            raise RuntimeError("prompts.json must contain 'train', 'eval', and 'zero_shot' keys.")
+            raise RuntimeError("prompts.json must contain 'train', 'eval', and 'zero_shot'.")
 
         self.prompts_train = self.prompts_data["train"]
-        self.prompts_eval  = self.prompts_data["eval"]
-        self.prompts_zero  = self.prompts_data["zero_shot"]
+        self.prompts_eval = self.prompts_data["eval"]
+        self.prompts_zero = self.prompts_data["zero_shot"]
+
+        if not (len(self.prompts_train) == len(self.prompts_eval) == len(self.prompts_zero)):
+            raise RuntimeError("train/eval/zero_shot prompt lists must have equal length.")
 
         # ---------------- Detection thresholds ----------------
         self.detection_threshold_initial = self.prompts_data.get(
@@ -60,21 +66,28 @@ class EvaluatorDashboard(Node):
             f"final={self.detection_threshold_final:.2f}"
         )
 
-        if not (len(self.prompts_train) == len(self.prompts_eval) == len(self.prompts_zero)):
-            raise RuntimeError("train/eval/zero_shot prompt lists must have equal length.")
-
-        total_prompts = len(self.prompts_train)
-        self.get_logger().info(f"Loaded {total_prompts} paired prompts from dataset.")
+        self.get_logger().info(
+            f"Loaded {len(self.prompts_train)} paired prompts from dataset."
+        )
         self.get_logger().info(f"Episode directory: {self.episode_dir}")
 
         # ---------------- Service and action clients ----------------
-        self.shortest_client = self.create_client(GetShortestPath, "/evaluator/get_shortest_path")
-        self.startup_check_client = self.create_client(StartupCheck, "/sage_behaviour_tree/startup_check")
-        self.bt_action_client = ActionClient(self, ExecutePrompt, "/sage_behaviour_tree/execute_prompt")
+        self.shortest_client = self.create_client(
+            GetShortestPath, "/evaluator/get_shortest_path"
+        )
+        self.startup_check_client = self.create_client(
+            StartupCheck, "/sage_behaviour_tree/startup_check"
+        )
+        self.bt_action_client = ActionClient(
+            self, ExecutePrompt, "/sage_behaviour_tree/execute_prompt"
+        )
 
-        # Publisher for the actual executed path
-        self.executed_path_pub = self.create_publisher(Path, "/evaluator/executed_path", 10)
+        # Publisher for the executed path
+        self.executed_path_pub = self.create_publisher(
+            Path, "/evaluator/executed_path", 10
+        )
 
+        # Map + visualization
         self.map = None
         self.visualizer = PathMapVisualizer(self)
 
@@ -90,6 +103,7 @@ class EvaluatorDashboard(Node):
             )
         )
 
+        # TF
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
@@ -102,52 +116,45 @@ class EvaluatorDashboard(Node):
         # Start evaluation
         self.run_evaluation()
 
+    # ------------------------------------------------------------------
+    # ADDITION: prompt ID helper (non-destructive feature addition)
+    # ------------------------------------------------------------------
+    def _make_prompt_id(self, index: int, prompt: str) -> str:
+        """
+        Create a zero-padded prompt identifier to avoid overwriting results.
+        Example: 01_bed, 03_oven_and_stove
+        """
+        safe_prompt = prompt.replace(" ", "_")
+        return f"{index:02d}_{safe_prompt}"
+
+    # ------------------------------------------------------------------
+
     def _wait_for_servers(self):
         self.get_logger().info("Waiting for service/action servers...")
-
         self.shortest_client.wait_for_service()
-        self.get_logger().info("Connected to /evaluator/get_shortest_path service.")
         self.startup_check_client.wait_for_service()
-        self.get_logger().info("Connected to /sage_behaviour_tree/startup_check service.")
         self.bt_action_client.wait_for_server()
-        self.get_logger().info("Connected to /sage_behaviour_tree/execute_prompt action server.")
-
         self.get_logger().info("All service/action servers are ready.")
 
     def run_evaluation(self):
-        # -------------------------------------------------
-        # Prepare randomized (or ordered) prompt triplets
-        # -------------------------------------------------
         prompt_triplets = self._prepare_prompt_triplets()
         total = len(prompt_triplets)
 
         for i, (train_prompt, eval_prompt, zero_shot) in enumerate(
-                prompt_triplets,
-                start=1):
+                prompt_triplets, start=1):
+
+            # ADDITION: create unique prompt ID
+            prompt_id = self._make_prompt_id(i, train_prompt)
 
             self.get_logger().info("=" * 60)
-            self.get_logger().info(f"[{i}/{total}] EVALUATING: {train_prompt}")
+            self.get_logger().info(f"[{i}/{total}] EVALUATING: {prompt_id}")
             self.get_logger().info("=" * 60)
-
-            # -------------------------------------------------
-            # Zero-shot prompt (passed into BT, not published)
-            # -------------------------------------------------
-            self.get_logger().info(
-                f"Using zero-shot prompt: \"{zero_shot}\""
-            )
 
             # -------------------------------------------------
             # 1. Shortest path computation
             # -------------------------------------------------
-            self.get_logger().info(
-                f"Requesting shortest path for '{eval_prompt}'"
-            )
             shortest_path = self._call_shortest_path(eval_prompt)
-
             if shortest_path is None:
-                self.get_logger().warn(
-                    f"Skipping prompt '{train_prompt}' because no valid shortest path is available."
-                )
                 continue
 
             # -------------------------------------------------
@@ -155,9 +162,7 @@ class EvaluatorDashboard(Node):
             # -------------------------------------------------
             if i == 1:
                 if not self._call_startup_check():
-                    self.get_logger().error(
-                        "Startup check failed, aborting evaluation."
-                    )
+                    self.get_logger().error("Startup check failed, aborting evaluation.")
                     return
 
             # -------------------------------------------------
@@ -165,7 +170,8 @@ class EvaluatorDashboard(Node):
             # -------------------------------------------------
             result_data = self._call_execute_prompt(
                 train_prompt,
-                zero_shot
+                zero_shot,
+                prompt_id
             )
             if result_data is None:
                 continue
@@ -179,15 +185,20 @@ class EvaluatorDashboard(Node):
                 result_data["path"],
                 shortest_path
             )
-            self.metrics_all[train_prompt] = metrics.to_dict()
+
+            # ADDITION: use prompt_id as key (prevents overwrite)
+            self.metrics_all[prompt_id] = {
+                "prompt": train_prompt,
+                **metrics.to_dict()
+            }
 
             # -------------------------------------------------
-            # 5. Path visualization
+            # 5. Path visualization (UNCHANGED behavior)
             # -------------------------------------------------
             plot_path = os.path.join(
                 self.episode_dir,
                 "detections",
-                train_prompt,
+                prompt_id,
                 "paths.png"
             )
 
@@ -200,10 +211,6 @@ class EvaluatorDashboard(Node):
             goal_pose = None
             if shortest_path and len(shortest_path.poses) > 0:
                 goal_pose = shortest_path.poses[-1].pose
-            else:
-                self.get_logger().warn(
-                    "Shortest path is empty – skipping goal marker in visualization."
-                )
 
             self.visualizer.save_plot(
                 plot_path,
@@ -218,6 +225,7 @@ class EvaluatorDashboard(Node):
             # 6. Save per-prompt metrics
             # -------------------------------------------------
             self._save_prompt_metrics(
+                prompt_id,
                 train_prompt,
                 metrics,
                 result_data
@@ -227,223 +235,131 @@ class EvaluatorDashboard(Node):
         # 7. Save episode summary
         # -------------------------------------------------
         self._save_summary_metrics()
-        self.get_logger().info(
-            "All prompts completed. Evaluation finished."
-        )
+        self.get_logger().info("All prompts completed. Evaluation finished.")
+
+    # ------------------------------------------------------------------
 
     def _call_shortest_path(self, query):
         req = GetShortestPath.Request()
         req.query = query
-
         future = self.shortest_client.call_async(req)
         rclpy.spin_until_future_complete(self, future)
 
         resp = future.result()
-        if not resp or not resp.success:
-            self.get_logger().warn(
-                f"Shortest path for '{query}' failed (service error)."
-            )
+        if not resp or not resp.success or len(resp.path.poses) == 0:
             return None
-
-        if len(resp.path.poses) == 0:
-            self.get_logger().warn(
-                f"Shortest path for '{query}' is empty."
-            )
-            return None
-
-        self.get_logger().info(
-            f"Shortest path received ({len(resp.path.poses)} poses, "
-            f"{resp.path_length:.2f} m)"
-        )
         return resp.path
 
     def _call_startup_check(self):
-        req = StartupCheck.Request()
-
-        future = self.startup_check_client.call_async(req)
+        future = self.startup_check_client.call_async(StartupCheck.Request())
         rclpy.spin_until_future_complete(self, future)
         resp = future.result()
+        return resp is not None and resp.ready
 
-        if resp is None:
-            self.get_logger().error("No response from startup_check.")
-            return False
-
-        self.get_logger().info(f"Startup check {'PASSED' if resp.ready else 'FAILED'}: {resp.report}")
-        return resp.ready
-
-    def _call_execute_prompt(self, query: str, zero_shot: str):
+    def _call_execute_prompt(self, query, zero_shot, prompt_id):
         goal = ExecutePrompt.Goal()
         goal.prompt = query
-        goal.experiment_id = f"{self.scene}_{self.episode_id}"
-        goal.timeout = 30.0         # minutes
         goal.zero_shot_prompt = zero_shot
+        goal.experiment_id = f"{self.scene}_{self.episode_id}"
+        goal.timeout = 30.0
 
         goal.detection_threshold_initial = self.detection_threshold_initial
         goal.detection_threshold_final = self.detection_threshold_final
 
-        self.get_logger().info(
-            f"Detection thresholds → "
-            f"initial={goal.detection_threshold_initial:.2f}, "
-            f"final={goal.detection_threshold_final:.2f}"
-        )
-
-
-        det_dir = os.path.join(self.episode_dir, "detections", query)
+        det_dir = os.path.join(self.episode_dir, "detections", prompt_id)
         os.makedirs(det_dir, exist_ok=True)
         goal.save_directory = os.path.join(det_dir, "detection.png")
 
-        self.get_logger().info(
-            f"Executing BT for prompt '{query}' (zero-shot='{zero_shot}') → saving {goal.save_directory}"
+        send_future = self.bt_action_client.send_goal_async(
+            goal, feedback_callback=self._feedback_cb
         )
-
-        send_future = self.bt_action_client.send_goal_async(goal, feedback_callback=self._feedback_cb)
         rclpy.spin_until_future_complete(self, send_future)
         goal_handle = send_future.result()
 
         if not goal_handle or not goal_handle.accepted:
-            self.get_logger().error("BT goal rejected.")
             return None
 
-        # Wait for result
         result_future = goal_handle.get_result_async()
         rclpy.spin_until_future_complete(self, result_future)
         result = result_future.result().result
 
-        success = result.result
-        confidence = result.confidence_score
-        detection_confidence = result.detection_confidence
-        vlm_confidence = result.vlm_confidence
-        memory_confidence = result.memory_confidence
-        actual_path = result.accumulated_path
-        start_pose = result.start_pose
-        end_pose = result.end_pose
-        total_time = result.total_time
+        if result.accumulated_path and len(result.accumulated_path.poses) > 0:
+            result.accumulated_path.header.stamp = self.get_clock().now().to_msg()
+            result.accumulated_path.header.frame_id = "map"
+            self.executed_path_pub.publish(result.accumulated_path)
 
-        # Publish path if available
-        if actual_path and len(actual_path.poses) > 0:
-            actual_path.header.stamp = self.get_clock().now().to_msg()
-            if not actual_path.header.frame_id:
-                actual_path.header.frame_id = "map"
-            self.executed_path_pub.publish(actual_path)
-            self.get_logger().info(f"Published executed path ({len(actual_path.poses)} poses)")
-
-        self._save_detection_meta(query, success, "detection.png")
-
-        self.get_logger().info(
-            f"BT completed: success={success}, total_conf={confidence:.3f}, "
-            f"det={detection_confidence:.3f}, vlm={vlm_confidence:.3f}, mem={memory_confidence:.3f}, "
-            f"time={total_time:.2f}s"
-        )
+        self._save_detection_meta(prompt_id, query, result.result, "detection.png")
 
         return {
-            "success": success,
-            "confidence": confidence,
-            "detection_confidence": detection_confidence,
-            "vlm_confidence": vlm_confidence,
-            "memory_confidence": memory_confidence,
-            "path": actual_path,
-            "start": start_pose,
-            "end": end_pose,
-            "total_time": total_time
+            "success": result.result,
+            "confidence": result.confidence_score,
+            "detection_confidence": result.detection_confidence,
+            "vlm_confidence": result.vlm_confidence,
+            "memory_confidence": result.memory_confidence,
+            "path": result.accumulated_path,
+            "total_time": result.total_time
         }
 
-    def _save_detection_meta(self, prompt, success, image_name):
-        det_dir = os.path.join(self.episode_dir, "detections", prompt)
-        os.makedirs(det_dir, exist_ok=True)
+    # ------------------------------------------------------------------
 
+    def _save_detection_meta(self, prompt_id, prompt, success, image_name):
+        det_dir = os.path.join(self.episode_dir, "detections", prompt_id)
         meta = {
-            "object": prompt,
+            "prompt_id": prompt_id,
+            "prompt": prompt,
             "status": "SUCCESS" if success else "FAILURE",
             "image": image_name
         }
-
         with open(os.path.join(det_dir, "detection_meta.json"), "w") as f:
             json.dump(meta, f, indent=2)
 
-        self.get_logger().info(f"Saved detection meta → {det_dir}/detection_meta.json")
+    def _save_prompt_metrics(self, prompt_id, prompt, metrics, result_data):
+        det_dir = os.path.join(self.episode_dir, "detections", prompt_id)
 
-    def _feedback_cb(self, feedback_msg):
-        if self.debug:
-            fb = feedback_msg.feedback
-            # self.get_logger().info(f"[BT] active_node={fb.active_node}, status={fb.status}")
+        with open(os.path.join(det_dir, "sr.json"), "w") as f:
+            json.dump({
+                "prompt_id": prompt_id,
+                "prompt": prompt,
+                "SR": metrics.sr,
+                "confidence_total": result_data["confidence"],
+                "confidence_detection": result_data["detection_confidence"],
+                "confidence_vlm": result_data["vlm_confidence"],
+                "confidence_memory": result_data["memory_confidence"]
+            }, f, indent=2)
 
-    def _save_prompt_metrics(self, prompt: str, metrics: Metrics, result_data: dict):
-        det_dir = os.path.join(self.episode_dir, "detections", prompt)
-        os.makedirs(det_dir, exist_ok=True)
-
-        # SR JSON including all confidence terms
-        sr_path = os.path.join(det_dir, "sr.json")
-        sr_data = {
-            "SR": metrics.sr,
-            "confidence_total": result_data["confidence"],
-            "confidence_detection": result_data["detection_confidence"],
-            "confidence_vlm": result_data["vlm_confidence"],
-            "confidence_memory": result_data["memory_confidence"]
-        }
-        with open(sr_path, "w") as f:
-            json.dump(sr_data, f, indent=2)
-
-        # SPL JSON
-        spl_path = os.path.join(det_dir, "spl.json")
-        spl_data = {
-            "SPL": metrics.spl,
-            "shortest_path_length": metrics.l_shortest,
-            "actual_path_length": metrics.l_actual
-        }
-        with open(spl_path, "w") as f:
-            json.dump(spl_data, f, indent=2)
-
-        self.get_logger().info(f"Saved metrics for '{prompt}' → {det_dir}")
+        with open(os.path.join(det_dir, "spl.json"), "w") as f:
+            json.dump({
+                "SPL": metrics.spl,
+                "shortest_path_length": metrics.l_shortest,
+                "actual_path_length": metrics.l_actual
+            }, f, indent=2)
 
     def _save_summary_metrics(self):
-        summary_path = os.path.join(self.episode_dir, "metrics.json")
-        with open(summary_path, "w") as f:
+        with open(os.path.join(self.episode_dir, "metrics.json"), "w") as f:
             json.dump(self.metrics_all, f, indent=2)
-        self.get_logger().info(f"Saved episode summary → {summary_path}")
 
-    def _map_callback(self, msg: OccupancyGrid):
+    def _map_callback(self, msg):
         if self.map is None:
             self.map = msg
             self.visualizer.set_map(msg)
 
+    def _feedback_cb(self, feedback_msg):
+        if self.debug:
+            pass
+
     def _prepare_prompt_triplets(self):
-        """
-        Prepare and (optionally) shuffle prompt triplets:
-        (train_prompt, eval_prompt, zero_shot_prompt)
-
-        Shuffling happens ONCE per episode and can be seeded
-        for reproducibility.
-        """
-        # Declare optional seed parameter
-        self.declare_parameter("prompt_shuffle_seed", 0)
-        seed = self.get_parameter("prompt_shuffle_seed").value
-
-        # Zip prompts into aligned triplets
-        prompt_triplets = list(zip(
+        triplets = list(zip(
             self.prompts_train,
             self.prompts_eval,
             self.prompts_zero
         ))
 
-        if seed != 0:
-            random.seed(seed)
-            random.shuffle(prompt_triplets)
-            self.get_logger().info(
-                f"Prompt order randomized with seed={seed}"
-            )
-        else:
-            self.get_logger().info(
-                "Prompt order not randomized (seed=0)"
-            )
+        if self.shuffle_seed != 0:
+            random.seed(self.shuffle_seed)
+            random.shuffle(triplets)
 
-        # Log final order (important for reproducibility)
-        self.get_logger().info("Final evaluation prompt order:")
-        for i, (train_p, _, zero_p) in enumerate(prompt_triplets, start=1):
-            self.get_logger().info(
-                f"  {i}: train='{train_p}' | zero-shot='{zero_p}'"
-            )
+        return triplets
 
-        return prompt_triplets
 
 def main(args=None):
     rclpy.init(args=args)

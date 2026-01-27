@@ -31,6 +31,19 @@ def load_json(path: Path):
     with open(path, "r") as f:
         return json.load(f)
 
+def find_threshold_for_precision(confusions, target_precision=0.95):
+    candidates = []
+
+    for t in sorted(confusions.keys()):
+        m = compute_metrics(confusions[t])
+        if m["precision"] >= target_precision:
+            candidates.append((t, m))
+
+    if not candidates:
+        return None  # target precision not achievable
+
+    # smallest τ → highest recall under constraint
+    return candidates[0]
 
 def classify_detection(meta: dict, score: float, threshold: float):
     failure = meta.get("failure_reason") or meta.get("failure_mode")
@@ -40,7 +53,7 @@ def classify_detection(meta: dict, score: float, threshold: float):
 
     # 1. Active false decision
     if failure == "wrong_object":
-        return "FP" if predicted_positive else "TN"
+        return "FP" if predicted_positive else "FN"
 
     # 2. Missed decision although observable
     if failure == "ignored":
@@ -51,8 +64,8 @@ def classify_detection(meta: dict, score: float, threshold: float):
         return "TP" if predicted_positive else "FN"
 
     # 4. Out-of-scope failures (not detection-related)
-    if failure in {"not_seen", "no_motion", "seen_but_far"}:
-        return "TN"   # or better: EXCLUDE
+    if failure in {"not_seen", "no_motion"}:
+        return "TN"
 
     return "TN"
 
@@ -315,3 +328,20 @@ if __name__ == "__main__":
     # --- Full PR sweep ---
     sweep = collect_sweep_confusions(["det_only", "full"])
     plot_precision_recall_sweep(sweep)
+
+    variant = "full"
+    tau_star = find_threshold_for_precision(
+        sweep[variant],
+        target_precision=0.9
+    )
+
+    if tau_star is None:
+        print("Target precision not reachable.")
+    else:
+        t, m = tau_star
+        print(
+            f"τ* = {t:.3f} | "
+            f"P = {m['precision']:.3f} | "
+            f"R = {m['recall']:.3f} | "
+            f"F1 = {m['f1']:.3f}"
+        )
