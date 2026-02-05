@@ -25,3 +25,5 @@ https://huggingface.co/xdecoder/SEEM/resolve/main/seem_focall_v0.pt
 file:///home/kevin/Documents/4_Semester/.temp/test_repos/vlfm/data/objectnav_hm3d_v1/val_mini/content/TEEsavR23oF.json
 
 Passwort: turtlebot4
+
+192.168.0.185

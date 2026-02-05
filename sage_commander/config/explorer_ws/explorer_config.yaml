@@ -90,7 +90,7 @@ exploration_graph_nodes:
 fused:
   graph_node_fusion:
     ros__parameters:
-      debug_distance: true
+      debug_distance: false
       detection_topic: /filtered/detection_graph_nodes/graph_nodes
       exploitation_topic: /filtered/exploitation_graph_nodes/graph_nodes
       exploration_topic: /filtered/exploration_graph_nodes/graph_nodes
