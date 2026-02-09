@@ -1,0 +1,22 @@
+{
+  mode: "peer",
+  connect: { endpoints: ["tcp/192.168.0.185:7447"] },
+
+  plugins: {
+    ros2dds: {
+      namespace: "/tb4",
+      nodename: "teleop",
+
+      deny: {
+        publishers: [".*/rosout", ".*/.*parameter.*", ".*/_internal/.*"],
+        subscribers: [".*/rosout", ".*/.*parameter.*", ".*/_internal/.*"],
+        service_servers: [".*/.*parameter.*", ".*/_internal/.*"],
+        service_clients: [".*/.*parameter.*", ".*/_internal/.*"],
+        action_servers: [".*/_internal/.*"],
+        action_clients: [".*/_internal/.*"]
+      }
+    },
+
+    rest: { http_port: 8000 }
+  }
+}

@@ -203,6 +203,17 @@ services:
     stdin_open: true
     tty: true
 
+  zenoh_bridge:
+    image: eclipse/zenoh-bridge-ros2dds:latest
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - ROS_DISTRO=humble
+    volumes:
+      - ./zenoh/zenoh-bridge-config-pc.json5:/etc/zenoh/config.json5:ro
+    command: ["-c", "/etc/zenoh/config.json5"]
+    # Note - Use "docker logs -f docker-zenoh_bridge-1" to follow the logs
+
 volumes:
   ros2_ws:
     driver: local

@@ -1,0 +1,11 @@
+services:
+  zenoh_bridge:
+    image: eclipse/zenoh-bridge-ros2dds:latest
+    container_name: zenoh-bridge-ros2dds
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - ROS_DISTRO=humble
+    volumes:
+      - ./zenoh/zenoh-bridge-config-robot.json5:/config.json5:ro
+    command: ["-c", "/config.json5"]

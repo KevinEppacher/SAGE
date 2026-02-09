@@ -21,7 +21,7 @@ fi
 
 # Export runtime variables for Fast DDS
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-export FASTRTPS_DEFAULT_PROFILES_FILE=app/.devcontainer/fastrtps/fastdds.xml
+export FASTRTPS_DEFAULT_PROFILES_FILE=/app/.devcontainer/fastrtps/fastdds.xml
 
 
 # echo "RMW_IMPLEMENTATION set to $RMW_IMPLEMENTATION"

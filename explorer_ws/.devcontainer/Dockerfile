@@ -139,6 +139,12 @@ RUN sudo apt update && sudo apt install -y \
     # ros-${ROS_DISTRO}-nav2-costmap-2d \
     # ros-${ROS_DISTRO}-nav2-mppi-controller \
 
+RUN sudo apt update && sudo apt install -y \
+    ros-${ROS_DISTRO}-turtlebot4-description \
+    ros-${ROS_DISTRO}-turtlebot4-msgs \
+    ros-${ROS_DISTRO}-turtlebot4-navigation \
+    ros-${ROS_DISTRO}-turtlebot4-node \
+    ros-${ROS_DISTRO}-turtlebot4-desktop
 
 RUN sudo apt update && sudo apt install -y \
     libnanoflann-dev
