@@ -204,11 +204,12 @@ services:
     tty: true
 
   zenoh_bridge:
-    image: eclipse/zenoh-bridge-ros2dds:latest
+    image: eclipse/zenoh-bridge-ros2dds:1.7.2
     network_mode: host
     restart: unless-stopped
     environment:
       - ROS_DISTRO=humble
+      - RUST_LOG=zenoh_plugin_ros2dds=debug,zenoh_bridge_ros2dds=info
     volumes:
       - ./zenoh/zenoh-bridge-config-pc.json5:/etc/zenoh/config.json5:ro
     command: ["-c", "/etc/zenoh/config.json5"]

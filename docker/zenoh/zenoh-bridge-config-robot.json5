@@ -8,12 +8,12 @@
       nodename: "tb4",
 
       deny: {
-        publishers: "(.*/rosout)|(.*/.*parameter.*)|(.*/_internal/.*)",
-        subscribers: "(.*/rosout)|(.*/.*parameter.*)|(.*/_internal/.*)",
-        service_servers: "(.*/.*parameter.*)|(.*/_internal/.*)",
-        service_clients: "(.*/.*parameter.*)|(.*/_internal/.*)",
-        action_servers: "(.*/_internal/.*)",
-        action_clients: "(.*/_internal/.*)"
+        publishers: [".*/rosout", ".*/.*parameter.*", ".*/_internal/.*"],
+        subscribers: [".*/rosout", ".*/.*parameter.*", ".*/_internal/.*"],
+        service_servers: [".*/.*parameter.*", ".*/_internal/.*"],
+        service_clients: [".*/.*parameter.*", ".*/_internal/.*"],
+        action_servers: [".*/_internal/.*"],
+        action_clients: [".*/_internal/.*"]
       },
 
       pub_max_frequencies: [
