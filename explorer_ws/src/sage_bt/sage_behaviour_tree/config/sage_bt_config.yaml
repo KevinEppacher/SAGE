@@ -19,7 +19,8 @@ sage_behaviour_tree:
           required_topics:
             - /rgb/throttled
             - /depth/throttled
-            - /camera_info
+            # - /camera_info
+            - /oakd/rgb/preview/camera_info   # for TB4
             - /cmd_vel
             - /map
             - /exploration_map
@@ -66,7 +67,8 @@ sage_behaviour_tree:
         required_topics:
           - /rgb/throttled
           - /depth/throttled
-          - /camera_info
+          # - /camera_info
+          - /oakd/rgb/preview/camera_info   # for TB4
           - /cmd_vel
           - /map
           - /exploration_map

@@ -1,0 +1,14 @@
+source /opt/ros/jazzy/setup.bash
+ros2 launch depth_anything_v3 depth_anything_v3.launch.py \
+  input_image_topic:=/oakd/rgb/preview/image_raw \
+  input_camera_info_topic:=/oakd/rgb/preview/camera_info \
+  output_depth_topic:=/depth_anything/depth \
+  output_point_cloud_topic:=/depth_anything/points
+
+source /opt/ros/jazzy/setup.bash
+ros2 launch depth_anything_v3 depth_anything_v3.launch.py \
+  input_image_topic:=/rgb \
+  input_camera_info_topic:=/camera_info \
+  output_depth_topic:=/depth_anything/depth \
+  output_point_cloud_topic:=/depth_anything/points \
+  --ros-args --log-level depth_anything_v3:=debug

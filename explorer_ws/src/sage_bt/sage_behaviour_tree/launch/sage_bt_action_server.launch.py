@@ -4,7 +4,7 @@ from launch.actions import DeclareLaunchArgument, ExecuteProcess
 from launch.substitutions import LaunchConfiguration
 from launch.conditions import IfCondition
 from ament_index_python.packages import get_package_share_directory
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, DeclareLaunchArgument, ExecuteProcess
+from launch.actions import SetEnvironmentVariable, DeclareLaunchArgument, ExecuteProcess
 import os
 
 '''
@@ -12,13 +12,13 @@ ros2 service call /sage_behaviour_tree/startup_check sage_bt_msgs/srv/StartupChe
 
 ros2 action send_goal /sage_behaviour_tree/execute_prompt sage_bt_msgs/action/ExecutePrompt \
 "{ \
-  prompt: 'flowerpot', \
-  zero_shot_prompt: 'A door leading to a flowerpot', \
+  prompt: 'tv', \
+  zero_shot_prompt: 'A door leading to a tv', \
   experiment_id: 'EVAL01', \
   save_directory: '/app/test.png', \
   timeout: 60.0, \
-  detection_threshold_initial: 0.05, \
-  detection_threshold_final: 0.1 \
+  detection_threshold_initial: 0.6, \
+  detection_threshold_final: 0.8 \
 }" \
 --feedback
 

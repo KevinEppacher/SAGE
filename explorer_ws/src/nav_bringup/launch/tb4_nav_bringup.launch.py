@@ -32,23 +32,10 @@ def generate_launch_description():
         'mapper_params_online_async.yaml'
     )
 
-    rviz_config = os.path.join(
-        get_package_share_directory('nav_bringup'),
-        'rviz',
-        'rviz.rviz'
-    )
-
-
     nav2_launch_file = os.path.join(
-        get_package_share_directory('nav2_bringup'),
+        get_package_share_directory('turtlebot4_navigation'),
         'launch',
-        'navigation_launch.py'
-    )
-
-    nav2_config =  os.path.join(
-        get_package_share_directory('nav_bringup'),
-        'config',
-        'carter_nav2_params.yaml'
+        'nav2.launch.py'
     )
 
     # SLAM Toolbox
@@ -65,17 +52,10 @@ def generate_launch_description():
         launch_arguments={
             'use_sim_time': use_sim_time,
             'autostart': 'true',
-            'params_file': nav2_config,
             'use_respawn': 'true'
         }.items()
     )
     
-    # RViz
-    rviz_node = ExecuteProcess(
-        cmd=['rviz2', '-d', rviz_config],
-        output='screen'
-    )
-
     ld = LaunchDescription()
     ld.add_action(sim_time_arg)
     ld.add_action(slam_toolbox_node)

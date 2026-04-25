@@ -13,7 +13,7 @@ def generate_launch_description():
     #---------------------- Arguments ------------------------------#
 
     sim_time_arg = DeclareLaunchArgument(
-        'use_sim_time', default_value='true',
+        'use_sim_time', default_value='false',
         description='Flag to enable use_sim_time'
     )
 
@@ -37,7 +37,7 @@ def generate_launch_description():
     nav2_launch_file = os.path.join(
         get_package_share_directory('nav_bringup'),
         'launch',
-        'nav_bringup.launch.py'
+        'tb4_nav_bringup.launch.py'
     )
 
     robot_description_launch_file = os.path.join(
@@ -172,11 +172,11 @@ def generate_launch_description():
     ld.add_action(sim_time_arg)
     ld.add_action(inflated_map_node)
     ld.add_action(map_explorer_node)
-    ld.add_action(pcl_to_scan_node)
+    # ld.add_action(pcl_to_scan_node)
     ld.add_action(semantic_frontiers_node)
     ld.add_action(rviz_node)
     ld.add_action(nav2_stack_launch)
-    ld.add_action(robot_description_launch)
+    # ld.add_action(robot_description_launch)
     ld.add_action(graph_node_fusion_launch)
     ld.add_action(relevance_map_launch)
     return ld

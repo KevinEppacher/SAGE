@@ -10,3 +10,6 @@
 [submodule "detection_ws/src/yolo_ros"]
 	path = detection_ws/src/yolo_ros
 	url = https://github.com/KevinEppacher/yolo_ros.git
+[submodule "depth_perception_ws/src/ros2-depth-anything-v3-trt"]
+	path = depth_perception_ws/src/ros2-depth-anything-v3-trt
+	url = https://github.com/ika-rwth-aachen/ros2-depth-anything-v3-trt.git

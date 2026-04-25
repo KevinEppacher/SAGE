@@ -141,7 +141,7 @@ tmux split-window -v -t $SESSION:utils.0      # Split left side vertically
 tmux split-window -v -t $SESSION:utils.1      # Split right side vertically
 
 # Pane 0 (isaac window) — enter isaac_sim_container
-tmux send-keys -t $SESSION:utils.0 "docker exec -it ros2_detection_container bash" C-m
+tmux send-keys -t $SESSION:utils.0 "docker exec -it ros2_exploitation_container bash" C-m
 tmux send-keys -t $SESSION:utils.0 "clear" C-m
 tmux send-keys -t $SESSION:utils.0 "echo -e '\033[1;36m[Detection Workspace:]\033[0m'" C-m
 tmux send-keys -t $SESSION:utils.0 "ros2 run gui gui"

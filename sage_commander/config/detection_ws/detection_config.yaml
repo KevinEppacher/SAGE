@@ -1,6 +1,6 @@
 rgb_throttle:
   ros__parameters:
-    input_topic: "/rgb"
+    input_topic: "/oakd/rgb/image_raw"
     output_topic: "/rgb/throttled"
     timer_frequency: 10.0  # Hz
 
@@ -23,7 +23,7 @@ rgb_throttle:
 
 depth_throttle:
   ros__parameters:
-    input_topic: "/depth"
+    input_topic: "/oakd/stereo/image_raw"
     output_topic: "/depth/throttled"
     timer_frequency: 10.0  # Hz
 
@@ -78,7 +78,8 @@ yoloe:
       score_topic: "/yoloe/score_mask_raw"      # Image (32FC1), values in [0,1]
       id_topic: "/yoloe/instance_id_mask"       # Image (16UC1), instance labels
       depth_topic: "/depth/throttled"                     # Depth image (16UC1 mm or 32FC1 m)
-      camera_info_topic: "/camera_info"         # Camera intrinsics
+      # camera_info_topic: "/camera_info"         # Camera intrinsics
+      camera_info_topic: /oakd/stereo/camera_info    # for TB4
 
       # Output topic
       cloud_topic: "/yoloe/semantic_pointcloud_xyzi"         # PointCloud2 with x,y,z,intensity,instance
@@ -88,7 +89,8 @@ yoloe:
       depth_min: 0.05           # meters
       depth_max: 15.0           # meters
       stride: 1                 # subsample pixels (1=no skip, 2=every 2nd, etc.)
-      frame_id: "carter_camera_stereo_right"        # frame for PointCloud2 header
+      # frame_id: "carter_camera_stereo_right"        # frame for PointCloud2 header
+      frame_id: "oakd_rgb_camera_optical_frame"        # for TB4
 
 detection_graph_nodes:
   cloud_cluster_node:
@@ -115,7 +117,7 @@ value_map:
         decay_factor: 0.99          # decay factor for previous values | at start 1.0, then eg. 0.99
         max_range: 10.0           # Maximum range for semantic mapping
         map_topic: "/map"  # Topic for the occupancy grid map
-        camera_info_topic: "/camera_info"  # Topic for the camera info
+        camera_info_topic: "/oakd/stereo/camera_info"  # Topic for the camera info
         visualize_confidence_map: false  # Flag to visualize the confidence map
         clear_service_name: "/value_map/clear"
         update_gain: 0.5   # Gain for updating the value map with its current observation
@@ -124,5 +126,6 @@ value_map:
         move_threshold: 0.01
       robot:
         map_frame: "map" # Parent frame for the robot
-        camera_link_frame: "carter_camera_stereo_right" # Frame of the RGB camera
+        # camera_link_frame: "carter_camera_stereo_right" # Frame of the RGB camera
+        camera_link_frame: "oakd_rgb_camera_optical_frame" # Frame of the RGB camera
       rgb_topic: "/rgb/throttled"  # Topic for the RGB images

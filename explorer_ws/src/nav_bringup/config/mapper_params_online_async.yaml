@@ -46,6 +46,7 @@ slam_toolbox:
     scan_buffer_maximum_scan_distance: 10.0
     link_match_minimum_response_fine: 0.1  
     link_scan_maximum_distance: 1.5
+    scan_queue_size: 10
 
     # Loop closure parameters 
     loop_search_maximum_distance: 3.0

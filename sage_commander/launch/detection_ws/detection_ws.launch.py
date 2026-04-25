@@ -9,7 +9,7 @@ import os
 def generate_launch_description():
 
     sim_time_arg = DeclareLaunchArgument(
-        'use_sim_time', default_value='true',
+        'use_sim_time', default_value='false',
         description='Flag to enable use_sim_time'
     )
 
@@ -69,6 +69,7 @@ def generate_launch_description():
         name='semantic_pointcloud',
         namespace='yoloe',
         output='screen',
+        # arguments=['--ros-args', '--log-level', 'debug'],
         parameters=[
             {'use_sim_time': use_sim_time},
             detection_config

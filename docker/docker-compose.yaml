@@ -215,6 +215,36 @@ services:
     command: ["-c", "/etc/zenoh/config.json5"]
     # Note - Use "docker logs -f docker-zenoh_bridge-1" to follow the logs
 
+  depth_anything_container:
+    image: ros2/depth_anything
+    build:
+      context: ../depth_perception_ws/.devcontainer
+      dockerfile: Dockerfile
+    container_name: ros2_depth_anything_container
+    privileged: true
+    network_mode: host
+    command: /bin/bash
+    tty: true
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ../depth_perception_ws:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - $XAUTHORITY:/root/.Xauthority
+      - ~/.cache/huggingface:/home/ubuntu/.cache/huggingface
+    environment:
+      QT_X11_NO_MITSHM: 1
+      DISPLAY: $DISPLAY
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+      NVIDIA_REQUIRE_CUDA: "cuda>=12.8"
+
 volumes:
   ros2_ws:
     driver: local

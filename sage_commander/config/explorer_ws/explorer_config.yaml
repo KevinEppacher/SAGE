@@ -115,7 +115,8 @@ explorer_relevance_map:
     ros__parameters:
       angular_confidence_sharpness: 0.25
       base_increment_rate: 0.5
-      camera_info_topic: /camera_info
+      # camera_info_topic: /camera_info
+      camera_info_topic: /oakd/stereo/camera_info    # for TB4
       debug_mode: true
       decay_factor: 1.0
       fov_deg: 70.0
@@ -145,7 +146,8 @@ exploitation_relevance_map:
   relevance_map:
     ros__parameters:
       base_increment_rate: 0.03
-      camera_info_topic: /camera_info
+      # camera_info_topic: /camera_info
+      camera_info_topic: /oakd/stereo/camera_info    # for TB4
       debug_mode: true
       decay_factor: 1.0
       fov_deg: 70.0
@@ -177,7 +179,8 @@ detection_relevance_map:
       angular_confidence_sharpness: 0.1
       base_increment_rate: 0.015
       # base_increment_rate: 0.0
-      camera_info_topic: /camera_info
+      # camera_info_topic: /camera_info
+      camera_info_topic: /oakd/stereo/camera_info    # for TB4
       debug_mode: true
       decay_factor: 0.999
       fov_deg: 70.0
