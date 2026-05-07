@@ -390,29 +390,7 @@ ros2 service call /sage_behaviour_tree/force_exit std_srvs/srv/Empty
 
 The following example shows SAGE searching for a bed in a simulated indoor environment.
 
-![Example SAGE Exploration](./docs/sage_example.gif)
-
----
-
-## Reproducing Thesis Results
-
-TODO: Complete this section with step-by-step instructions for reproducing the thesis experiments.
-
-Planned documentation:
-
-- [Experiment setup](./docs/experiments.md)
-- [Evaluation scripts](./experiments/README.md)
-- [Configuration files](./experiments/configs/)
-
-A complete reproduction guide should include:
-
-1. Required simulation environments.
-2. Required model weights.
-3. Exact Docker image versions.
-4. Experiment launch commands.
-5. Evaluation commands.
-6. Expected output files.
-7. Instructions for generating thesis plots and tables.
+![Example SAGE Exploration](./docs/searching_a_bed.gif)
 
 ---
 
