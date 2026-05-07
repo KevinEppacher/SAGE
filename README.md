@@ -324,10 +324,18 @@ cd path/to/isaacsim-webrtc-install/
 Inside Isaac Sim:
 
 1. Load a Habitat-style indoor environment.
-2. Load or spawn the CarterV1 robot.
-3. Start the simulation.
 
-TODO: Add exact instructions for loading the simulation scene and robot.
+   - Download the dataset from the [Matterport3D / Habitat-Matterport3D repository](https://github.com/matterport/habitat-matterport-3dresearch).
+   - Convert the glb files to USD format, by importing the glb into a empty world and saving the world as a USD file. This can be done using the Isaac Sim UI.
+   - Import the converted USD scene into Isaac Sim.
+
+   > Note: The CarterV1 robot may be too large for some converted indoor scenes. If this occurs, scale the imported environment by `1.5` in Isaac Sim.
+
+2. Load or spawn the configured CarterV1 robot.
+
+   - Use the provided USD assets for the SAGE Isaac Sim setup.
+   - The configured robot USD files can be downloaded from the following Google Drive folder: [SAGE Isaac Sim Assets](https://drive.google.com/drive/folders/11lUZjMBSynLSW3W4xqB0qyd0Mb5r51zx?usp=drive_link)
+   - Import the robot USD into Isaac Sim, by mounting the USD file within the Isaac Sim container and using the UI to navigate to the mounted file and drag and drop it into the scene.
 
 ---
 
