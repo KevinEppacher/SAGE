@@ -76,13 +76,6 @@ CATKIN_IGNORE
 *.sqlite3
 **/bag/
 
-# Ignore scannet files
-**/scannet_scene0010_01/
-**/scannet_scene0011_00/
-**/scene0010_01/
-**/scene0011_00/
-**/sample/
-
 # Ignore SEEM weights
 *.pt
 
@@ -98,8 +91,6 @@ exploitation_ws/src/openfusion_ros_v0/*
 *.ts
 
 explorer_ws/src/tb3_autonomy/
-
-explorer_ws/src/nova_carter/
 
 isaac_sim/raw/
 isaac_sim/usd/

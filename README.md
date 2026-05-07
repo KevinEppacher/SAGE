@@ -2,8 +2,6 @@
 
 SAGE is a ROS 2-based autonomous exploration framework that combines frontier exploration, semantic 3D mapping, zero-shot object detection, and vision-language reasoning to search for user-specified objects in simulated indoor environments.
 
-## Badges
-
 ### Frameworks
 
 ![ROS 2](https://img.shields.io/badge/ROS2-Humble-blue?logo=ros)
