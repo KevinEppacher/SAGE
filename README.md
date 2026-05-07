@@ -416,152 +416,22 @@ A complete reproduction guide should include:
 
 ---
 
-## Experiments
-
-TODO: Add a summary of the experiments conducted in the thesis.
-
-Recommended format:
-
-| Experiment ID | Target Object | Environment | Timeout | Success | Notes |
-|---|---|---|---|---|---|
-| EVAL01 | flowerpot | TODO | TODO | TODO | TODO |
-| EVAL02 | TODO | TODO | TODO | TODO | TODO |
-| EVAL03 | TODO | TODO | TODO | TODO | TODO |
-
----
-
-## Evaluation Metrics
-
-TODO: Add the exact evaluation metrics used in the thesis.
-
-Possible metrics include:
-
-- Object search success rate
-- Time to first detection
-- Distance traveled
-- Explored area
-- Number of semantic observations
-- Detection confidence
-- Number of frontier goals
-- Semantic map memory usage
-- Runtime performance
-
----
-
-## Results
-
-TODO: Add quantitative and qualitative thesis results.
-
-Recommended format:
-
-| Experiment | Target | Environment | Success | Time to Detection | Distance Traveled |
-|---|---|---|---|---|---|
-| TODO | TODO | TODO | TODO | TODO | TODO |
-
-Recommended qualitative outputs:
-
-- Semantic map screenshots
-- Object detection examples
-- Exploration trajectory visualizations
-- Failure cases
-- Comparison with baseline exploration
-
----
-
-## Configuration
-
-TODO: Add a list of important configuration files and parameters.
-
-Recommended format:
-
-| File | Purpose |
-|---|---|
-| `TODO` | Nav2 configuration |
-| `TODO` | Detection parameters |
-| `TODO` | Semantic mapping parameters |
-| `TODO` | Behavior tree configuration |
-| `TODO` | Isaac Sim environment configuration |
-
----
-
-## Troubleshooting
-
-### Docker Container Cannot Access the GPU
-
-Check whether the NVIDIA Container Toolkit is installed correctly:
-
-```bash
-docker run --rm --gpus all nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi
-```
-
-If this command fails, verify the NVIDIA driver, Docker installation, and NVIDIA Container Toolkit setup.
-
----
-
-### ROS 2 Nodes Are Not Visible Across Containers
-
-Make sure that all containers use the same ROS domain ID:
-
-```bash
-echo $ROS_DOMAIN_ID
-```
-
-TODO: Add the expected `ROS_DOMAIN_ID` value used by this project.
-
----
-
-### Isaac Sim Does Not Start or Stream Correctly
-
-Verify that:
-
-- The Isaac Sim container is running.
-- GPU access is available inside the container.
-- The WebRTC client is installed on the host machine.
-- The correct networking settings are used.
-- The required ports are not blocked.
-
-TODO: Add project-specific Isaac Sim troubleshooting steps.
-
----
-
-### Model Weights Are Missing
-
-If SEEM or YOLO-E fails to start, verify that the required weight files are placed in the correct directories:
-
-```bash
-ls path/to/SAGE/exploitation_ws/src/openfusion_ros/openfusion_ros/openfusion_ros/zoo/xdecoder_seem/checkpoints
-ls path/to/SAGE/detection_ws/src/yolo_ros/yolo_ros/models/yoloe/
-```
-
----
-
-## Known Limitations
-
-- The framework was primarily evaluated in simulation.
-- Performance depends strongly on GPU memory and semantic map size.
-- Zero-shot object detection may produce false positives for visually ambiguous objects.
-- Semantic mapping can become memory-intensive in large environments.
-- Isaac Sim setup and asset loading may require manual configuration.
-- Real-world deployment would require additional calibration, synchronization, perception validation, and safety checks.
-
-TODO: Add additional limitations discussed in the thesis.
-
----
-
 ## Citation
 
 If you use this work, please cite:
 
 ```bibtex
 @mastersthesis{eppacher2026sage,
-  title  = {Semantic-Aware Guided Exploration with Persistent Memory},
-  author = {Eppacher, Kevin},
-  school = {Fachhochschule Technikum Wien},
-  year   = {2026}
+  title        = {SAGE: Multi-Object Semantic-Aware Guided Exploration with Persistent Memory},
+  author       = {Eppacher, Kevin},
+  school       = {University of Applied Sciences Technikum Wien},
+  type         = {Master's thesis},
+  address      = {Vienna, Austria},
+  year         = {2026},
+  month        = jan,
+  url          = {https://resolver.obvsg.at/urn:nbn:at:at-ftw:1-80432}
 }
 ```
-
-TODO: Update the citation entry if the university provides a required citation format, DOI, or permanent thesis URL.
 
 ---
 
@@ -570,8 +440,6 @@ TODO: Update the citation entry if the university provides a required citation f
 This project is licensed under the Apache License 2.0.
 
 See the [LICENSE](./LICENSE) file for details.
-
-TODO: Verify that the license file exists and that all included third-party code, model weights, and assets are compatible with this license.
 
 ---
 
@@ -587,7 +455,3 @@ This work builds on the following frameworks, libraries, and tools:
 - BLIP2/LAVIS
 - SEEM
 - Docker
-
-I would like to thank my supervisor, my university, and everyone who supported the development and evaluation of this thesis project.
-
-TODO: Add specific acknowledgements required by the thesis, research group, funding source, or third-party software licenses.
